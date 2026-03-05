@@ -329,6 +329,7 @@ document.addEventListener("DOMContentLoaded", () => {
     resolveinquiry: "Mark this inquiry as resolved?",
     savefinancialbudget: "Save this financial budget entry?",
     archivefinancialbudget: "Archive this budget entry?",
+    restorefinancialbudget: "Restore this archived budget entry?",
     refreshmarketdata: "Refresh market data now?",
     updateproductprice: "Apply this product price update?",
     cancelorder: "Cancel this order?",

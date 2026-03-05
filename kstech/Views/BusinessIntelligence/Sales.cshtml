@@ -372,6 +372,8 @@
         const customRangeFields = document.getElementById('customRangeFields');
         const startDateInput = document.getElementById('startDate');
         const endDateInput = document.getElementById('endDate');
+        const paymentFilterSelect = document.getElementById('payment');
+        const orderStatusFilterSelect = document.getElementById('orderStatus');
 
         const rangeLabels = {
             today: 'Today',
@@ -450,6 +452,22 @@
             rangePresetMenu?.classList.add('hidden');
         }
 
+        function submitFilters() {
+            dateFilterForm?.submit();
+        }
+
+        function maybeSubmitCustomRange() {
+            if ((rangePresetInput?.value || 'this_month') !== 'custom') {
+                return;
+            }
+
+            if (!startDateInput?.value || !endDateInput?.value) {
+                return;
+            }
+
+            submitFilters();
+        }
+
         function selectPreset(range, shouldSubmit) {
             if (!rangePresetInput) {
                 return;
@@ -470,7 +488,7 @@
                 }
 
                 if (shouldSubmit) {
-                    dateFilterForm?.submit();
+                    submitFilters();
                 }
             }
         }
@@ -498,8 +516,18 @@
             });
         });
 
-        startDateInput?.addEventListener('change', syncDateBounds);
-        endDateInput?.addEventListener('change', syncDateBounds);
+        paymentFilterSelect?.addEventListener('change', submitFilters);
+        orderStatusFilterSelect?.addEventListener('change', submitFilters);
+
+        startDateInput?.addEventListener('change', () => {
+            syncDateBounds();
+            maybeSubmitCustomRange();
+        });
+
+        endDateInput?.addEventListener('change', () => {
+            syncDateBounds();
+            maybeSubmitCustomRange();
+        });
 
         setRangeLabel(rangePresetInput?.value || 'this_month');
         setCustomRangeVisibility((rangePresetInput?.value || 'this_month') === 'custom');

@@ -333,19 +333,49 @@ namespace kstech.Controllers
         [Authorize(Roles = "SuperAdmin,Owner")]
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult ArchiveFinancialBudget(int budgetId, bool showArchivedBudgets = false)
+        public IActionResult ArchiveFinancialBudget(
+            int budgetId,
+            bool showArchivedBudgets = false,
+            string? budgetMonth = null)
         {
             if (IsSuperAdminScopedReadOnly())
             {
                 TempData["FinancialBudgetMessage"] = "Select an owner workspace with edit permission before making changes.";
-                return RedirectToAction(nameof(Budget), new { showArchivedBudgets });
+                return RedirectToAction(nameof(Budget), new { showArchivedBudgets, budgetMonth });
             }
 
             var archived = _biService.TryArchiveFinancialBudget(budgetId, out var message);
             TempData["FinancialBudgetMessage"] = message;
             return archived
-                ? RedirectToAction(nameof(Budget), new { showArchivedBudgets })
-                : RedirectToAction(nameof(Budget), new { budgetId, showArchivedBudgets });
+                ? RedirectToAction(nameof(Budget), new { showArchivedBudgets, budgetMonth })
+                : RedirectToAction(nameof(Budget), new { budgetId, showArchivedBudgets, budgetMonth });
+        }
+
+        // Action of RestoreFinancialBudget
+        [Authorize(Roles = "SuperAdmin,Owner")]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult RestoreFinancialBudget(
+            int budgetId,
+            bool showArchivedBudgets = true,
+            string? budgetMonth = null)
+        {
+            if (IsSuperAdminScopedReadOnly())
+            {
+                TempData["FinancialBudgetMessage"] = "Select an owner workspace with edit permission before making changes.";
+                return RedirectToAction(nameof(Budget), new { showArchivedBudgets, budgetMonth });
+            }
+
+            var restored = _biService.TryRestoreFinancialBudget(budgetId, out var message);
+            TempData["FinancialBudgetMessage"] = message;
+            return restored
+                ? RedirectToAction(nameof(Budget), new
+                {
+                    budgetId,
+                    showArchivedBudgets = false,
+                    budgetMonth
+                })
+                : RedirectToAction(nameof(Budget), new { budgetId, showArchivedBudgets, budgetMonth });
         }
 
         // Action of RefreshMarketData

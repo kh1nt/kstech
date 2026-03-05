@@ -115,7 +115,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div class="lg:col-span-2 bg-card-light dark:bg-card-dark p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-lg font-bold text-text-light dark:text-text-dark">Gross Profit Trend</h2>
+                <h2 class="text-lg font-bold text-text-light dark:text-text-dark">COGS vs Revenue</h2>
             </div>
             <div class="relative h-64 w-full">
                 <canvas id="profitBarChart"></canvas>
@@ -148,6 +148,8 @@
             </div>
         </div>
     </div>
+
+
 
     <div class="bg-card-light dark:bg-card-dark rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
         <div class="p-6 border-b border-gray-100 dark:border-gray-700">
@@ -301,6 +303,7 @@
         const customRangeFields = document.getElementById('customRangeFields');
         const startDateInput = document.getElementById('startDate');
         const endDateInput = document.getElementById('endDate');
+        const paymentScopeSelect = document.getElementById('paymentScope');
 
         const rangeLabels = {
             today: 'Today',
@@ -379,6 +382,22 @@
             rangePresetMenu?.classList.add('hidden');
         }
 
+        function submitFilters() {
+            dateFilterForm?.submit();
+        }
+
+        function maybeSubmitCustomRange() {
+            if ((rangePresetInput?.value || 'this_month') !== 'custom') {
+                return;
+            }
+
+            if (!startDateInput?.value || !endDateInput?.value) {
+                return;
+            }
+
+            submitFilters();
+        }
+
         function selectPreset(range, shouldSubmit) {
             if (!rangePresetInput) {
                 return;
@@ -399,7 +418,7 @@
                 }
 
                 if (shouldSubmit) {
-                    dateFilterForm?.submit();
+                    submitFilters();
                 }
             }
         }
@@ -427,8 +446,17 @@
             });
         });
 
-        startDateInput?.addEventListener('change', syncDateBounds);
-        endDateInput?.addEventListener('change', syncDateBounds);
+        paymentScopeSelect?.addEventListener('change', submitFilters);
+
+        startDateInput?.addEventListener('change', () => {
+            syncDateBounds();
+            maybeSubmitCustomRange();
+        });
+
+        endDateInput?.addEventListener('change', () => {
+            syncDateBounds();
+            maybeSubmitCustomRange();
+        });
 
         setRangeLabel(rangePresetInput?.value || 'this_month');
         setCustomRangeVisibility((rangePresetInput?.value || 'this_month') === 'custom');
@@ -436,46 +464,91 @@
 
         document.addEventListener("DOMContentLoaded", function () {
             const dailyLabels = @Html.Raw(JsonSerializer.Serialize(Model.DailyProfitLabels));
-            const dailyValues = @Html.Raw(JsonSerializer.Serialize(Model.DailyProfitValues));
+            const cogsValues = @Html.Raw(JsonSerializer.Serialize(Model.DailyCogsValues));
+            const revenueValues = @Html.Raw(JsonSerializer.Serialize(Model.DailyRevenueValues));
             const categoryData = @Html.Raw(JsonSerializer.Serialize(Model.ProfitByCategory));
-
-            const barCanvas = document.getElementById("profitBarChart");
+            const trendCanvas = document.getElementById("profitBarChart");
             const pieCanvas = document.getElementById("categoryProfitChart");
-            if (!barCanvas || !pieCanvas) {
+            if (!trendCanvas || !pieCanvas) {
                 return;
             }
 
-            new Chart(barCanvas.getContext("2d"), {
-                type: "bar",
-                data: {
-                    labels: dailyLabels,
-                    datasets: [{
-                        label: "Gross Profit",
-                        data: dailyValues,
-                        backgroundColor: "#236460",
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: {
-                            grid: { display: false },
-                            ticks: { color: "#9ca3af", maxTicksLimit: 12 }
+            const trendContext = trendCanvas.getContext("2d");
+            if (trendContext) {
+                const cogsFillGradient = trendContext.createLinearGradient(0, 0, 0, 280);
+                cogsFillGradient.addColorStop(0, "rgba(217, 119, 6, 0.28)");
+                cogsFillGradient.addColorStop(1, "rgba(217, 119, 6, 0.03)");
+                const currencyFormatter = new Intl.NumberFormat("en-PH", {
+                    style: "currency",
+                    currency: "PHP",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+
+                new Chart(trendContext, {
+                    type: "line",
+                    data: {
+                        labels: dailyLabels,
+                        datasets: [
+                            {
+                                label: "COGS",
+                                data: cogsValues,
+                                borderColor: "#d97706",
+                                backgroundColor: cogsFillGradient,
+                                fill: true,
+                                tension: 0.35,
+                                pointRadius: 2,
+                                pointHoverRadius: 4
+                            },
+                            {
+                                label: "Revenue",
+                                data: revenueValues,
+                                borderColor: "#236460",
+                                backgroundColor: "rgba(35, 100, 96, 0.08)",
+                                fill: false,
+                                borderDash: [6, 6],
+                                tension: 0.3,
+                                pointRadius: 2,
+                                pointHoverRadius: 4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: "index",
+                            intersect: false
                         },
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: "rgba(0,0,0,0.05)" },
-                            ticks: {
-                                color: "#9ca3af",
-                                callback: value => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(value)
+                        plugins: {
+                            legend: {
+                                position: "top",
+                                align: "end",
+                                labels: { usePointStyle: true, boxWidth: 8 }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => `${context.dataset.label}: ${currencyFormatter.format(Number(context.parsed.y || 0))}`
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: "#9ca3af", maxTicksLimit: 12, maxRotation: 0, autoSkipPadding: 12 }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: "rgba(107, 114, 128, 0.15)" },
+                                ticks: {
+                                    color: "#9ca3af",
+                                    callback: (value) => currencyFormatter.format(Number(value || 0))
+                                }
                             }
                         }
                     }
-                }
-            });
+                });
+            }
 
             new Chart(pieCanvas.getContext("2d"), {
                 type: "doughnut",

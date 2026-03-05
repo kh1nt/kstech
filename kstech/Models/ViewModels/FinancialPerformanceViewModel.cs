@@ -15,7 +15,8 @@ namespace kstech.Models.ViewModels
         public decimal GrossProfitChangePercentage { get; set; }
         public decimal MarginChangePercentage { get; set; }
         public List<string> DailyProfitLabels { get; set; } = new();
-        public List<decimal> DailyProfitValues { get; set; } = new();
+        public List<decimal> DailyCogsValues { get; set; } = new();
+        public List<decimal> DailyRevenueValues { get; set; } = new();
         public List<CategoryProfitItemViewModel> ProfitByCategory { get; set; } = new();
         public List<FinancialTransactionViewModel> RecentTransactions { get; set; } = new();
         public int RecentTransactionsPage { get; set; } = 1;
@@ -36,6 +37,14 @@ namespace kstech.Models.ViewModels
         public decimal BudgetAmount { get; set; }
         public decimal BudgetVariance { get; set; }
         public decimal BudgetUtilizationPercentage { get; set; }
+
+        // Integration - Procurement Health Warning
+        public decimal SuggestedRestockSpend { get; set; }
+        public int AtRiskInventoryItemsCount { get; set; }
+
+
+
+
     }
 
     public class CategoryProfitItemViewModel

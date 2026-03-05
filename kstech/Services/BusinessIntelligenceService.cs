@@ -42,6 +42,7 @@ namespace kstech.Services
             decimal budgetAmount,
             string? changeReason);
         bool TryArchiveFinancialBudget(int budgetId, out string message);
+        bool TryRestoreFinancialBudget(int budgetId, out string message);
     }
 
     public sealed class BudgetSaveResult
@@ -73,6 +74,7 @@ namespace kstech.Services
         private const string BudgetEventTypeCreate = "Create";
         private const string BudgetEventTypeUpdate = "Update";
         private const string BudgetEventTypeArchive = "Archive";
+        private const string BudgetEventTypeRestore = "Restore";
         private const string BudgetEventTypeReserve = "Reserve";
         private const string BudgetEventTypeSpend = "Spend";
         private const string BudgetEventTypeRelease = "Release";
@@ -325,7 +327,7 @@ namespace kstech.Services
             var thisPeriodSummary = BuildFinancialSummary(filteredOrders, thisPeriodUnitCostLookup);
             var previousPeriodSummary = BuildFinancialSummary(previousFilteredOrders, previousPeriodUnitCostLookup);
 
-            var (dailyProfitLabels, dailyProfitValues) = BuildProfitTrend(
+            var (dailyProfitLabels, dailyCogsValues, dailyRevenueValues) = BuildProfitTrend(
                 filteredOrders,
                 rangeStartLocalDate,
                 rangeEndLocalDate,
@@ -400,6 +402,23 @@ namespace kstech.Services
                 ? Math.Round((thisPeriodSummary.Revenue / budgetAmount) * 100m, 2)
                 : 0m;
 
+            var daysInRange = Math.Max(1, (rangeEndLocalDate - rangeStartLocalDate).Days + 1);
+
+            // Fetch Budget/Inventory Planning Data
+            var inventoryPlanningItems = BuildInventoryPlanningInsights(
+                rangeStartUtc,
+                rangeEndUtcInclusive,
+                daysInRange,
+                applyOwnerFilter,
+                ownerUserId);
+
+            var atRiskParts = BuildAtRiskInventoryItems(inventoryPlanningItems);
+            var suggestedRestockSpend = atRiskParts.Sum(item => item.RecommendedRestockSpend);
+
+
+
+
+
             return new FinancialPerformanceViewModel
             {
                 SelectedPaymentScope = normalizedPaymentScope,
@@ -413,7 +432,8 @@ namespace kstech.Services
                 GrossProfitChangePercentage = CalculateChangePercentage(thisPeriodSummary.GrossProfit, previousPeriodSummary.GrossProfit),
                 MarginChangePercentage = CalculateChangePercentage(thisPeriodSummary.Margin, previousPeriodSummary.Margin),
                 DailyProfitLabels = dailyProfitLabels,
-                DailyProfitValues = dailyProfitValues,
+                DailyCogsValues = dailyCogsValues,
+                DailyRevenueValues = dailyRevenueValues,
                 ProfitByCategory = categoryProfitItems,
                 RecentTransactions = recentTransactions,
                 RecentTransactionsPage = normalizedRecentTransactionsPage,
@@ -421,7 +441,10 @@ namespace kstech.Services
                 RecentTransactionsTotalCount = recentTransactionsTotalCount,
                 BudgetAmount = budgetAmount,
                 BudgetVariance = budgetVariance,
-                BudgetUtilizationPercentage = budgetUtilization
+                BudgetUtilizationPercentage = budgetUtilization,
+                SuggestedRestockSpend = suggestedRestockSpend,
+                AtRiskInventoryItemsCount = atRiskParts.Count,
+
             };
         }
 
@@ -461,12 +484,6 @@ namespace kstech.Services
                 applyOwnerFilter,
                 ownerUserId);
 
-            var actualProcurementSpend = CalculateProcurementSpend(
-                rangeStartUtc,
-                rangeEndUtcInclusive,
-                applyOwnerFilter,
-                ownerUserId);
-
             var inventoryPlanningItems = BuildInventoryPlanningInsights(
                 rangeStartUtc,
                 rangeEndUtcInclusive,
@@ -477,10 +494,15 @@ namespace kstech.Services
             var atRiskParts = BuildAtRiskInventoryItems(inventoryPlanningItems);
 
             var suggestedRestockSpend = atRiskParts.Sum(item => item.RecommendedRestockSpend);
+            var budgetUsageSummary = BuildTotalBudgetUsage(budgetEvents, selectedBudget?.BudgetID);
+            var actualProcurementSpend = budgetUsageSummary.ReservedAmount + budgetUsageSummary.SpentAmount;
+
             var budgetPlanningKpis = CalculateBudgetPlanningKpis(
                 budgetAmount,
                 actualProcurementSpend,
-                suggestedRestockSpend);
+                suggestedRestockSpend,
+                budgetUsageSummary.ReservedAmount,
+                budgetUsageSummary.SpentAmount);
 
             var (trendLabels, actualRevenueTrendValues, budgetTargetTrendValues) = BuildBudgetTrackingTrend(
                 budgetRevenueAnalytics.FilteredOrders,
@@ -488,7 +510,27 @@ namespace kstech.Services
                 rangeEndLocalDate,
                 budgetAmount);
 
-            var suggestedAllocations = BuildBudgetAllocationSuggestions(inventoryPlanningItems, budgetAmount);
+            var currentBudgetPoLines = new List<PurchaseOrderLine>();
+            if (selectedBudgetId.HasValue && applyOwnerFilter)
+            {
+                currentBudgetPoLines = _context.PurchaseOrders
+                    .Include(po => po.Lines)
+                    .ThenInclude(line => line.Product)
+                    .Where(po => po.BudgetID == selectedBudgetId.Value && po.OwnerUserID == ownerUserId && po.Status != "Cancelled")
+                    .SelectMany(po => po.Lines)
+                    .ToList();
+            }
+            else if (selectedBudgetId.HasValue)
+            {
+                currentBudgetPoLines = _context.PurchaseOrders
+                    .Include(po => po.Lines)
+                    .ThenInclude(line => line.Product)
+                    .Where(po => po.BudgetID == selectedBudgetId.Value && po.Status != "Cancelled")
+                    .SelectMany(po => po.Lines)
+                    .ToList();
+            }
+
+            var suggestedAllocations = BuildBudgetAllocationSuggestions(inventoryPlanningItems, budgetAmount, currentBudgetPoLines);
             var monthlyBudgets = BuildMonthlyBudgetRows(
                 allBudgets,
                 selectedBudget?.BudgetID,
@@ -526,7 +568,7 @@ namespace kstech.Services
                 MonthlyBudgets = monthlyBudgets,
                 SuggestedAllocations = suggestedAllocations,
                 AtRiskParts = atRiskParts
-                    .Take(8)
+                    .Take(50)
                     .Select(item => new BudgetAtRiskPartViewModel
                     {
                         ProductName = item.ProductName,
@@ -656,7 +698,9 @@ namespace kstech.Services
                     requestedMonthStart,
                     requestedMonthEnd,
                     0m,
-                    $"No saved budget for {requestedMonthStart:MMMM yyyy} yet. Enter an amount and save to create one.");
+                    showArchivedBudgets
+                        ? $"No archived budget found for {requestedMonthStart:MMMM yyyy}. Switch to active workspace to create or edit the month budget."
+                        : $"No saved budget for {requestedMonthStart:MMMM yyyy} yet. Enter an amount and save to create one.");
             }
 
             var defaultBudget = monthlyBudgetsForView
@@ -757,16 +801,21 @@ namespace kstech.Services
         private static BudgetPlanningKpis CalculateBudgetPlanningKpis(
             decimal budgetAmount,
             decimal actualProcurementSpend,
-            decimal suggestedRestockSpend)
+            decimal suggestedRestockSpend,
+            decimal reservedAmount,
+            decimal spentAmount)
         {
             var integratedBudgetTarget = Math.Round(
                 actualProcurementSpend + suggestedRestockSpend,
                 2,
                 MidpointRounding.AwayFromZero);
+            
+            var totalCommitted = reservedAmount + spentAmount;
+            
             var budgetGapToIntegratedTarget = integratedBudgetTarget - budgetAmount;
-            var budgetVariance = budgetAmount - integratedBudgetTarget;
+            var budgetVariance = budgetAmount - totalCommitted;
             var budgetUtilization = budgetAmount > 0m
-                ? Math.Round((integratedBudgetTarget / budgetAmount) * 100m, 2)
+                ? Math.Round((totalCommitted / budgetAmount) * 100m, 2)
                 : 0m;
 
             return new BudgetPlanningKpis(
@@ -776,18 +825,57 @@ namespace kstech.Services
                 budgetUtilization);
         }
 
+        private static BudgetUsageSummary BuildTotalBudgetUsage(IReadOnlyList<BudgetEvent> budgetEvents, int? selectedBudgetId)
+        {
+            if (!selectedBudgetId.HasValue) return new BudgetUsageSummary(0m, 0m);
+
+            var eventsForBudget = budgetEvents.Where(e => e.BudgetID == selectedBudgetId.Value).ToList();
+            var totalReserved = eventsForBudget
+                .Where(e => string.Equals(e.EventType, BudgetEventTypeReserve, StringComparison.OrdinalIgnoreCase))
+                .Sum(e => Math.Max(0m, e.Amount));
+            var totalSpent = eventsForBudget
+                .Where(e => string.Equals(e.EventType, BudgetEventTypeSpend, StringComparison.OrdinalIgnoreCase))
+                .Sum(e => Math.Max(0m, e.Amount));
+            var totalReleased = eventsForBudget
+                .Where(e => string.Equals(e.EventType, BudgetEventTypeRelease, StringComparison.OrdinalIgnoreCase))
+                .Sum(e => Math.Max(0m, e.Amount));
+
+            var remainingReserved = Math.Round(
+                Math.Max(0m, totalReserved - totalSpent - totalReleased),
+                2,
+                MidpointRounding.AwayFromZero);
+            
+            var roundedSpent = Math.Round(totalSpent, 2, MidpointRounding.AwayFromZero);
+            
+            return new BudgetUsageSummary(remainingReserved, roundedSpent);
+        }
+
         private static List<BudgetAllocationSuggestionViewModel> BuildBudgetAllocationSuggestions(
             IEnumerable<InventoryPlanningItemViewModel> inventoryPlanningItems,
-            decimal budgetAmount)
+            decimal budgetAmount,
+            IReadOnlyList<PurchaseOrderLine> currentBudgetPoLines)
         {
+            var procuredByCategory = currentBudgetPoLines
+                .Where(line => line.Product != null)
+                .GroupBy(line => string.IsNullOrWhiteSpace(line.Product!.CategoryName) ? "Uncategorized" : line.Product.CategoryName)
+                .ToDictionary(g => g.Key, g => g.Sum(line => line.LineTotal));
+
             var categoryPerformance = inventoryPlanningItems
                 .GroupBy(item => item.Category)
-                .Select(group => new
+                .Select(group => 
                 {
-                    Category = group.Key,
-                    UnitsSold = group.Sum(item => item.UnitsSold),
-                    Revenue = group.Sum(item => item.Revenue),
-                    RestockSpend = group.Sum(item => item.RecommendedRestockSpend)
+                    var categoryName = string.IsNullOrWhiteSpace(group.Key) ? "Uncategorized" : group.Key;
+                    var rawRestockSpend = group.Sum(item => item.RecommendedRestockSpend);
+                    var procuredAmount = procuredByCategory.GetValueOrDefault(categoryName, 0m);
+                    var remainingRestockSpend = Math.Max(0m, rawRestockSpend - procuredAmount);
+
+                    return new
+                    {
+                        Category = categoryName,
+                        UnitsSold = group.Sum(item => item.UnitsSold),
+                        Revenue = group.Sum(item => item.Revenue),
+                        RestockSpend = remainingRestockSpend
+                    };
                 })
                 .OrderByDescending(item => item.RestockSpend)
                 .ThenByDescending(item => item.UnitsSold)
@@ -795,25 +883,34 @@ namespace kstech.Services
 
             var totalCategoryRestockSpend = categoryPerformance.Sum(item => item.RestockSpend);
             var totalCategoryRevenue = categoryPerformance.Sum(item => item.Revenue);
+            var categoryCount = categoryPerformance.Count;
+            
             return categoryPerformance
-                .Take(8)
                 .Select(item =>
                 {
-                    var allocationShare = totalCategoryRestockSpend > 0m
-                        ? item.RestockSpend / totalCategoryRestockSpend
-                        : totalCategoryRevenue > 0m
-                            ? item.Revenue / totalCategoryRevenue
-                            : 0m;
+                    decimal allocationShare = 0m;
+                    if (totalCategoryRestockSpend > 0m)
+                    {
+                        allocationShare = item.RestockSpend / totalCategoryRestockSpend;
+                    }
+                    else if (totalCategoryRevenue > 0m)
+                    {
+                        allocationShare = item.Revenue / totalCategoryRevenue;
+                    }
+                    else if (categoryCount > 0)
+                    {
+                        allocationShare = 1m / categoryCount;
+                    }
+
                     var allocationSharePercentage = Math.Round(
                         allocationShare * 100m,
                         2,
                         MidpointRounding.AwayFromZero);
-                    var suggestedBudgetAmount = budgetAmount > 0m
-                        ? Math.Round(
-                            budgetAmount * allocationShare,
-                            2,
-                            MidpointRounding.AwayFromZero)
-                        : Math.Round(item.RestockSpend, 2, MidpointRounding.AwayFromZero);
+                        
+                    var suggestedBudgetAmount = Math.Round(
+                        budgetAmount * allocationShare,
+                        2,
+                        MidpointRounding.AwayFromZero);
 
                     return new BudgetAllocationSuggestionViewModel
                     {
@@ -974,6 +1071,8 @@ namespace kstech.Services
                     $"Updated budget {budgetEvent.BeforeAmount.GetValueOrDefault():C} -> {budgetEvent.AfterAmount.GetValueOrDefault():C}. Reason: {normalizedReason}.",
                 BudgetEventTypeArchive =>
                     $"Archived budget. Reason: {normalizedReason}.",
+                BudgetEventTypeRestore =>
+                    $"Restored budget to active. Reason: {normalizedReason}.",
                 BudgetEventTypeReserve =>
                     $"Reserved {budgetEvent.Amount:C}{referenceSuffix}. Reason: {normalizedReason}.",
                 BudgetEventTypeSpend =>
@@ -1422,6 +1521,104 @@ namespace kstech.Services
             return true;
         }
 
+        public bool TryRestoreFinancialBudget(int budgetId, out string message)
+        {
+            message = "Unable to restore budget.";
+            if (budgetId <= 0)
+            {
+                message = "Budget record was not found.";
+                return false;
+            }
+
+            if (_tenantContext.IsSuperAdmin &&
+                _tenantContext.HasOwnerScope &&
+                !_tenantContext.CanEditOwnerWorkspace)
+            {
+                message = "Select an owner workspace with edit permission before making changes.";
+                return false;
+            }
+
+            var ownerUserId = ResolveWritableOwnerUserId();
+            if (!ownerUserId.HasValue)
+            {
+                message = "Select an owner workspace with edit permission before making changes.";
+                return false;
+            }
+
+            var ownerBudgetQuery = _context.FinancialBudgets
+                .Where(budget =>
+                    budget.OwnerUserID == ownerUserId.Value &&
+                    budget.Status != BudgetStatusDeleted)
+                .AsQueryable();
+            var selectedBudget = ownerBudgetQuery
+                .FirstOrDefault(budget => budget.BudgetID == budgetId);
+            if (selectedBudget == null)
+            {
+                message = $"Budget #{budgetId} was not found.";
+                return false;
+            }
+
+            var monthStart = ResolveMonthStart(selectedBudget.PeriodStartDateLocal);
+            var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+            if (!string.Equals(selectedBudget.Status, BudgetStatusArchived, StringComparison.OrdinalIgnoreCase))
+            {
+                message = $"Budget for {monthStart:MMMM yyyy} is already active.";
+                return false;
+            }
+
+            var monthlyBudgets = ownerBudgetQuery
+                .Where(budget =>
+                    budget.PeriodStartDateLocal.Year == monthStart.Year &&
+                    budget.PeriodStartDateLocal.Month == monthStart.Month)
+                .ToList();
+            if (!monthlyBudgets.Any())
+            {
+                message = "No monthly budget found to restore.";
+                return false;
+            }
+
+            var hasAnotherActiveBudget = monthlyBudgets.Any(budget =>
+                budget.BudgetID != selectedBudget.BudgetID &&
+                string.Equals(budget.Status, BudgetStatusActive, StringComparison.OrdinalIgnoreCase));
+            if (hasAnotherActiveBudget)
+            {
+                message = $"Cannot restore {monthStart:MMMM yyyy} budget because an active budget already exists for the same month.";
+                return false;
+            }
+
+            var nowUtc = DateTime.UtcNow;
+            selectedBudget.Status = BudgetStatusActive;
+            selectedBudget.PeriodStartDateLocal = monthStart;
+            selectedBudget.PeriodEndDateLocal = monthEnd;
+            selectedBudget.UpdatedAtUtc = nowUtc;
+
+            foreach (var duplicateBudget in monthlyBudgets.Where(budget => budget.BudgetID != selectedBudget.BudgetID))
+            {
+                duplicateBudget.Status = BudgetStatusArchived;
+                duplicateBudget.UpdatedAtUtc = nowUtc;
+            }
+
+            _context.SaveChanges();
+            AddBudgetHistoryLog(
+                ownerUserId.Value,
+                $"Budget Restore {BuildBudgetHistoryContextTag(selectedBudget.BudgetID, monthStart)} Amt:{selectedBudget.BudgetAmount:0.00}");
+            AddBudgetEvent(
+                ownerUserId.Value,
+                selectedBudget.BudgetID,
+                BudgetEventTypeRestore,
+                0m,
+                selectedBudget.BudgetAmount,
+                selectedBudget.BudgetAmount,
+                "Budget was restored from archive.",
+                BudgetEventReferenceTypeBudget,
+                selectedBudget.BudgetID.ToString(CultureInfo.InvariantCulture),
+                nowUtc);
+            _context.SaveChanges();
+
+            message = $"Budget for {monthStart:MMMM yyyy} was restored.";
+            return true;
+        }
+
         private decimal ResolveBudgetAmount(DateTime rangeStartLocalDate, DateTime rangeEndLocalDate)
         {
             var budgetOwnerUserId = ResolveWritableOwnerUserId();
@@ -1543,10 +1740,9 @@ namespace kstech.Services
         {
             var detailsInRange = ApplyOwnerFilter(_context.OrderDetails.AsNoTracking(), applyOwnerFilter, ownerUserId)
                 .Include(detail => detail.Order)
-                .Include(detail => detail.Product)
                 .Where(detail =>
                     detail.Order != null &&
-                    detail.Product != null &&
+                    detail.ProductID > 0 &&
                     detail.Order.OrderDate >= rangeStartUtc &&
                     detail.Order.OrderDate <= rangeEndUtcInclusive &&
                     (detail.Order.PaymentStatus == null || detail.Order.PaymentStatus != "Refunded"))
@@ -1557,46 +1753,60 @@ namespace kstech.Services
                 applyOwnerFilter,
                 ownerUserId);
 
-            return detailsInRange
+            var allProducts = ApplyOwnerFilter(_context.Products.AsNoTracking(), applyOwnerFilter, ownerUserId).ToList();
+            var detailsByProduct = detailsInRange
                 .GroupBy(detail => detail.ProductID)
-                .Select(group =>
-                {
-                    var product = group.First().Product!;
-                    var unitsSold = group.Sum(detail => detail.Quantity);
-                    var averageDailyUnitsRaw = unitsSold / (decimal)Math.Max(1, daysInRange);
-                    var averageDailyUnits = Math.Round(averageDailyUnitsRaw, 2, MidpointRounding.AwayFromZero);
-                    var daysOfStockCover = averageDailyUnitsRaw > 0m
-                        ? Math.Round(product.StockQuantity / averageDailyUnitsRaw, 1, MidpointRounding.AwayFromZero)
-                        : 999m;
-                    var stockRiskLevel = DetermineStockRisk(daysOfStockCover);
-                    var targetStockForThirtyDays = (int)Math.Ceiling(averageDailyUnitsRaw * 30m);
-                    var recommendedRestockUnits = Math.Max(0, targetStockForThirtyDays - product.StockQuantity);
-                    var recommendedRestockSpend = Math.Round(
-                        recommendedRestockUnits * product.CostPrice,
-                        2,
-                        MidpointRounding.AwayFromZero);
+                .ToDictionary(g => g.Key, g => g.ToList());
 
-                    return new InventoryPlanningItemViewModel
-                    {
-                        ProductId = product.ProductID,
-                        ProductName = product.ProductName,
-                        Category = product.CategoryName ?? "Uncategorized",
-                        UnitsSold = unitsSold,
-                        OrdersCount = group.Select(detail => detail.OrderID).Distinct().Count(),
-                        Revenue = group.Sum(detail => detail.SubTotal),
-                        GrossProfit = group.Sum(detail =>
-                            detail.SubTotal - (detail.Quantity * ResolveUnitCost(detail, unitCostLookup))),
-                        CurrentStock = product.StockQuantity,
-                        AverageDailyUnits = averageDailyUnits,
-                        DaysOfStockCover = daysOfStockCover,
-                        StockRiskLevel = stockRiskLevel,
-                        RecommendedRestockUnits = recommendedRestockUnits,
-                        RecommendedRestockSpend = recommendedRestockSpend,
-                        LastSoldAtUtc = group.Max(detail => detail.Order!.OrderDate)
-                    };
-                })
-                .Where(item => item.UnitsSold > 0)
-                .ToList();
+            return allProducts.Select(product =>
+            {
+                var productDetails = detailsByProduct.GetValueOrDefault(product.ProductID, new List<OrderDetail>());
+                var unitsSold = productDetails.Sum(detail => detail.Quantity);
+                var averageDailyUnitsRaw = unitsSold / (decimal)Math.Max(1, daysInRange);
+                var averageDailyUnits = Math.Round(averageDailyUnitsRaw, 2, MidpointRounding.AwayFromZero);
+                
+                decimal daysOfStockCover = 999m;
+                if (product.StockQuantity <= 0)
+                {
+                    daysOfStockCover = 0m;
+                }
+                else if (averageDailyUnitsRaw > 0m)
+                {
+                    daysOfStockCover = Math.Round(product.StockQuantity / averageDailyUnitsRaw, 1, MidpointRounding.AwayFromZero);
+                }
+
+                var stockRiskLevel = DetermineStockRisk(daysOfStockCover);
+                
+                var targetStockForThirtyDays = averageDailyUnitsRaw > 0m 
+                    ? (int)Math.Ceiling(averageDailyUnitsRaw * 30m) 
+                    : (product.StockQuantity <= 0 ? 5 : 0);
+
+                var recommendedRestockUnits = Math.Max(0, targetStockForThirtyDays - product.StockQuantity);
+                var recommendedRestockSpend = Math.Round(
+                    recommendedRestockUnits * product.CostPrice,
+                    2,
+                    MidpointRounding.AwayFromZero);
+
+                return new InventoryPlanningItemViewModel
+                {
+                    ProductId = product.ProductID,
+                    ProductName = product.ProductName,
+                    Category = string.IsNullOrWhiteSpace(product.CategoryName) ? "Uncategorized" : product.CategoryName,
+                    UnitsSold = unitsSold,
+                    OrdersCount = productDetails.Select(detail => detail.OrderID).Distinct().Count(),
+                    Revenue = productDetails.Sum(detail => detail.SubTotal),
+                    GrossProfit = productDetails.Sum(detail =>
+                        detail.SubTotal - (detail.Quantity * ResolveUnitCost(detail, unitCostLookup))),
+                    CurrentStock = product.StockQuantity,
+                    AverageDailyUnits = averageDailyUnits,
+                    DaysOfStockCover = daysOfStockCover,
+                    StockRiskLevel = stockRiskLevel,
+                    RecommendedRestockUnits = recommendedRestockUnits,
+                    RecommendedRestockSpend = recommendedRestockSpend,
+                    LastSoldAtUtc = productDetails.Any() ? productDetails.Max(detail => detail.Order!.OrderDate) : DateTime.MinValue
+                };
+            })
+            .ToList();
         }
 
         private Dictionary<(int OrderId, int ProductId), decimal> BuildOrderProductUnitCostLookup(
@@ -2126,7 +2336,7 @@ WHERE TABLE_NAME IN ('PurchaseOrders', 'PurchaseOrderLines')";
             return (monthlyLabels, monthlyValues);
         }
 
-        private static (List<string> Labels, List<decimal> Values) BuildProfitTrend(
+        private static (List<string> Labels, List<decimal> CogsValues, List<decimal> RevenueValues) BuildProfitTrend(
             IEnumerable<Order> filteredOrders,
             DateTime rangeStartLocalDate,
             DateTime rangeEndLocalDate,
@@ -2136,27 +2346,42 @@ WHERE TABLE_NAME IN ('PurchaseOrders', 'PurchaseOrderLines')";
             var days = (normalizedRangeEndLocalDate - normalizedRangeStartLocalDate).Days + 1;
             if (days <= 31)
             {
-                var profitByDay = filteredOrders
+                var trendByDay = filteredOrders
                     .GroupBy(order => ConvertUtcToLocal(order.OrderDate).Date)
                     .ToDictionary(
                         group => group.Key,
-                        group => group.Sum(order =>
-                            order.OrderDetails
-                                .Where(detail => detail.Product != null)
-                                .Sum(detail => detail.SubTotal - (detail.Quantity * ResolveUnitCost(detail, unitCostLookup)))));
+                        group =>
+                        {
+                            var cogs = group.Sum(order =>
+                                order.OrderDetails
+                                    .Where(detail => detail.Product != null)
+                                    .Sum(detail => detail.Quantity * ResolveUnitCost(detail, unitCostLookup)));
+                            var revenue = group.Sum(order => order.TotalAmount);
+                            return (Cogs: cogs, Revenue: revenue);
+                        });
 
                 var labels = new List<string>();
-                var values = new List<decimal>();
+                var cogsValues = new List<decimal>();
+                var revenueValues = new List<decimal>();
                 for (var cursor = normalizedRangeStartLocalDate; cursor <= normalizedRangeEndLocalDate; cursor = cursor.AddDays(1))
                 {
                     labels.Add(cursor.ToString("MMM dd"));
-                    values.Add(profitByDay.TryGetValue(cursor, out var amount) ? amount : 0m);
+                    if (trendByDay.TryGetValue(cursor, out var trend))
+                    {
+                        cogsValues.Add(trend.Cogs);
+                        revenueValues.Add(trend.Revenue);
+                    }
+                    else
+                    {
+                        cogsValues.Add(0m);
+                        revenueValues.Add(0m);
+                    }
                 }
 
-                return (labels, values);
+                return (labels, cogsValues, revenueValues);
             }
 
-            var profitByMonth = filteredOrders
+            var trendByMonth = filteredOrders
                 .GroupBy(order =>
                 {
                     var localOrderDate = ConvertUtcToLocal(order.OrderDate);
@@ -2164,22 +2389,37 @@ WHERE TABLE_NAME IN ('PurchaseOrders', 'PurchaseOrderLines')";
                 })
                 .ToDictionary(
                     group => group.Key,
-                    group => group.Sum(order =>
-                        order.OrderDetails
-                            .Where(detail => detail.Product != null)
-                            .Sum(detail => detail.SubTotal - (detail.Quantity * ResolveUnitCost(detail, unitCostLookup)))));
+                    group =>
+                    {
+                        var cogs = group.Sum(order =>
+                            order.OrderDetails
+                                .Where(detail => detail.Product != null)
+                                .Sum(detail => detail.Quantity * ResolveUnitCost(detail, unitCostLookup)));
+                        var revenue = group.Sum(order => order.TotalAmount);
+                        return (Cogs: cogs, Revenue: revenue);
+                    });
 
             var monthlyLabels = new List<string>();
-            var monthlyValues = new List<decimal>();
+            var monthlyCogsValues = new List<decimal>();
+            var monthlyRevenueValues = new List<decimal>();
             for (var cursor = new DateTime(normalizedRangeStartLocalDate.Year, normalizedRangeStartLocalDate.Month, 1);
                  cursor <= normalizedRangeEndLocalDate;
                  cursor = cursor.AddMonths(1))
             {
                 monthlyLabels.Add(cursor.ToString("MMM yyyy"));
-                monthlyValues.Add(profitByMonth.TryGetValue(cursor, out var amount) ? amount : 0m);
+                if (trendByMonth.TryGetValue(cursor, out var trend))
+                {
+                    monthlyCogsValues.Add(trend.Cogs);
+                    monthlyRevenueValues.Add(trend.Revenue);
+                }
+                else
+                {
+                    monthlyCogsValues.Add(0m);
+                    monthlyRevenueValues.Add(0m);
+                }
             }
 
-            return (monthlyLabels, monthlyValues);
+            return (monthlyLabels, monthlyCogsValues, monthlyRevenueValues);
         }
 
         private static (List<string> Labels, List<decimal> ActualValues, List<decimal> BudgetValues) BuildBudgetTrackingTrend(
@@ -2408,4 +2648,3 @@ WHERE TABLE_NAME IN ('PurchaseOrders', 'PurchaseOrderLines')";
             decimal Margin);
     }
 }
-

@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
 using System.Collections.Generic;
-using System.Text;
 using kstech.Models.Entities;
 using kstech.Models.ViewModels;
 using kstech.Utilities;
@@ -81,39 +80,6 @@ namespace kstech.Controllers
             };
 
             return View(viewModel);
-        }
-
-        // Action of ExportCsv
-        [HttpGet]
-        public IActionResult ExportCsv(string? search = null, string? role = null, int days = 7)
-        {
-            var normalizedSearch = (search ?? string.Empty).Trim();
-            var normalizedDays = NormalizeDays(days);
-            var baseQuery = BuildFilteredQuery(normalizedSearch, normalizedDays);
-            var roleOptions = BuildRoleOptions(baseQuery);
-            var normalizedRole = NormalizeRole(role, roleOptions);
-            var logs = ApplyRoleFilter(baseQuery, normalizedRole)
-                .OrderByDescending(log => log.Timestamp)
-                .Include(log => log.User)
-                .ToList()
-                .Select(MapToActivityLogItem)
-                .ToList();
-
-            var csv = new StringBuilder();
-            csv.AppendLine("Timestamp,RelativeTime,Role,User,Action");
-
-            foreach (var log in logs)
-            {
-                csv.AppendLine(string.Join(",",
-                    EscapeForCsv(BusinessTime.ConvertUtcToBusinessTime(log.Timestamp).ToString("yyyy-MM-dd HH:mm:ss")),
-                    EscapeForCsv(log.RelativeTime),
-                    EscapeForCsv(log.UserRole),
-                    EscapeForCsv(log.UserDisplay),
-                    EscapeForCsv(log.Action)));
-            }
-
-            var fileName = $"activity-logs-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv";
-            return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", fileName);
         }
 
         private IQueryable<SystemLog> BuildFilteredQuery(string search, int days)
@@ -274,11 +240,6 @@ namespace kstech.Controllers
             return BusinessTime.ConvertUtcToBusinessTime(timestamp).ToString("MMM dd, yyyy");
         }
 
-        private static string EscapeForCsv(string value)
-        {
-            var escaped = (value ?? string.Empty).Replace("\"", "\"\"");
-            return $"\"{escaped}\"";
-        }
     }
 }
 
