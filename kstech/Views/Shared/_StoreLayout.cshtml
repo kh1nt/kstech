@@ -1,0 +1,911 @@
+﻿@using System
+@using System.Linq
+@using System.Security.Claims
+@using kstech.Data
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Http
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@{
+    var currentCategory = Context.Request.Query["category"].ToString();
+    var archivedMarketPriceSource = "Archived";
+    string NormalizeDisplayLabel(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var tokens = value.Trim().Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(' ', tokens);
+    }
+
+    bool IsAllCategoryAlias(string value)
+    {
+        return string.Equals(value, "All", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(value, "All products", StringComparison.OrdinalIgnoreCase);
+    }
+
+    string NormalizeCategoryName(string? categoryName)
+    {
+        var normalized = NormalizeDisplayLabel(categoryName);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "Uncategorized";
+        }
+
+        if (IsAllCategoryAlias(normalized))
+        {
+            return "All";
+        }
+
+        return normalized.ToLowerInvariant() switch
+        {
+            "gpu" => "GPU",
+            "cpu" => "CPU",
+            "ram" => "RAM",
+            "ssd" => "SSD",
+            "hdd" => "HDD",
+            "psu" => "PSU",
+            "motherboard" => "Motherboard",
+            "storage" => "Storage",
+            "peripherals" => "Peripherals",
+            _ => System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(normalized.ToLowerInvariant())
+        };
+    }
+
+    var navCategories = await DbContext.Products
+        .AsNoTracking()
+        .Where(product => product.MarketPriceSource != archivedMarketPriceSource)
+        .Select(product => product.CategoryName)
+        .Distinct()
+        .OrderBy(categoryName => categoryName)
+        .Take(6)
+        .ToListAsync();
+
+    navCategories = navCategories
+        .Select(NormalizeCategoryName)
+        .Where(categoryName =>
+            !string.IsNullOrWhiteSpace(categoryName) &&
+            !string.Equals(categoryName, "All", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(categoryName, "Uncategorized", StringComparison.OrdinalIgnoreCase))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(categoryName => categoryName)
+        .Take(6)
+        .ToList();
+
+    var customerAuthResult = await Context.AuthenticateAsync("CustomerScheme");
+    var customerPrincipal = customerAuthResult.Principal;
+    var customerSignedIn = customerAuthResult.Succeeded && customerPrincipal?.Identity?.IsAuthenticated == true;
+    var customerName = customerPrincipal?.FindFirst(ClaimTypes.Name)?.Value ?? "Customer";
+    int? currentUserId = null;
+    var customerIdClaim = customerPrincipal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (int.TryParse(customerIdClaim, out var parsedCurrentUserId))
+    {
+        currentUserId = parsedCurrentUserId;
+        var dbCustomerName = await DbContext.Users
+            .AsNoTracking()
+            .Where(user => user.UserID == parsedCurrentUserId)
+            .Select(user => user.FullName)
+            .FirstOrDefaultAsync();
+
+        if (!string.IsNullOrWhiteSpace(dbCustomerName))
+        {
+            customerName = dbCustomerName;
+        }
+    }
+
+    var sessionId = Context.Session.GetString("SessionId");
+    if (string.IsNullOrWhiteSpace(sessionId))
+    {
+        sessionId = Guid.NewGuid().ToString();
+        Context.Session.SetString("SessionId", sessionId);
+    }
+
+    var cartCount = 0;
+    if (currentUserId.HasValue)
+    {
+        cartCount = await DbContext.CartItems
+            .AsNoTracking()
+            .Where(item => item.UserID == currentUserId.Value || (item.UserID == null && item.SessionId == sessionId))
+            .SumAsync(item => (int?)item.Quantity) ?? 0;
+    }
+    else
+    {
+        cartCount = await DbContext.CartItems
+            .AsNoTracking()
+            .Where(item => item.UserID == null && item.SessionId == sessionId)
+            .SumAsync(item => (int?)item.Quantity) ?? 0;
+    }
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - KSTech Store</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script>
+        tailwind.config = {
+            corePlugins: { preflight: false },
+            theme: {
+                extend: {
+                    colors: {
+                        "store-ink": "#132336",
+                        "store-muted": "#5f6e7f",
+                        "store-accent": "#0f7d75",
+                        "store-accent-soft": "#dbf6f2",
+                        "store-surface": "#f6f8fb",
+                        "store-highlight": "#ffb454"
+                    },
+                    fontFamily: {
+                        display: ["Sora", "sans-serif"],
+                        sans: ["Public Sans", "sans-serif"]
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        body {
+            background:
+                radial-gradient(circle at 15% 10%, rgba(15, 125, 117, 0.1), transparent 35%),
+                radial-gradient(circle at 85% 0%, rgba(255, 180, 84, 0.1), transparent 30%),
+                #f6f8fb;
+            color: #132336;
+        }
+
+        .store-nav-link {
+            color: #3f4c5c;
+            font-weight: 600;
+            text-decoration: none;
+            transition: color .2s ease;
+        }
+
+        .store-nav-link:hover,
+        .store-nav-link.active {
+            color: #0f7d75;
+        }
+
+        .store-badge-count {
+            min-width: 20px;
+            height: 20px;
+            border-radius: 999px;
+            padding: 0 6px;
+            font-size: .75rem;
+            line-height: 20px;
+            text-align: center;
+            background: #ffb454;
+            color: #132336;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body class="store-compact font-sans min-h-screen flex flex-col">
+    <header class="bg-white/95 backdrop-blur border-b border-slate-200 sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center gap-3">
+                <a href="@Url.Action("Index", "Store")" class="flex items-center gap-3 no-underline">
+                    <img src="/logo.png" alt="KSTech logo" class="h-8 w-auto object-contain" />
+                    <span class="font-display text-lg font-semibold text-store-ink">KSTech Store</span>
+                </a>
+
+                <form action="@Url.Action("Products", "Store")" method="get" class="hidden md:block flex-1 max-w-2xl">
+                    <div class="relative">
+                        <span class="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-store-muted">search</span>
+                        <input type="text"
+                               name="search"
+                               value="@Context.Request.Query["search"]"
+                               placeholder="What are you looking for?"
+                               class="w-full rounded-lg border border-slate-200 bg-store-surface py-2 pl-10 pr-4 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+                    </div>
+                </form>
+
+                <div class="hidden lg:flex items-center gap-3 ml-auto">
+                    @if (customerSignedIn)
+                    {
+                        <span class="text-sm text-store-muted">Hi, @customerName</span>
+                        <a href="@Url.Action("Profile", "Store")" class="text-sm font-semibold text-store-ink no-underline hover:text-store-accent">Profile</a>
+                        <a href="@Url.Action("Orders", "Store")" class="text-sm font-semibold text-store-ink no-underline hover:text-store-accent">Orders</a>
+                        <form asp-controller="Store" asp-action="Logout" method="post" class="m-0">
+                            <button type="submit" class="text-sm font-semibold text-store-ink hover:text-store-accent">Logout</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <a href="@Url.Action("Login", "Store")" class="text-sm font-semibold text-store-ink no-underline hover:text-store-accent">Sign in</a>
+                        <a href="@Url.Action("Register", "Store")" class="text-sm font-semibold text-white bg-store-accent px-3 py-2 rounded-lg no-underline hover:bg-store-ink">Create account</a>
+                    }
+                </div>
+
+                <a href="@Url.Action("Index", "Cart")" class="relative p-1.5 rounded-lg hover:bg-store-surface text-store-ink no-underline js-store-cart-trigger" data-store-cart-trigger>
+                    <span class="material-icons-outlined align-middle">shopping_cart</span>
+                    <span class="store-badge-count absolute -top-1 -right-1 @(cartCount > 0 ? string.Empty : "hidden")" data-store-cart-count>@cartCount</span>
+                </a>
+
+                <button class="md:hidden p-1.5 rounded-lg hover:bg-store-surface text-store-ink mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+                    <span class="material-icons-outlined">menu</span>
+                </button>
+            </div>
+
+            <nav class="hidden md:flex items-center gap-4 mt-3 text-sm">
+                <a href="@Url.Action("Products", "Store")"
+                   class="store-nav-link @(string.IsNullOrWhiteSpace(currentCategory) || IsAllCategoryAlias(currentCategory) ? "active" : string.Empty)">
+                    All products
+                </a>
+                @foreach (var category in navCategories)
+                {
+                    <a href="@Url.Action("Products", "Store", new { category })"
+                       class="store-nav-link @(string.Equals(currentCategory, category, StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)">
+                        @category
+                    </a>
+                }
+                <a href="@Url.Action("Games", "Store")" class="store-nav-link flex items-center gap-1 @(Context.Request.Path.StartsWithSegments("/Store/Games") ? "active" : string.Empty)">
+                    <span class="material-icons-outlined text-[1.125rem]">sports_esports</span> Curated Games
+                </a>
+                <a href="@Url.Action("Contact", "Store")" class="store-nav-link flex items-center gap-1 @(Context.Request.Path.StartsWithSegments("/Store/Contact") ? "active" : string.Empty)">
+                    <span class="material-icons-outlined text-[1.125rem]">support_agent</span> Contact Us
+                </a>
+            </nav>
+        </div>
+
+        <div class="hidden mobile-menu border-t border-slate-200 px-4 pb-4 md:hidden">
+            <form action="@Url.Action("Products", "Store")" method="get" class="mt-4">
+                <div class="relative">
+                    <span class="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-store-muted">search</span>
+                    <input type="text"
+                           name="search"
+                           placeholder="Search catalog"
+                           class="w-full rounded-lg border border-slate-200 bg-store-surface py-2 pl-10 pr-4 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+                </div>
+            </form>
+
+            <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
+                <a href="@Url.Action("Products", "Store")" class="rounded-lg border border-slate-200 px-3 py-2 no-underline text-store-ink">All products</a>
+                @foreach (var category in navCategories)
+                {
+                    <a href="@Url.Action("Products", "Store", new { category })" class="rounded-lg border border-slate-200 px-3 py-2 no-underline text-store-ink">@category</a>
+                }
+                <a href="@Url.Action("Games", "Store")" class="col-span-2 rounded-lg border border-store-accent/40 bg-store-accent-soft px-3 py-2 no-underline text-store-accent font-semibold flex items-center gap-1">
+                    <span class="material-icons-outlined text-sm">videogame_asset</span> Shop by Game
+                </a>
+                <a href="@Url.Action("Contact", "Store")" class="col-span-2 rounded-lg border border-slate-200 px-3 py-2 no-underline text-store-ink">Contact Us</a>
+            </div>
+
+            <div class="mt-4 border-t border-slate-200 pt-4">
+                @if (customerSignedIn)
+                {
+                    <p class="text-sm text-store-muted mb-2">Signed in as @customerName</p>
+                    <a href="@Url.Action("Profile", "Store")" class="text-sm font-semibold text-store-ink no-underline mr-3">Profile</a>
+                    <a href="@Url.Action("Orders", "Store")" class="text-sm font-semibold text-store-ink no-underline mr-3">Orders</a>
+                    <form asp-controller="Store" asp-action="Logout" method="post" class="m-0">
+                        <button type="submit" class="text-sm font-semibold text-store-ink hover:text-store-accent">Logout</button>
+                    </form>
+                }
+                else
+                {
+                    <a href="@Url.Action("Login", "Store")" class="text-sm font-semibold text-store-ink no-underline mr-3">Sign in</a>
+                    <a href="@Url.Action("Register", "Store")" class="text-sm font-semibold text-store-accent no-underline">Create account</a>
+                }
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1">
+        @RenderBody()
+    </main>
+
+    <div id="store-pinned-spec-widget" class="hidden fixed bottom-3 left-3 right-3 sm:left-auto sm:right-4 sm:w-96 z-40" aria-live="polite">
+        <aside class="rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-2xl overflow-hidden">
+            <div class="px-3 py-2.5 border-b border-slate-200 flex items-start gap-2">
+                <span class="material-icons-outlined text-base text-store-accent mt-0.5">push_pin</span>
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2">
+                        <p id="store-pinned-spec-game" class="mb-0 text-sm font-semibold text-store-ink truncate">Pinned Steam Spec</p>
+                        <span id="store-pinned-spec-tier" class="hidden shrink-0 inline-flex items-center rounded-full bg-store-accent-soft text-store-accent text-[10px] font-semibold px-2 py-0.5"></span>
+                    </div>
+                    <p id="store-pinned-spec-meta" class="mb-0 text-[11px] text-store-muted">Save a minimum or recommended spec from the game cards.</p>
+                    <p id="store-pinned-spec-status" class="hidden mb-0 text-[11px] font-semibold text-emerald-600"></p>
+                </div>
+                <div class="flex items-center gap-1">
+                    <button type="button" id="store-pinned-spec-toggle" class="p-1.5 rounded-lg text-store-muted hover:bg-store-surface hover:text-store-ink" aria-label="Collapse pinned spec" aria-expanded="true">
+                        <span id="store-pinned-spec-toggle-icon" class="material-icons-outlined text-base">expand_more</span>
+                    </button>
+                    <button type="button" id="store-pinned-spec-clear" class="p-1.5 rounded-lg text-store-muted hover:bg-store-surface hover:text-red-600" aria-label="Clear pinned spec">
+                        <span class="material-icons-outlined text-base">close</span>
+                    </button>
+                </div>
+            </div>
+            <div id="store-pinned-spec-body" class="px-3 py-3 space-y-3">
+                <div id="store-pinned-spec-fields" class="space-y-2"></div>
+                <div id="store-pinned-spec-notes-wrap" class="hidden">
+                    <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-store-muted">Other notes</p>
+                    <ul id="store-pinned-spec-notes" class="mb-0 space-y-1"></ul>
+                </div>
+                <a id="store-pinned-spec-shop-link" href="#" class="hidden w-full text-center rounded-lg bg-store-accent text-white text-sm font-semibold px-3 py-2 no-underline hover:bg-store-ink">
+                    Shop for this game
+                </a>
+            </div>
+        </aside>
+    </div>
+
+    <div id="store-cart-modal" class="hidden fixed inset-0 z-[70]" aria-hidden="true">
+        <div class="absolute inset-0 bg-store-ink/45 js-store-cart-close"></div>
+        <aside class="absolute inset-y-0 right-0 w-full sm:w-[400px] bg-white shadow-2xl flex flex-col">
+            <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                    <h2 class="font-display text-lg text-store-ink mb-0">Your cart</h2>
+                    <p class="text-xs text-store-muted mb-0" id="store-cart-modal-subtitle">Loading cart...</p>
+                </div>
+                <button type="button" class="p-2 rounded-lg hover:bg-store-surface text-store-ink js-store-cart-close" aria-label="Close cart">
+                    <span class="material-icons-outlined">close</span>
+                </button>
+            </div>
+
+            <div id="store-cart-modal-body" class="flex-1 overflow-y-auto p-4">
+                <div class="h-full grid place-items-center text-store-muted text-sm">Loading cart...</div>
+            </div>
+
+            <div class="border-t border-slate-200 p-4 space-y-2.5">
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-store-muted">Subtotal</span>
+                    <span class="font-semibold text-store-ink" id="store-cart-modal-subtotal">$0.00</span>
+                </div>
+                <button type="button"
+                        id="store-cart-modal-clear"
+                        class="hidden w-full rounded-lg border border-red-200 text-red-700 px-3 py-2 text-sm font-semibold hover:bg-red-50 js-store-clear-cart">
+                    Clear all items
+                </button>
+                <a href="@Url.Action("Index", "Cart")" id="store-cart-modal-primary-action" class="block text-center rounded-lg bg-store-accent text-white px-4 py-2 font-semibold no-underline hover:bg-store-ink">
+                    Go to cart
+                </a>
+                <a href="@Url.Action("Products", "Store")" class="block text-center rounded-lg border border-slate-200 text-store-ink px-4 py-2 font-semibold no-underline hover:border-store-accent">
+                    Continue browsing
+                </a>
+            </div>
+        </aside>
+    </div>
+
+    <footer class="bg-store-ink text-slate-300 mt-10">
+        <div class="container mx-auto px-4 py-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div>
+                    <h3 class="font-display text-lg text-white mb-3">KSTech Store</h3>
+                    <p class="text-sm leading-6">Built for shoppers who want clear specs, honest stock information, and fast checkout.</p>
+                </div>
+                <div>
+                    <h3 class="font-display text-lg text-white mb-3">Shop</h3>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <a href="@Url.Action("Products", "Store")" class="text-slate-300 no-underline hover:text-white">All products</a>
+                        <a href="@Url.Action("Games", "Store")" class="text-slate-300 no-underline hover:text-white">🎮 Shop by Game</a>
+                        @foreach (var category in navCategories.Take(4))
+                        {
+                            <a href="@Url.Action("Products", "Store", new { category })" class="text-slate-300 no-underline hover:text-white">@category</a>
+                        }
+                        <a href="@Url.Action("Contact", "Store")" class="text-slate-300 no-underline hover:text-white">Contact Us</a>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="font-display text-lg text-white mb-3">Account</h3>
+                    <div class="text-sm space-y-2">
+                        <a href="@Url.Action("Index", "Cart")" class="block text-slate-300 no-underline hover:text-white">Cart</a>
+                        @if (customerSignedIn)
+                        {
+                            <a href="@Url.Action("Profile", "Store")" class="block text-slate-300 no-underline hover:text-white">My profile</a>
+                            <a href="@Url.Action("Orders", "Store")" class="block text-slate-300 no-underline hover:text-white">Order history</a>
+                        }
+                        else
+                        {
+                            <a href="@Url.Action("Login", "Store")" class="block text-slate-300 no-underline hover:text-white">Sign in</a>
+                            <a href="@Url.Action("Register", "Store")" class="block text-slate-300 no-underline hover:text-white">Create account</a>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-slate-700 mt-8 pt-5 text-xs text-slate-400">
+                <p>&copy; @DateTime.UtcNow.Year KSTech. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <form id="store-anti-forgery-form" method="post" class="hidden">
+        @Html.AntiForgeryToken()
+    </form>
+    <div id="store-cart-config"
+         class="hidden"
+         data-mini-url="@Url.Action("Mini", "Cart")"
+         data-remove-url="@Url.Action("RemoveFromCart", "Cart")"
+         data-clear-url="@Url.Action("ClearCart", "Cart")"
+         data-cart-url="@Url.Action("Index", "Cart")"
+         data-login-url="@Url.Action("Login", "Store", new { returnUrl = Url.Action("Index", "Cart") })"
+         data-details-url-template="@Url.Action("Details", "Store", new { id = "__id__" })"></div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script>
+        (function () {
+            var storageKey = "kstech.store.pinnedSteamSpec.v1";
+            var productsBaseUrl = '@Url.Action("Products", "Store")';
+            var widget = document.getElementById("store-pinned-spec-widget");
+
+            if (!widget) {
+                return;
+            }
+
+            var elements = {
+                game: document.getElementById("store-pinned-spec-game"),
+                tier: document.getElementById("store-pinned-spec-tier"),
+                meta: document.getElementById("store-pinned-spec-meta"),
+                status: document.getElementById("store-pinned-spec-status"),
+                body: document.getElementById("store-pinned-spec-body"),
+                fields: document.getElementById("store-pinned-spec-fields"),
+                notesWrap: document.getElementById("store-pinned-spec-notes-wrap"),
+                notes: document.getElementById("store-pinned-spec-notes"),
+                shopLink: document.getElementById("store-pinned-spec-shop-link"),
+                toggle: document.getElementById("store-pinned-spec-toggle"),
+                toggleIcon: document.getElementById("store-pinned-spec-toggle-icon"),
+                clear: document.getElementById("store-pinned-spec-clear")
+            };
+
+            var fieldOrder = [
+                ["cpu", "CPU"],
+                ["gpu", "GPU"],
+                ["ram", "RAM"],
+                ["storage", "Storage"],
+                ["os", "OS"],
+                ["directx", "DirectX"],
+                ["network", "Network"]
+            ];
+
+            var state = {
+                collapsed: false,
+                statusTimerId: null,
+                spec: null
+            };
+
+            function normalizeText(value) {
+                return String(value || "")
+                    .replace(/\u00a0/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim();
+            }
+
+            function toSafeInt(value) {
+                var parsed = Number.parseInt(String(value || "").trim(), 10);
+                return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+            }
+
+            function buildLinesFromRequirementHtml(html) {
+                if (!html) {
+                    return [];
+                }
+
+                var container = document.createElement("div");
+                container.innerHTML = html;
+
+                container.querySelectorAll("br").forEach(function (br) {
+                    br.replaceWith(document.createTextNode("\n"));
+                });
+
+                var liLines = Array.prototype.slice.call(container.querySelectorAll("li"))
+                    .map(function (node) { return normalizeText(node.textContent); })
+                    .filter(Boolean);
+
+                var lines = liLines;
+                if (!lines.length) {
+                    lines = String(container.textContent || "")
+                        .split(/\r?\n+/)
+                        .map(normalizeText)
+                        .filter(Boolean);
+                }
+
+                var seen = new Set();
+                return lines.filter(function (line) {
+                    var key = line.toLowerCase();
+                    if (seen.has(key)) {
+                        return false;
+                    }
+                    seen.add(key);
+                    return true;
+                });
+            }
+
+            function mapSpecLabel(label) {
+                var key = normalizeText(label).toLowerCase().replace(/\*/g, "");
+                if (!key) {
+                    return null;
+                }
+
+                if (key === "processor" || key === "cpu") {
+                    return "cpu";
+                }
+
+                if (key === "graphics" || key === "gpu" || key === "video card") {
+                    return "gpu";
+                }
+
+                if (key === "memory" || key === "ram") {
+                    return "ram";
+                }
+
+                if (key === "storage" || key === "hard drive" || key === "hard disk space") {
+                    return "storage";
+                }
+
+                if (key === "os" || key === "operating system") {
+                    return "os";
+                }
+
+                if (key === "directx") {
+                    return "directx";
+                }
+
+                if (key === "network") {
+                    return "network";
+                }
+
+                return null;
+            }
+
+            function parseSteamRequirementHtml(html) {
+                var lines = buildLinesFromRequirementHtml(html);
+                var fields = {
+                    cpu: "",
+                    gpu: "",
+                    ram: "",
+                    storage: "",
+                    os: "",
+                    directx: "",
+                    network: ""
+                };
+                var notes = [];
+
+                lines.forEach(function (rawLine) {
+                    var line = normalizeText(rawLine)
+                        .replace(/^minimum\s*:?\s*/i, "")
+                        .replace(/^recommended\s*:?\s*/i, "");
+
+                    if (!line) {
+                        return;
+                    }
+
+                    var parts = line.match(/^([^:]{1,50}):\s*(.+)$/);
+                    if (!parts) {
+                        if (!notes.includes(line)) {
+                            notes.push(line);
+                        }
+                        return;
+                    }
+
+                    var mappedKey = mapSpecLabel(parts[1]);
+                    var value = normalizeText(parts[2]);
+                    if (!mappedKey || !value) {
+                        if (!notes.includes(line)) {
+                            notes.push(line);
+                        }
+                        return;
+                    }
+
+                    if (fields[mappedKey]) {
+                        if (!fields[mappedKey].toLowerCase().includes(value.toLowerCase())) {
+                            fields[mappedKey] += " | " + value;
+                        }
+                        return;
+                    }
+
+                    fields[mappedKey] = value;
+                });
+
+                return {
+                    fields: fields,
+                    notes: notes.slice(0, 5),
+                    rawLines: lines.slice(0, 15),
+                    rawText: lines.join(" | ")
+                };
+            }
+
+            function createPinnedSpecFromButton(button) {
+                if (!button) {
+                    return null;
+                }
+
+                var tier = normalizeText(button.dataset.specTier);
+                var gameTitle = normalizeText(button.dataset.gameTitle);
+                var specHtml = button.dataset.specHtml || "";
+                if (!tier || !gameTitle || !specHtml) {
+                    return null;
+                }
+
+                var parsed = parseSteamRequirementHtml(specHtml);
+                return {
+                    version: 1,
+                    source: "Steam",
+                    gameTitle: gameTitle,
+                    steamAppId: toSafeInt(button.dataset.steamAppId),
+                    tier: tier,
+                    fields: parsed.fields,
+                    notes: parsed.notes,
+                    rawText: parsed.rawText,
+                    pinnedAtUtc: new Date().toISOString()
+                };
+            }
+
+            function savePinnedSpec(spec) {
+                try {
+                    localStorage.setItem(storageKey, JSON.stringify(spec));
+                } catch (error) {
+                    console.warn("Unable to save pinned Steam spec", error);
+                }
+            }
+
+            function loadPinnedSpec() {
+                try {
+                    var raw = localStorage.getItem(storageKey);
+                    if (!raw) {
+                        return null;
+                    }
+
+                    var parsed = JSON.parse(raw);
+                    if (!parsed || typeof parsed !== "object") {
+                        return null;
+                    }
+
+                    if (!normalizeText(parsed.gameTitle) || !normalizeText(parsed.tier)) {
+                        return null;
+                    }
+
+                    var fields = parsed.fields && typeof parsed.fields === "object" ? parsed.fields : {};
+                    return {
+                        version: 1,
+                        source: normalizeText(parsed.source) || "Steam",
+                        gameTitle: normalizeText(parsed.gameTitle),
+                        steamAppId: toSafeInt(parsed.steamAppId),
+                        tier: normalizeText(parsed.tier),
+                        fields: {
+                            cpu: normalizeText(fields.cpu),
+                            gpu: normalizeText(fields.gpu),
+                            ram: normalizeText(fields.ram),
+                            storage: normalizeText(fields.storage),
+                            os: normalizeText(fields.os),
+                            directx: normalizeText(fields.directx),
+                            network: normalizeText(fields.network)
+                        },
+                        notes: Array.isArray(parsed.notes) ? parsed.notes.map(normalizeText).filter(Boolean).slice(0, 5) : [],
+                        rawText: normalizeText(parsed.rawText),
+                        pinnedAtUtc: normalizeText(parsed.pinnedAtUtc)
+                    };
+                } catch (error) {
+                    console.warn("Unable to read pinned Steam spec", error);
+                    return null;
+                }
+            }
+
+            function clearPinnedSpec() {
+                try {
+                    localStorage.removeItem(storageKey);
+                } catch (error) {
+                    console.warn("Unable to clear pinned Steam spec", error);
+                }
+            }
+
+            function formatPinnedAt(value) {
+                if (!value) {
+                    return "";
+                }
+
+                var date = new Date(value);
+                if (Number.isNaN(date.getTime())) {
+                    return "";
+                }
+
+                return date.toLocaleString([], {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit"
+                });
+            }
+
+            function setStatus(message) {
+                if (!elements.status) {
+                    return;
+                }
+
+                if (!message) {
+                    elements.status.textContent = "";
+                    elements.status.classList.add("hidden");
+                    return;
+                }
+
+                elements.status.textContent = message;
+                elements.status.classList.remove("hidden");
+
+                if (state.statusTimerId) {
+                    window.clearTimeout(state.statusTimerId);
+                }
+
+                state.statusTimerId = window.setTimeout(function () {
+                    elements.status.classList.add("hidden");
+                }, 1800);
+            }
+
+            function setCollapsed(nextCollapsed) {
+                state.collapsed = !!nextCollapsed;
+                if (elements.body) {
+                    elements.body.classList.toggle("hidden", state.collapsed);
+                }
+                if (elements.toggle) {
+                    elements.toggle.setAttribute("aria-expanded", state.collapsed ? "false" : "true");
+                    elements.toggle.setAttribute("aria-label", state.collapsed ? "Expand pinned spec" : "Collapse pinned spec");
+                }
+                if (elements.toggleIcon) {
+                    elements.toggleIcon.textContent = state.collapsed ? "expand_more" : "expand_less";
+                }
+            }
+
+            function makeFieldRow(label, value) {
+                var row = document.createElement("div");
+                row.className = "rounded-lg border border-slate-200 bg-store-surface px-2.5 py-2";
+
+                var heading = document.createElement("p");
+                heading.className = "mb-1 text-[10px] font-semibold uppercase tracking-wide text-store-muted";
+                heading.textContent = label;
+
+                var body = document.createElement("p");
+                body.className = "mb-0 text-xs leading-5 text-store-ink";
+                body.textContent = value;
+
+                row.appendChild(heading);
+                row.appendChild(body);
+                return row;
+            }
+
+            function syncPinButtons(spec) {
+                document.querySelectorAll(".js-pin-steam-spec").forEach(function (button) {
+                    var matches = !!spec &&
+                        normalizeText(button.dataset.gameTitle).toLowerCase() === normalizeText(spec.gameTitle).toLowerCase() &&
+                        normalizeText(button.dataset.specTier).toLowerCase() === normalizeText(spec.tier).toLowerCase();
+
+                    button.classList.toggle("border-store-accent", matches);
+                    button.classList.toggle("text-store-accent", matches);
+                    button.setAttribute("aria-pressed", matches ? "true" : "false");
+                });
+            }
+
+            function renderPinnedSpec(spec) {
+                state.spec = spec || null;
+
+                if (!spec) {
+                    widget.classList.add("hidden");
+                    syncPinButtons(null);
+                    return;
+                }
+
+                widget.classList.remove("hidden");
+
+                if (elements.game) {
+                    elements.game.textContent = spec.gameTitle;
+                }
+
+                if (elements.tier) {
+                    elements.tier.textContent = spec.tier;
+                    elements.tier.classList.remove("hidden");
+                }
+
+                if (elements.meta) {
+                    var pinnedAt = formatPinnedAt(spec.pinnedAtUtc);
+                    elements.meta.textContent = pinnedAt ? (spec.source + " • Pinned " + pinnedAt) : spec.source;
+                }
+
+                if (elements.fields) {
+                    elements.fields.innerHTML = "";
+                    var rowCount = 0;
+
+                    fieldOrder.forEach(function (entry) {
+                        var key = entry[0];
+                        var label = entry[1];
+                        var value = spec.fields && spec.fields[key] ? spec.fields[key] : "";
+                        if (!value) {
+                            return;
+                        }
+                        elements.fields.appendChild(makeFieldRow(label, value));
+                        rowCount += 1;
+                    });
+
+                    if (rowCount === 0 && spec.rawText) {
+                        elements.fields.appendChild(makeFieldRow("Summary", spec.rawText));
+                    }
+                }
+
+                if (elements.notes && elements.notesWrap) {
+                    elements.notes.innerHTML = "";
+                    var hasNotes = Array.isArray(spec.notes) && spec.notes.length > 0;
+                    if (hasNotes) {
+                        spec.notes.forEach(function (note) {
+                            var item = document.createElement("li");
+                            item.className = "text-xs leading-5 text-store-muted";
+                            item.textContent = "• " + note;
+                            elements.notes.appendChild(item);
+                        });
+                    }
+                    elements.notesWrap.classList.toggle("hidden", !hasNotes);
+                }
+
+                if (elements.shopLink) {
+                    if (spec.steamAppId) {
+                        elements.shopLink.href = productsBaseUrl + "?steamAppId=" + encodeURIComponent(String(spec.steamAppId));
+                        elements.shopLink.classList.remove("hidden");
+                    } else {
+                        elements.shopLink.classList.add("hidden");
+                        elements.shopLink.removeAttribute("href");
+                    }
+                }
+
+                syncPinButtons(spec);
+            }
+
+            function pinFromButton(button) {
+                var spec = createPinnedSpecFromButton(button);
+                if (!spec) {
+                    setStatus("Could not pin this spec");
+                    return;
+                }
+
+                savePinnedSpec(spec);
+                renderPinnedSpec(spec);
+                setCollapsed(false);
+                setStatus("Pinned " + spec.tier.toLowerCase() + " specs");
+            }
+
+            document.addEventListener("click", function (event) {
+                var pinButton = event.target.closest(".js-pin-steam-spec");
+                if (pinButton) {
+                    event.preventDefault();
+                    pinFromButton(pinButton);
+                    return;
+                }
+
+                if (elements.toggle && event.target.closest("#store-pinned-spec-toggle")) {
+                    event.preventDefault();
+                    setCollapsed(!state.collapsed);
+                    return;
+                }
+
+                if (elements.clear && event.target.closest("#store-pinned-spec-clear")) {
+                    event.preventDefault();
+                    clearPinnedSpec();
+                    renderPinnedSpec(null);
+                    setStatus("");
+                }
+            });
+
+            window.addEventListener("storage", function (event) {
+                if (event.key && event.key !== storageKey) {
+                    return;
+                }
+                renderPinnedSpec(loadPinnedSpec());
+            });
+
+            window.KSTechStorePinnedSpec = {
+                get: loadPinnedSpec,
+                clear: function () {
+                    clearPinnedSpec();
+                    renderPinnedSpec(null);
+                }
+            };
+
+            renderPinnedSpec(loadPinnedSpec());
+            setCollapsed(false);
+        })();
+    </script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

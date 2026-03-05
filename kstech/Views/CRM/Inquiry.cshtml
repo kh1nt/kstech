@@ -1,0 +1,225 @@
+@model kstech.Models.ViewModels.TechnicalInquiryDetailViewModel
+@{
+    ViewData["Title"] = "Inquiry Workspace";
+
+    var inquiry = Model.Inquiry;
+    var relevantEmailActivity = Model.EmailActivity
+        .Where(activity => activity.DateSentUtc >= inquiry.DateSubmittedUtc)
+        .OrderBy(activity => activity.DateSentUtc)
+        .ToList();
+
+    var backStatus = string.IsNullOrWhiteSpace(Model.ListStatus) ? "Open" : Model.ListStatus;
+    var pageTitle = string.IsNullOrWhiteSpace(inquiry.Subject) ? "Inquiry Workspace" : inquiry.Subject;
+}
+
+<div class="space-y-6">
+    <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
+        <div>
+            <a href="@Url.Action("Inquiries", new { status = backStatus })"
+               class="no-underline hover:no-underline inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                <span class="material-icons-outlined text-[16px]">arrow_back</span>
+                Back to Inquiries
+            </a>
+
+            <p class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Inquiry Workspace</p>
+            <h1 class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">@pageTitle</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                @inquiry.CustomerName
+                <span class="mx-1">|</span>
+                @inquiry.CustomerEmail
+            </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+            @if (inquiry.IsResolved)
+            {
+                <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 px-3 py-1.5 text-xs font-semibold">
+                    Resolved
+                </span>
+            }
+            else
+            {
+                <span class="inline-flex items-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 px-3 py-1.5 text-xs font-semibold">
+                    Open
+                </span>
+            }
+            <span class="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark px-3 py-1.5 text-xs text-gray-600 dark:text-gray-300">
+                Submitted @inquiry.DateSubmittedUtc.ToString("MMM dd, yyyy HH:mm")
+            </span>
+        </div>
+    </div>
+
+    @if (TempData["CrmMessage"] != null)
+    {
+        <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            @TempData["CrmMessage"]
+        </div>
+    }
+
+    @if (TempData["CrmError"] != null)
+    {
+        <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            @TempData["CrmError"]
+        </div>
+    }
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <section class="xl:col-span-2 space-y-4">
+            <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark shadow-sm p-5">
+                <div class="flex items-center justify-between gap-3">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Original Inquiry</p>
+                    <span class="text-[11px] text-gray-400">@inquiry.DateSubmittedUtc.ToString("MMM dd, yyyy HH:mm")</span>
+                </div>
+                <h2 class="mt-2 text-lg font-semibold text-gray-900 dark:text-white">@inquiry.Subject</h2>
+                <p class="mt-3 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">@inquiry.Message</p>
+            </div>
+
+            @if (!inquiry.IsResolved)
+            {
+                <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark shadow-sm p-5">
+                    <div class="flex items-center justify-between gap-3">
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Reply</h2>
+                        <span class="text-xs text-gray-500">Email reply (inquiry stays open)</span>
+                    </div>
+
+                    <form asp-action="ReplyInquiry" method="post" class="mt-4 space-y-4">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="inquiryId" value="@inquiry.InquiryID" />
+                        <input type="hidden" name="returnToDetail" value="true" />
+                        <input type="hidden" name="status" value="@backStatus" />
+
+                        <div>
+                            <label for="replyMessagePage" class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Reply message</label>
+                            <textarea id="replyMessagePage" name="replyMessage" rows="8" maxlength="1000" placeholder="Type your reply to the customer..." class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary outline-none"></textarea>
+                            <p class="mt-1 text-xs text-gray-500">Customer replies go to your email inbox.</p>
+                        </div>
+
+                        <div class="flex items-center justify-end">
+                            <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:brightness-95">
+                                <span class="material-icons-outlined text-[16px]">send</span>
+                                Send Reply
+                            </button>
+                        </div>
+                    </form>
+                    <div class="mt-5 border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <h3 class="text-base font-semibold text-gray-900 dark:text-white">Close Inquiry</h3>
+                            <span class="text-xs text-gray-500">Does not send email</span>
+                        </div>
+
+                        <form asp-action="ResolveInquiry" method="post" class="mt-3 space-y-4">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="InquiryID" value="@inquiry.InquiryID" />
+                            <input type="hidden" name="returnToDetail" value="true" />
+                            <input type="hidden" name="status" value="@backStatus" />
+
+                            <div>
+                                <label for="resolutionNotesPage" class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Resolution notes (optional)</label>
+                                <textarea id="resolutionNotesPage" name="ResolutionNotes" rows="4" maxlength="1000" placeholder="Add internal notes..." class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary outline-none"></textarea>
+                            </div>
+
+                            <div class="flex items-center justify-end">
+                                <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:brightness-95">
+                                    <span class="material-icons-outlined text-[16px]">check_circle</span>
+                                    Mark Resolved
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/15 shadow-sm p-5">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <h2 class="text-lg font-semibold text-emerald-900 dark:text-emerald-100">Inquiry Resolved</h2>
+                            <p class="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
+                                @(inquiry.DateResolvedUtc.HasValue ? $"Resolved on {inquiry.DateResolvedUtc.Value:MMM dd, yyyy HH:mm}" : "Resolution time unavailable")
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 rounded-xl border border-emerald-200/80 dark:border-emerald-800 bg-white/70 dark:bg-gray-900/20 p-4">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Resolution Notes</p>
+                        <p class="mt-2 text-sm text-emerald-900 dark:text-emerald-100 whitespace-pre-wrap">
+                            @(string.IsNullOrWhiteSpace(inquiry.ResolutionNotes) ? "No resolution notes were saved." : inquiry.ResolutionNotes)
+                        </p>
+                    </div>
+
+                    <p class="mt-4 text-xs text-emerald-800/80 dark:text-emerald-200/80">
+                        Reopen can be added later if you want to continue the support workflow on this same inquiry.
+                    </p>
+                </div>
+            }
+        </section>
+
+        <aside class="xl:col-span-1 space-y-4">
+            <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark shadow-sm p-4">
+                <div class="flex items-center justify-between gap-3">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Activity</p>
+                    <span class="text-[11px] text-gray-400">Since inquiry date</span>
+                </div>
+
+                <div class="mt-3 space-y-2 max-h-[560px] overflow-y-auto">
+                    <div class="relative rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
+                        <div class="absolute left-3 top-3 h-2 w-2 rounded-full bg-amber-500"></div>
+                        <div class="pl-4">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="font-semibold text-gray-800 dark:text-gray-100">Inquiry received</span>
+                                <span class="text-[10px] uppercase tracking-wide text-gray-400">Open</span>
+                            </div>
+                            <div class="mt-1 text-[11px] text-gray-500">Customer Inquiry</div>
+                            <div class="mt-1 text-[10px] text-gray-400">@inquiry.DateSubmittedUtc.ToString("MMM dd, yyyy HH:mm")</div>
+                        </div>
+                    </div>
+
+                    @if (relevantEmailActivity.Any())
+                    {
+                        foreach (var activity in relevantEmailActivity)
+                        {
+                            <div class="relative rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
+                                <div class="absolute left-3 top-3 h-2 w-2 rounded-full bg-brand-primary"></div>
+                                <div class="pl-4">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="font-semibold text-gray-800 dark:text-gray-100">@activity.Subject</span>
+                                        <span class="text-[10px] uppercase tracking-wide text-gray-400">@activity.DeliveryStatus</span>
+                                    </div>
+                                    <div class="mt-1 text-[11px] text-gray-500">@activity.Source</div>
+                                    <div class="mt-1 text-[10px] text-gray-400">@activity.DateSentUtc.ToString("MMM dd, yyyy HH:mm")</div>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="rounded-lg border border-dashed border-gray-200 px-3 py-2 text-xs text-gray-500">
+                            No direct email activity recorded for this customer since the inquiry date.
+                        </div>
+                    }
+
+                    @if (inquiry.IsResolved)
+                    {
+                        <div class="relative rounded-lg border border-emerald-200 dark:border-emerald-800 px-3 py-2 bg-emerald-50/50 dark:bg-emerald-900/10">
+                            <div class="absolute left-3 top-3 h-2 w-2 rounded-full bg-emerald-500"></div>
+                            <div class="pl-4">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="font-semibold text-emerald-900 dark:text-emerald-100">Inquiry resolved</span>
+                                    <span class="text-[10px] uppercase tracking-wide text-emerald-700/80 dark:text-emerald-300/80">Resolved</span>
+                                </div>
+                                <div class="mt-1 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">Support Workflow</div>
+                                <div class="mt-1 text-[10px] text-emerald-700/80 dark:text-emerald-300/80">
+                                    @(inquiry.DateResolvedUtc.HasValue ? inquiry.DateResolvedUtc.Value.ToString("MMM dd, yyyy HH:mm") : "Time unavailable")
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <p class="mt-3 text-[11px] text-gray-400 leading-5">
+                    Email entries show subject/status/time only for past outbound emails.
+                </p>
+            </div>
+        </aside>
+    </div>
+</div>

@@ -1,0 +1,198 @@
+@using System
+@model kstech.Models.ViewModels.StoreCatalogViewModel
+@{
+    ViewData["Title"] = "Products";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+
+<div class="container mx-auto px-4 py-6">
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-5">
+        <div>
+            <h1 class="font-display text-2xl text-store-ink mb-1">Product catalog</h1>
+            <p class="text-store-muted mb-0 text-sm">
+                Showing <strong>@Model.Products.Count</strong> result@(Model.Products.Count == 1 ? "" : "s")
+                @if (!string.IsNullOrWhiteSpace(Model.SearchTerm))
+                {
+                    <span> for "<strong>@Model.SearchTerm</strong>"</span>
+                }
+            </p>
+        </div>
+
+        <form id="storeProductsFilterForm" method="get" class="flex flex-col sm:flex-row gap-2">
+            <input type="hidden" name="category" value="@Model.SelectedCategory" />
+            <input type="hidden" name="brand" value="@Model.SelectedBrand" />
+            <div class="relative">
+                <span class="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-store-muted text-base">search</span>
+                <input type="search"
+                       id="storeSearchInput"
+                       name="search"
+                       value="@Model.SearchTerm"
+                       placeholder="Search product, brand"
+                       class="w-full sm:w-72 rounded-lg border border-slate-200 bg-white pl-10 pr-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+            </div>
+            <select id="storeSortSelect" name="sort" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20">
+                <option value="featured" selected="@(Model.SortBy == "featured")">Featured</option>
+                <option value="price_low" selected="@(Model.SortBy == "price_low")">Price: Low to High</option>
+                <option value="price_high" selected="@(Model.SortBy == "price_high")">Price: High to Low</option>
+                <option value="name" selected="@(Model.SortBy == "name")">Name (A-Z)</option>
+                <option value="stock" selected="@(Model.SortBy == "stock")">Stock availability</option>
+            </select>
+            <!-- Removed Apply Button -->
+        </form>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ActiveGameFilterName))
+    {
+        <div class="mb-5 flex items-start gap-3 rounded-xl bg-indigo-50 border border-indigo-200 px-4 py-3">
+            <span class="material-icons-outlined text-indigo-500 mt-0.5">videogame_asset</span>
+            <div class="flex-1">
+                <p class="font-semibold text-indigo-800 mb-0.5 text-sm">Showing hardware compatible with <span class="text-indigo-600">@Model.ActiveGameFilterName</span></p>
+                <p class="text-indigo-600 text-xs mb-0">These products meet or exceed the performance requirements for this game.</p>
+                @if (!string.IsNullOrWhiteSpace(Model.ActiveGamePcRequirementsMinHtml) || !string.IsNullOrWhiteSpace(Model.ActiveGamePcRequirementsRecHtml))
+                {
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        @if (!string.IsNullOrWhiteSpace(Model.ActiveGamePcRequirementsMinHtml))
+                        {
+                            <button type="button"
+                                    class="js-pin-steam-spec inline-flex items-center gap-1 rounded-lg border border-indigo-300 bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-white"
+                                    data-game-title="@Model.ActiveGameFilterName"
+                                    data-steam-app-id="@Model.ActiveGameSteamAppId"
+                                    data-spec-tier="Minimum"
+                                    data-spec-html="@Model.ActiveGamePcRequirementsMinHtml">
+                                <span class="material-icons-outlined text-sm">push_pin</span>
+                                Pin minimum specs
+                            </button>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.ActiveGamePcRequirementsRecHtml))
+                        {
+                            <button type="button"
+                                    class="js-pin-steam-spec inline-flex items-center gap-1 rounded-lg border border-indigo-300 bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-white"
+                                    data-game-title="@Model.ActiveGameFilterName"
+                                    data-steam-app-id="@Model.ActiveGameSteamAppId"
+                                    data-spec-tier="Recommended"
+                                    data-spec-html="@Model.ActiveGamePcRequirementsRecHtml">
+                                <span class="material-icons-outlined text-sm">push_pin</span>
+                                Pin recommended specs
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+            <a href="@Url.Action("Products", "Store")" class="text-xs font-semibold text-indigo-500 hover:text-indigo-800 no-underline whitespace-nowrap mt-0.5">
+                Clear filter →
+            </a>
+        </div>
+    }
+
+    <section class="mb-4">
+        <div class="flex items-center justify-between mb-1.5">
+            <p class="text-xs font-semibold uppercase tracking-wide text-store-muted mb-0">Category</p>
+            <a href="@Url.Action("Products", "Store")" class="text-xs font-semibold text-store-accent no-underline hover:text-store-ink">Reset</a>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+            <a href="@Url.Action("Products", "Store", new { category = "All", brand = Model.SelectedBrand, search = Model.SearchTerm, sort = Model.SortBy })"
+               class="px-2.5 py-1 rounded-full text-xs no-underline transition-colors @(string.Equals(Model.SelectedCategory, "All", StringComparison.OrdinalIgnoreCase) ? "bg-store-accent text-white" : "bg-white border border-slate-200 text-store-ink hover:border-store-accent")">
+                All
+            </a>
+            @foreach (var category in Model.Categories)
+            {
+                <a href="@Url.Action("Products", "Store", new { category = category.Name, brand = Model.SelectedBrand, search = Model.SearchTerm, sort = Model.SortBy })"
+                   class="px-2.5 py-1 rounded-full text-xs no-underline transition-colors @(string.Equals(Model.SelectedCategory, category.Name, StringComparison.OrdinalIgnoreCase) ? "bg-store-accent text-white" : "bg-white border border-slate-200 text-store-ink hover:border-store-accent")">
+                    @category.Name (@category.Count)
+                </a>
+            }
+        </div>
+    </section>
+
+    <section class="mb-6">
+        <p class="text-xs font-semibold uppercase tracking-wide text-store-muted mb-1.5">Brand</p>
+        <div class="flex flex-wrap gap-1.5">
+            <a href="@Url.Action("Products", "Store", new { category = Model.SelectedCategory, brand = "All", search = Model.SearchTerm, sort = Model.SortBy })"
+               class="px-2.5 py-1 rounded-full text-xs no-underline transition-colors @(string.Equals(Model.SelectedBrand, "All", StringComparison.OrdinalIgnoreCase) ? "bg-store-accent-soft text-store-accent border border-store-accent/30" : "bg-white border border-slate-200 text-store-ink hover:border-store-accent")">
+                All brands
+            </a>
+            @foreach (var brand in Model.Brands)
+            {
+                <a href="@Url.Action("Products", "Store", new { category = Model.SelectedCategory, brand = brand.Name, search = Model.SearchTerm, sort = Model.SortBy })"
+                   class="px-2.5 py-1 rounded-full text-xs no-underline transition-colors @(string.Equals(Model.SelectedBrand, brand.Name, StringComparison.OrdinalIgnoreCase) ? "bg-store-accent-soft text-store-accent border border-store-accent/30" : "bg-white border border-slate-200 text-store-ink hover:border-store-accent")">
+                    @brand.Name (@brand.Count)
+                </a>
+            }
+        </div>
+    </section>
+
+    @if (!Model.Products.Any())
+    {
+        <div class="bg-white border border-dashed border-slate-300 rounded-xl p-8 text-center">
+            <h2 class="font-display text-xl text-store-ink mb-1">No matching products</h2>
+            <p class="text-store-muted text-sm mb-3">Try clearing one or more filters and search terms.</p>
+            <a href="@Url.Action("Products", "Store")" class="inline-block px-3 py-2 rounded-lg bg-store-accent text-white text-sm font-semibold no-underline hover:bg-store-ink">Reset filters</a>
+        </div>
+    }
+    else
+    {
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            @foreach (var product in Model.Products)
+            {
+                <article class="store-product-card p-3 flex flex-col h-full">
+                    <a href="@Url.Action("Details", "Store", new { id = product.Id })" class="block bg-store-surface rounded-lg aspect-square mb-3 overflow-hidden no-underline">
+                        @if (!string.IsNullOrWhiteSpace(product.ImageUrl))
+                        {
+                            <img src="@product.ImageUrl" alt="@product.Name" class="w-full h-full object-contain p-3" />
+                        }
+                        else
+                        {
+                            <div class="w-full h-full flex items-center justify-center text-slate-300">
+                                <span class="material-icons-outlined text-4xl">image</span>
+                            </div>
+                        }
+                    </a>
+
+                    <div class="flex flex-wrap items-center gap-1 mb-2">
+                        <span class="text-xs text-store-muted">@product.Category &middot; @product.Brand</span>
+                        @if (product.IsBestSeller)
+                        {
+                            <span class="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 font-semibold">Best seller</span>
+                        }
+                    </div>
+                    <a href="@Url.Action("Details", "Store", new { id = product.Id })" class="font-semibold text-store-ink no-underline hover:text-store-accent mb-2">@product.Name</a>
+
+                    <div class="text-xs mb-2">
+                        @if (product.StockQuantity > 0)
+                        {
+                            <span class="text-emerald-600 font-semibold">@product.StockStatus (@product.StockQuantity available)</span>
+                        }
+                        else
+                        {
+                            <span class="text-red-600 font-semibold">Out of stock</span>
+                        }
+                    </div>
+
+                    <div class="mt-auto">
+                        <div class="flex items-end justify-between gap-2 mb-2">
+                            <div>
+                                <p class="text-base font-display text-store-ink mb-0">@product.RetailPrice.ToString("C")</p>
+                            </div>
+                            @if (product.TotalSold > 0)
+                            {
+                                <span class="text-xs text-store-muted">Sold @product.TotalSold</span>
+                            }
+                        </div>
+
+                        <div class="flex gap-2">
+                            <a href="@Url.Action("Details", "Store", new { id = product.Id })" class="flex-1 text-center text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 text-store-ink no-underline hover:border-store-accent">Details</a>
+                            <form asp-controller="Cart" asp-action="AddToCart" method="post" class="flex-1 js-store-add-to-cart">
+                                <input type="hidden" name="productId" value="@product.Id" />
+                                <button type="submit"
+                                        class="w-full text-xs px-2.5 py-1.5 rounded-lg font-semibold store-action-btn @(product.StockQuantity > 0 ? "bg-store-accent text-white hover:bg-store-ink" : "bg-slate-200 text-slate-500 cursor-not-allowed")"
+                                        @(product.StockQuantity > 0 ? null : "disabled")>
+                                    Add to cart
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</div>

@@ -1,0 +1,437 @@
+@model kstech.Models.ProcurementViewModel
+@{
+    var products = ViewBag.Products as List<kstech.Models.ProductViewModel> ?? new List<kstech.Models.ProductViewModel>();
+    var budgetOptions = ViewBag.ProcurementBudgetOptions as List<kstech.Models.ViewModels.ProcurementBudgetOptionViewModel> ?? new List<kstech.Models.ViewModels.ProcurementBudgetOptionViewModel>();
+    var reorderSuggestions = ViewBag.ProcurementReorderSuggestions as List<kstech.Models.ViewModels.ReorderSuggestionViewModel> ?? new List<kstech.Models.ViewModels.ReorderSuggestionViewModel>();
+    var reorderSuggestedTotalUnits = reorderSuggestions.Sum(item => item.SuggestedOrderQuantity);
+    var reorderSuggestedTotalCost = reorderSuggestions.Sum(item => item.EstimatedLineCost);
+    var suggestedPoSupplierLabel = "Auto Reorder Suggestion";
+    var reorderSuggestionsJson = System.Text.Json.JsonSerializer.Serialize(
+        reorderSuggestions.Select(item => new
+        {
+            productId = item.ProductId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            quantityOrdered = item.SuggestedOrderQuantity,
+            costPerItem = item.UnitCost
+        }));
+    var phpCulture = System.Globalization.CultureInfo.GetCultureInfo("en-PH");
+}
+
+<div id="createProcurementModal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" aria-hidden="true" onclick="closeCreateProcurementModal()"></div>
+
+    <div class="relative mx-auto my-6 w-[calc(100%-1.5rem)] max-w-5xl">
+        <div class="bg-white dark:bg-card-dark rounded-2xl overflow-hidden shadow-2xl border border-gray-100 dark:border-gray-700">
+            <div class="bg-gray-50/70 dark:bg-gray-800/60 px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white" id="modal-title">Create Purchase Order</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Set supplier, choose budget (optional), add line items, then save draft.</p>
+                </div>
+                <button type="button" onclick="closeCreateProcurementModal()" class="h-8 w-8 inline-flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <span class="material-icons-outlined text-[18px]">close</span>
+                </button>
+            </div>
+
+            <form asp-action="CreateProcurement" method="post" id="createProcurementForm">
+                @Html.AntiForgeryToken()
+                <div class="px-6 py-5 max-h-[72vh] overflow-y-auto space-y-5">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div>
+                            <label asp-for="SupplierName" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Supplier Name</label>
+                            <input asp-for="SupplierName" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" required />
+                        </div>
+                        <div>
+                            <label asp-for="BudgetId" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Budget (Optional)</label>
+                            <select asp-for="BudgetId" id="procurement-budget-select" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
+                                <option value="">No budget (approve without budget)</option>
+                                @foreach (var budget in budgetOptions)
+                                {
+                                    var shouldSelect = Model.BudgetId.HasValue
+                                        ? Model.BudgetId.Value == budget.BudgetId
+                                        : budget.IsSuggested;
+                                    <option value="@budget.BudgetId"
+                                            data-label="@budget.Label"
+                                            data-budget="@budget.BudgetAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
+                                            data-committed="@budget.CommittedAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
+                                            data-available="@budget.AvailableAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
+                                            selected="@(shouldSelect ? "selected" : null)">
+                                        @budget.Label | Available @budget.AvailableAmount.ToString("C", phpCulture)
+                                    </option>
+                                }
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">If you keep this empty, PO approval still works without budget reservation.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                        <div class="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2">
+                            <p class="text-[11px] uppercase tracking-wide font-semibold text-sky-700">Selected Budget</p>
+                            <p id="procurement-summary-budget-label" class="mt-1 text-sm font-semibold text-sky-900">No budget selected</p>
+                            <p id="procurement-summary-budget-available" class="mt-1 text-xs text-sky-700">Available: n/a</p>
+                        </div>
+                        <div class="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2">
+                            <p class="text-[11px] uppercase tracking-wide font-semibold text-indigo-700">Estimated PO Total</p>
+                            <p id="procurement-summary-estimated-total" class="mt-1 text-sm font-semibold text-indigo-900">₱0.00</p>
+                            <p class="mt-1 text-xs text-indigo-700">Updates automatically as you edit items.</p>
+                        </div>
+                        <div class="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+                            <p class="text-[11px] uppercase tracking-wide font-semibold text-emerald-700">Budget After PO</p>
+                            <p id="procurement-summary-budget-after" class="mt-1 text-sm font-semibold text-emerald-900">n/a</p>
+                            <p id="procurement-summary-budget-warning" class="mt-1 text-xs text-emerald-700">No budget selected.</p>
+                        </div>
+                    </div>
+
+                    @if (reorderSuggestions.Any())
+                    {
+                        <div class="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div>
+                                    <p class="text-[11px] uppercase tracking-wide font-semibold text-emerald-700">Suggested PO Items</p>
+                                    <p class="mt-1 text-sm font-semibold text-emerald-900">
+                                        @reorderSuggestions.Count item(s), @reorderSuggestedTotalUnits unit(s), est. @reorderSuggestedTotalCost.ToString("C", phpCulture)
+                                    </p>
+                                    <p class="mt-1 text-xs text-emerald-700">Loads all suggested products as line items into one draft PO form.</p>
+                                </div>
+                                <button type="button" onclick="applySuggestedPoItems()" class="rounded-lg bg-brand-primary px-3 py-2 text-xs font-medium text-white hover:bg-brand-primary/90 transition-colors">
+                                    Load Suggested Items
+                                </button>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="rounded-xl border border-gray-100 dark:border-gray-700 p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="text-sm font-semibold text-gray-900 dark:text-white">PO Items</h4>
+                            <button type="button" onclick="addProcurementItemRow()" class="px-2 py-1 rounded border border-gray-200 dark:border-gray-600 text-xs hover:bg-gray-50 dark:hover:bg-gray-800">
+                                Add Item
+                            </button>
+                        </div>
+
+                        <div class="mb-2 hidden grid-cols-12 gap-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-gray-500 md:grid">
+                            <div class="col-span-6">Product</div>
+                            <div class="col-span-2">Qty</div>
+                            <div class="col-span-3">Cost Per Item</div>
+                            <div class="col-span-1 text-center">Action</div>
+                        </div>
+
+                        <div id="procurement-items" class="space-y-2">
+                            <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-end rounded-lg border border-gray-100 bg-gray-50/70 p-3 procurement-item-row dark:border-gray-700 dark:bg-gray-800/30">
+                                <div class="md:col-span-6">
+                                    <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400 md:hidden">Product</label>
+                                    <select name="Items[0].ProductId" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" required>
+                                        <option value="">Select Product...</option>
+                                        @foreach (var product in products)
+                                        {
+                                            <option value="@product.Id" data-unit-cost="@product.UnitCost.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)">@product.Name (Stock: @product.StockQuantity)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400 md:hidden">Ordered Qty</label>
+                                    <input name="Items[0].QuantityOrdered" type="number" min="1" class="procurement-quantity-input w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" required />
+                                </div>
+                                <div class="md:col-span-3">
+                                    <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400 md:hidden">Cost Per Item</label>
+                                    <input name="Items[0].CostPerItem" type="number" step="0.01" min="0" class="procurement-cost-input w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" required />
+                                </div>
+                                <div class="md:col-span-1">
+                                    <button type="button" onclick="removeProcurementItemRow(this)" class="h-10 w-full rounded border border-red-200 text-red-600 text-xs hover:bg-red-50 dark:hover:bg-red-900/10">
+                                        Remove
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50/80 dark:bg-gray-800/80 px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex flex-row-reverse gap-2">
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-brand-primary text-white text-sm font-medium hover:bg-brand-primary/90 transition-colors">Save Draft PO</button>
+                    <button type="button" onclick="closeCreateProcurementModal()" class="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<template id="procurement-item-template">
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-2 items-end rounded-lg border border-gray-100 bg-gray-50/70 p-3 procurement-item-row dark:border-gray-700 dark:bg-gray-800/30">
+        <div class="md:col-span-6">
+            <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400 md:hidden">Product</label>
+            <select name="Items[__index__].ProductId" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" required>
+                <option value="">Select Product...</option>
+                @foreach (var product in products)
+                {
+                    <option value="@product.Id" data-unit-cost="@product.UnitCost.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)">@product.Name (Stock: @product.StockQuantity)</option>
+                }
+            </select>
+        </div>
+        <div class="md:col-span-2">
+            <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400 md:hidden">Ordered Qty</label>
+            <input name="Items[__index__].QuantityOrdered" type="number" min="1" class="procurement-quantity-input w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" required />
+        </div>
+        <div class="md:col-span-3">
+            <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400 md:hidden">Cost Per Item</label>
+            <input name="Items[__index__].CostPerItem" type="number" step="0.01" min="0" class="procurement-cost-input w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" required />
+        </div>
+        <div class="md:col-span-1">
+            <button type="button" onclick="removeProcurementItemRow(this)" class="h-10 w-full rounded border border-red-200 text-red-600 text-xs hover:bg-red-50 dark:hover:bg-red-900/10">Remove</button>
+        </div>
+    </div>
+</template>
+
+<script type="application/json" id="procurement-reorder-suggestions-json">@Html.Raw(reorderSuggestionsJson)</script>
+
+<script>
+    function closeCreateProcurementModal() {
+        document.getElementById('createProcurementModal').classList.add('hidden');
+    }
+
+    function addProcurementItemRow(initialValues) {
+        const container = document.getElementById('procurement-items');
+        const template = document.getElementById('procurement-item-template').innerHTML;
+        const index = container.querySelectorAll('.procurement-item-row').length;
+        const html = template.replace(/__index__/g, index);
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = html.trim();
+        const row = wrapper.firstChild;
+        container.appendChild(row);
+
+        if (initialValues) {
+            const productSelect = row.querySelector('select');
+            const quantityInput = row.querySelector('.procurement-quantity-input');
+            const costInput = row.querySelector('.procurement-cost-input');
+
+            if (productSelect && initialValues.productId) {
+                productSelect.value = String(initialValues.productId);
+                syncProcurementItemCostFromProduct(productSelect, true);
+            }
+
+            if (quantityInput && initialValues.quantityOrdered !== undefined && initialValues.quantityOrdered !== null) {
+                quantityInput.value = String(Math.max(0, parseDecimal(initialValues.quantityOrdered)));
+            }
+
+            if (costInput && initialValues.costPerItem !== undefined && initialValues.costPerItem !== null) {
+                costInput.value = parseDecimal(initialValues.costPerItem).toFixed(2);
+            }
+        }
+
+        updateProcurementSummary();
+        return row;
+    }
+
+    function removeProcurementItemRow(button) {
+        const container = document.getElementById('procurement-items');
+        const rows = container.querySelectorAll('.procurement-item-row');
+        if (rows.length <= 1) {
+            return;
+        }
+
+        button.closest('.procurement-item-row').remove();
+        reindexProcurementRows();
+        updateProcurementSummary();
+    }
+
+    function reindexProcurementRows() {
+        const rows = document.querySelectorAll('#procurement-items .procurement-item-row');
+        rows.forEach((row, index) => {
+            row.querySelectorAll('select, input').forEach((field) => {
+                field.name = field.name.replace(/Items\[\d+\]/, `Items[${index}]`);
+            });
+        });
+    }
+
+    function syncProcurementItemCostFromProduct(select, force) {
+        if (!select) {
+            return;
+        }
+
+        const row = select.closest('.procurement-item-row');
+        const costInput = row ? row.querySelector('.procurement-cost-input') : null;
+        if (!costInput) {
+            return;
+        }
+
+        const selectedOption = select.options[select.selectedIndex];
+        if (!selectedOption || !selectedOption.value) {
+            if (force) {
+                costInput.value = '';
+            }
+            return;
+        }
+
+        const unitCost = Math.max(0, parseDecimal(selectedOption.dataset.unitCost));
+        if (force || !String(costInput.value || '').trim()) {
+            costInput.value = unitCost.toFixed(2);
+        }
+    }
+
+    function getProcurementReorderSuggestions() {
+        const payloadEl = document.getElementById('procurement-reorder-suggestions-json');
+        if (!payloadEl) {
+            return [];
+        }
+
+        try {
+            const parsed = JSON.parse(payloadEl.textContent || '[]');
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+
+    function applySuggestedPoItems() {
+        const suggestions = getProcurementReorderSuggestions();
+        if (!suggestions.length) {
+            return;
+        }
+
+        const container = document.getElementById('procurement-items');
+        if (!container) {
+            return;
+        }
+
+        container.innerHTML = '';
+
+        let appliedCount = 0;
+        suggestions.forEach((suggestion) => {
+            const row = addProcurementItemRow({
+                productId: suggestion.productId,
+                quantityOrdered: suggestion.quantityOrdered,
+                costPerItem: suggestion.costPerItem
+            });
+
+            const productSelect = row ? row.querySelector('select') : null;
+            if (!productSelect || productSelect.value !== String(suggestion.productId)) {
+                if (row) {
+                    row.remove();
+                }
+                return;
+            }
+
+            appliedCount++;
+        });
+
+        if (appliedCount === 0) {
+            addProcurementItemRow();
+            reindexProcurementRows();
+            updateProcurementSummary();
+            alert('Suggested items are not available in the product list.');
+            return;
+        }
+
+        reindexProcurementRows();
+
+        const supplierInput = document.querySelector('#createProcurementForm input[name=\"SupplierName\"]');
+        if (supplierInput && !String(supplierInput.value || '').trim()) {
+            supplierInput.value = '@suggestedPoSupplierLabel';
+        }
+
+        updateProcurementSummary();
+    }
+
+    function parseDecimal(value) {
+        const parsed = Number.parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function formatMoney(value) {
+        return new Intl.NumberFormat('en-PH', {
+            style: 'currency',
+            currency: 'PHP',
+            maximumFractionDigits: 2
+        }).format(value);
+    }
+
+    function getSelectedBudgetMetrics() {
+        const select = document.getElementById('procurement-budget-select');
+        if (!select) {
+            return null;
+        }
+
+        const selectedOption = select.options[select.selectedIndex];
+        if (!selectedOption || !selectedOption.value) {
+            return null;
+        }
+
+        return {
+            label: selectedOption.dataset.label || 'Selected budget',
+            available: parseDecimal(selectedOption.dataset.available),
+            budget: parseDecimal(selectedOption.dataset.budget),
+            committed: parseDecimal(selectedOption.dataset.committed)
+        };
+    }
+
+    function calculateEstimatedTotal() {
+        const rows = document.querySelectorAll('#procurement-items .procurement-item-row');
+        let total = 0;
+        rows.forEach((row) => {
+            const quantityInput = row.querySelector('.procurement-quantity-input');
+            const costInput = row.querySelector('.procurement-cost-input');
+            const quantity = Math.max(0, parseDecimal(quantityInput ? quantityInput.value : 0));
+            const cost = Math.max(0, parseDecimal(costInput ? costInput.value : 0));
+            total += quantity * cost;
+        });
+        return Math.round(total * 100) / 100;
+    }
+
+    function updateProcurementSummary() {
+        const budgetLabelEl = document.getElementById('procurement-summary-budget-label');
+        const budgetAvailableEl = document.getElementById('procurement-summary-budget-available');
+        const estimatedTotalEl = document.getElementById('procurement-summary-estimated-total');
+        const budgetAfterEl = document.getElementById('procurement-summary-budget-after');
+        const budgetWarningEl = document.getElementById('procurement-summary-budget-warning');
+        if (!budgetLabelEl || !budgetAvailableEl || !estimatedTotalEl || !budgetAfterEl || !budgetWarningEl) {
+            return;
+        }
+
+        const estimatedTotal = calculateEstimatedTotal();
+        estimatedTotalEl.textContent = formatMoney(estimatedTotal);
+
+        const budget = getSelectedBudgetMetrics();
+        if (!budget) {
+            budgetLabelEl.textContent = 'No budget selected';
+            budgetAvailableEl.textContent = 'Available: n/a';
+            budgetAfterEl.textContent = 'n/a';
+            budgetWarningEl.textContent = 'No budget selected.';
+            budgetWarningEl.className = 'mt-1 text-xs text-emerald-700';
+            return;
+        }
+
+        const remainingAfterPo = Math.round((budget.available - estimatedTotal) * 100) / 100;
+        budgetLabelEl.textContent = budget.label;
+        budgetAvailableEl.textContent = `Available: ${formatMoney(budget.available)} | Committed: ${formatMoney(budget.committed)}`;
+        budgetAfterEl.textContent = formatMoney(remainingAfterPo);
+        if (remainingAfterPo < 0) {
+            budgetWarningEl.textContent = 'PO total exceeds available budget.';
+            budgetWarningEl.className = 'mt-1 text-xs text-red-700';
+        } else {
+            budgetWarningEl.textContent = 'Budget coverage looks good.';
+            budgetWarningEl.className = 'mt-1 text-xs text-emerald-700';
+        }
+    }
+
+    document.addEventListener('input', function (event) {
+        if (event.target.closest('#procurement-items')) {
+            updateProcurementSummary();
+        }
+    });
+
+    document.addEventListener('change', function (event) {
+        if (event.target.id === 'procurement-budget-select') {
+            updateProcurementSummary();
+            return;
+        }
+
+        if (event.target.closest('#procurement-items') &&
+            event.target.matches('select[name$=".ProductId"]')) {
+            syncProcurementItemCostFromProduct(event.target, true);
+            updateProcurementSummary();
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('#procurement-items select[name$=".ProductId"]').forEach((select) => {
+            syncProcurementItemCostFromProduct(select, false);
+        });
+        updateProcurementSummary();
+    });
+</script>

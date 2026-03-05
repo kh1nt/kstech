@@ -1,0 +1,482 @@
+@model kstech.Models.ViewModels.InventoryHistoryIndexViewModel
+@using kstech.Utilities
+
+@{
+    ViewData["Title"] = "Inventory History";
+    var selectedRange = string.IsNullOrWhiteSpace(Model.SelectedDateRange) ? "this_month" : Model.SelectedDateRange;
+    var selectedRangeLabel = selectedRange switch
+    {
+        "today" => "Today",
+        "yesterday" => "Yesterday",
+        "last_7_days" => "Last 7 Days",
+        "this_year" => "This Year",
+        "custom" => "Custom Range",
+        _ => "Monthly"
+    };
+}
+
+<div class="flex flex-col h-full gap-4">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Inventory History</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Track when products were added and other inventory actions from @Model.FilterStartDate.ToString("MMM dd, yyyy") to @Model.FilterEndDate.ToString("MMM dd, yyyy").
+            </p>
+        </div>
+        <div class="flex items-center gap-2">
+            <a asp-action="Index"
+               class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 no-underline">
+                Back to Inventory
+            </a>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-card-dark rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex-1 flex flex-col">
+        <div class="p-4 border-b border-gray-100 dark:border-gray-700 space-y-3">
+            <form id="historyFiltersForm" asp-action="History" method="get" class="flex flex-wrap items-end gap-3">
+                <input type="hidden" id="rangePreset" name="range" value="@selectedRange" />
+                <input type="hidden" name="page" value="1" />
+
+                <div class="flex flex-wrap items-end gap-2">
+                    <div class="w-full md:w-72">
+                        <label for="history-search-filter" class="text-xs text-gray-500 dark:text-gray-400">Search</label>
+                        <input id="history-search-filter"
+                               type="search"
+                               name="search"
+                               value="@Model.Search"
+                               placeholder="Product, SKU, reason, action, role"
+                               class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm" />
+                    </div>
+                </div>
+
+                <div class="ml-auto flex flex-wrap items-end gap-2">
+                    <div>
+                        <label for="history-type-filter" class="text-xs text-gray-500 dark:text-gray-400">Event Type</label>
+                        <select id="history-type-filter" name="type" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm">
+                            @foreach (var option in Model.TypeOptions)
+                            {
+                                if (option.Value == Model.Type)
+                                {
+                                    <option value="@option.Value" selected>@option.Label</option>
+                                }
+                                else
+                                {
+                                    <option value="@option.Value">@option.Label</option>
+                                }
+                            }
+                        </select>
+                    </div>
+
+                    <div class="relative">
+                        <label class="block text-xs text-gray-500 mb-1">Date</label>
+                        <button type="button"
+                                id="rangePresetToggle"
+                                class="min-w-40 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2.5 flex items-center justify-between gap-2 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-primary/30">
+                            <span class="flex items-center gap-2">
+                                <span class="material-icons-outlined text-[18px] text-gray-500 dark:text-gray-300">calendar_today</span>
+                                <span id="rangePresetLabel" class="text-sm font-medium text-gray-700 dark:text-gray-200">@selectedRangeLabel</span>
+                            </span>
+                            <span class="material-icons-outlined text-[18px] text-gray-500 dark:text-gray-300">expand_more</span>
+                        </button>
+                        <div id="rangePresetMenu" class="hidden absolute right-0 z-20 mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark shadow-lg">
+                            <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="today">Today</button>
+                            <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="yesterday">Yesterday</button>
+                            <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="last_7_days">Last 7 Days</button>
+                            <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="this_month">This Month</button>
+                            <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="this_year">This Year</button>
+                            <div class="border-t border-gray-200 dark:border-gray-700"></div>
+                            <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="custom">Custom Range</button>
+                        </div>
+                    </div>
+
+                    <div id="customRangeFields" class="flex flex-wrap items-end gap-2 @(selectedRange == "custom" ? string.Empty : "hidden")">
+                        <div>
+                            <label for="startDate" class="block text-xs text-gray-500 mb-1">From</label>
+                            <input id="startDate"
+                                   name="startDate"
+                                   type="date"
+                                   value="@Model.FilterStartDate.ToString("yyyy-MM-dd")"
+                                   class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                            <label for="endDate" class="block text-xs text-gray-500 mb-1">To</label>
+                            <input id="endDate"
+                                   name="endDate"
+                                   type="date"
+                                   value="@Model.FilterEndDate.ToString("yyyy-MM-dd")"
+                                   class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm" />
+                        </div>
+                    </div>
+
+                    <a asp-action="History"
+                       asp-route-range="this_month"
+                       asp-route-type="all"
+                       class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 no-underline">
+                        Reset
+                    </a>
+                </div>
+            </form>
+
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+                Showing @Model.StartItem to @Model.EndItem of @Model.TotalMatched history entr@(Model.TotalMatched == 1 ? "y" : "ies")
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="text-xs font-semibold uppercase text-gray-500 border-b border-gray-100 dark:border-gray-700">
+                    <tr>
+                        <th class="px-4 py-3">Timestamp</th>
+                        <th class="px-4 py-3">When</th>
+                        <th class="px-4 py-3">Type</th>
+                        <th class="px-4 py-3">Product</th>
+                        <th class="px-4 py-3">Qty</th>
+                        <th class="px-4 py-3">Actor</th>
+                        <th class="px-4 py-3">Reference</th>
+                        <th class="px-4 py-3">Details</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    @if (!Model.Items.Any())
+                    {
+                        <tr>
+                            <td colspan="8" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                No history entries match the current filters.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Model.Items)
+                        {
+                            var quantityDisplay = item.QuantityDelta.HasValue
+                                ? item.QuantityDelta.Value.ToString("+#,##0;-#,##0;0")
+                                : "-";
+
+                            var quantityClasses = !item.QuantityDelta.HasValue
+                                ? "text-gray-500"
+                                : item.QuantityDelta.Value > 0
+                                    ? "text-green-600 font-semibold"
+                                    : item.QuantityDelta.Value < 0
+                                        ? "text-red-600 font-semibold"
+                                        : "text-gray-700";
+
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                <td class="px-4 py-3 text-gray-500">@BusinessTime.ConvertUtcToBusinessTime(item.TimestampUtc).ToString("yyyy-MM-dd hh:mm:ss tt")</td>
+                                <td class="px-4 py-3 text-gray-500">@item.RelativeTime</td>
+                                <td class="px-4 py-3 text-gray-700 dark:text-gray-300">@item.EventTypeLabel</td>
+                                <td class="px-4 py-3">
+                                    @if (item.ProductName == "-")
+                                    {
+                                        <span class="text-gray-500">-</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="font-semibold text-gray-900 dark:text-white">@item.ProductName</div>
+                                        @if (!string.IsNullOrWhiteSpace(item.Sku))
+                                        {
+                                            <div class="text-xs text-gray-500">SKU: @item.Sku</div>
+                                        }
+                                    }
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="@quantityClasses">@quantityDisplay</div>
+                                    @if (item.UnitCost.HasValue)
+                                    {
+                                        <div class="text-xs text-gray-500">@item.UnitCost.Value.ToString("C")</div>
+                                    }
+                                </td>
+                                <td class="px-4 py-3 text-gray-700 dark:text-gray-300">@item.ActorDisplay</td>
+                                <td class="px-4 py-3 text-xs text-gray-500">@item.Reference</td>
+                                <td class="px-4 py-3 text-gray-700 dark:text-gray-300">@item.Details</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="p-4 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50/30 dark:bg-gray-800/20">
+            <div class="text-xs text-gray-500 text-[13px]">
+                Showing
+                <span class="font-bold text-gray-900 dark:text-white">@Model.StartItem</span>
+                to
+                <span class="font-bold text-gray-900 dark:text-white">@Model.EndItem</span>
+                of
+                <span class="font-bold text-gray-900 dark:text-white">@Model.TotalMatched</span>
+                matching entries
+            </div>
+            @if (Model.TotalPages > 0)
+            {
+                var startPage = Math.Max(1, Model.Page - 1);
+                var endPage = Math.Min(Model.TotalPages, startPage + 2);
+                startPage = Math.Max(1, endPage - 2);
+
+                <div class="flex items-center gap-2">
+                    @if (Model.HasPreviousPage)
+                    {
+                        <a asp-action="History"
+                           asp-route-search="@Model.Search"
+                           asp-route-type="@Model.Type"
+                           asp-route-range="@Model.SelectedDateRange"
+                           asp-route-startDate="@Model.FilterStartDate.ToString("yyyy-MM-dd")"
+                           asp-route-endDate="@Model.FilterEndDate.ToString("yyyy-MM-dd")"
+                           asp-route-page="@(Model.Page - 1)"
+                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors no-underline">
+                            <span class="material-icons-outlined text-[18px]">chevron_left</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                            <span class="material-icons-outlined text-[18px]">chevron_left</span>
+                        </span>
+                    }
+
+                    @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                    {
+                        if (pageNumber == Model.Page)
+                        {
+                            <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-brand-primary bg-brand-primary text-white text-sm font-semibold">
+                                @pageNumber
+                            </span>
+                        }
+                        else
+                        {
+                            <a asp-action="History"
+                               asp-route-search="@Model.Search"
+                               asp-route-type="@Model.Type"
+                               asp-route-range="@Model.SelectedDateRange"
+                               asp-route-startDate="@Model.FilterStartDate.ToString("yyyy-MM-dd")"
+                               asp-route-endDate="@Model.FilterEndDate.ToString("yyyy-MM-dd")"
+                               asp-route-page="@pageNumber"
+                               class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-semibold no-underline">
+                                @pageNumber
+                            </a>
+                        }
+                    }
+
+                    @if (Model.HasNextPage)
+                    {
+                        <a asp-action="History"
+                           asp-route-search="@Model.Search"
+                           asp-route-type="@Model.Type"
+                           asp-route-range="@Model.SelectedDateRange"
+                           asp-route-startDate="@Model.FilterStartDate.ToString("yyyy-MM-dd")"
+                           asp-route-endDate="@Model.FilterEndDate.ToString("yyyy-MM-dd")"
+                           asp-route-page="@(Model.Page + 1)"
+                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors no-underline">
+                            <span class="material-icons-outlined text-[18px]">chevron_right</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                            <span class="material-icons-outlined text-[18px]">chevron_right</span>
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const historyFilterForm = document.getElementById('historyFiltersForm');
+        const searchInput = document.getElementById('history-search-filter');
+        const typeSelect = document.getElementById('history-type-filter');
+        const rangePresetInput = document.getElementById('rangePreset');
+        const rangePresetToggle = document.getElementById('rangePresetToggle');
+        const rangePresetLabel = document.getElementById('rangePresetLabel');
+        const rangePresetMenu = document.getElementById('rangePresetMenu');
+        const customRangeFields = document.getElementById('customRangeFields');
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+
+        const rangeLabels = {
+            today: 'Today',
+            yesterday: 'Yesterday',
+            last_7_days: 'Last 7 Days',
+            this_month: 'Monthly',
+            this_year: 'This Year',
+            custom: 'Custom Range'
+        };
+
+        let searchTimer = null;
+
+        function submitHistoryFilters() {
+            if (!historyFilterForm) {
+                return;
+            }
+
+            if (typeof historyFilterForm.requestSubmit === 'function') {
+                historyFilterForm.requestSubmit();
+                return;
+            }
+
+            historyFilterForm.submit();
+        }
+
+        function toLocalDateInputValue(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function getLocalToday() {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return today;
+        }
+
+        function resolvePresetDates(range) {
+            const end = getLocalToday();
+            const start = new Date(end);
+
+            switch (range) {
+                case 'today':
+                    break;
+                case 'yesterday':
+                    start.setDate(start.getDate() - 1);
+                    end.setDate(end.getDate() - 1);
+                    break;
+                case 'last_7_days':
+                    start.setDate(start.getDate() - 6);
+                    break;
+                case 'this_year':
+                    start.setMonth(0, 1);
+                    break;
+                case 'this_month':
+                default:
+                    start.setDate(1);
+                    break;
+            }
+
+            return { start, end };
+        }
+
+        function syncDateBounds() {
+            if (!startDateInput || !endDateInput) {
+                return;
+            }
+
+            startDateInput.max = endDateInput.value || '';
+            endDateInput.min = startDateInput.value || '';
+        }
+
+        function setRangeLabel(range) {
+            if (!rangePresetLabel) {
+                return;
+            }
+
+            rangePresetLabel.textContent = rangeLabels[range] || rangeLabels.this_month;
+        }
+
+        function setCustomRangeVisibility(showCustom) {
+            if (!customRangeFields) {
+                return;
+            }
+
+            customRangeFields.classList.toggle('hidden', !showCustom);
+        }
+
+        function closePresetMenu() {
+            rangePresetMenu?.classList.add('hidden');
+        }
+
+        function selectPreset(range, shouldSubmit) {
+            if (!rangePresetInput) {
+                return;
+            }
+
+            rangePresetInput.value = range;
+            setRangeLabel(range);
+
+            const isCustomRange = range === 'custom';
+            setCustomRangeVisibility(isCustomRange);
+
+            if (!isCustomRange) {
+                const { start, end } = resolvePresetDates(range);
+                if (startDateInput && endDateInput) {
+                    startDateInput.value = toLocalDateInputValue(start);
+                    endDateInput.value = toLocalDateInputValue(end);
+                    syncDateBounds();
+                }
+
+                if (shouldSubmit) {
+                    submitHistoryFilters();
+                }
+            }
+        }
+
+        rangePresetToggle?.addEventListener('click', () => {
+            rangePresetMenu?.classList.toggle('hidden');
+        });
+
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof Node)) {
+                return;
+            }
+
+            if (!rangePresetMenu?.contains(target) && !rangePresetToggle?.contains(target)) {
+                closePresetMenu();
+            }
+        });
+
+        document.querySelectorAll('.range-preset-option').forEach((option) => {
+            option.addEventListener('click', () => {
+                const selected = option.dataset.range || 'this_month';
+                closePresetMenu();
+                selectPreset(selected, selected !== 'custom');
+            });
+        });
+
+        if (searchInput) {
+            searchInput.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter') {
+                    return;
+                }
+
+                event.preventDefault();
+                if (searchTimer) {
+                    window.clearTimeout(searchTimer);
+                    searchTimer = null;
+                }
+                submitHistoryFilters();
+            });
+
+            searchInput.addEventListener('input', () => {
+                if (searchTimer) {
+                    window.clearTimeout(searchTimer);
+                }
+
+                searchTimer = window.setTimeout(() => {
+                    submitHistoryFilters();
+                }, 450);
+            });
+        }
+
+        typeSelect?.addEventListener('change', submitHistoryFilters);
+
+        startDateInput?.addEventListener('change', () => {
+            syncDateBounds();
+            if ((rangePresetInput?.value || '') === 'custom' && startDateInput.value && endDateInput?.value) {
+                submitHistoryFilters();
+            }
+        });
+
+        endDateInput?.addEventListener('change', () => {
+            syncDateBounds();
+            if ((rangePresetInput?.value || '') === 'custom' && startDateInput?.value && endDateInput.value) {
+                submitHistoryFilters();
+            }
+        });
+
+        setRangeLabel(rangePresetInput?.value || 'this_month');
+        setCustomRangeVisibility((rangePresetInput?.value || 'this_month') === 'custom');
+        syncDateBounds();
+    </script>
+}

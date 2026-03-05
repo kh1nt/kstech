@@ -1,0 +1,890 @@
+@model kstech.Models.InventoryViewModel
+@using kstech.Utilities
+
+@{
+    ViewData["Title"] = "Product Management";
+}
+
+<div class="flex flex-col h-full gap-4">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                @(Model.ShowArchived ? "Archived Products" : "Product Management")
+            </h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                @(Model.ShowArchived
+                    ? "Review archived products and restore items when needed."
+                    : "Manage stock, pricing, and eBay market references.")
+            </p>
+        </div>
+        <div class="flex items-center gap-2">
+            @if (Model.ShowArchived)
+            {
+                <a asp-action="Products"
+                   class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 no-underline">
+                    Back to Active
+                </a>
+            }
+            else
+            {
+                <a asp-action="Products"
+                   asp-route-showArchived="true"
+                   class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 no-underline">
+                    View Archived
+                </a>
+            }
+        </div>
+    </div>
+
+    @if (TempData["MarketSyncMessage"] != null)
+    {
+        <div class="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+            @TempData["MarketSyncMessage"]
+        </div>
+    }
+    @if (TempData["ProductMessage"] != null)
+    {
+        <div class="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+            @TempData["ProductMessage"]
+        </div>
+    }
+    @if (TempData["ProductError"] != null)
+    {
+        <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            @TempData["ProductError"]
+        </div>
+    }
+
+    <div class="bg-white dark:bg-card-dark rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex-1 flex flex-col">
+        <div class="p-4 border-b border-gray-100 dark:border-gray-700 space-y-3">
+            <form id="productFiltersForm" asp-action="Products" method="get" class="grid grid-cols-1 md:grid-cols-6 gap-3">
+                <input type="hidden" name="showArchived" value="@Model.ShowArchived" />
+                <input type="hidden" name="page" value="1" />
+                <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                <div class="md:col-span-2">
+                    <label class="text-xs text-gray-500 dark:text-gray-400">Search</label>
+                    <input id="product-search-filter"
+                           type="search"
+                           name="searchTerm"
+                           value="@Model.SearchTerm"
+                           placeholder="Name, SKU, brand, category"
+                           class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm" />
+                </div>
+
+                <div>
+                    <label class="text-xs text-gray-500 dark:text-gray-400">Category</label>
+                    <select id="product-category-filter" name="category" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm">
+                        <option value="All">All</option>
+                        @foreach (var category in Model.CategoryOptions)
+                        {
+                            <option value="@category">@category</option>
+                        }
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-xs text-gray-500 dark:text-gray-400">Stock Status</label>
+                    <select id="product-stock-filter" name="stockStatus" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm">
+                        <option value="All">All</option>
+                        <option value="Healthy">Healthy</option>
+                        <option value="Low Stock">Low Stock</option>
+                        <option value="Out of Stock">Out of Stock</option>
+                        <option value="Overstock">Overstock</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-xs text-gray-500 dark:text-gray-400">Sort</label>
+                    <select id="product-sort-filter" name="sortBy" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm">
+                        <option value="name_asc">Name A-Z</option>
+                        <option value="name_desc">Name Z-A</option>
+                        <option value="stock_desc">Stock High-Low</option>
+                        <option value="stock_asc">Stock Low-High</option>
+                        <option value="retail_desc">Retail High-Low</option>
+                        <option value="retail_asc">Retail Low-High</option>
+                        <option value="market_desc">eBay High-Low</option>
+                        <option value="market_asc">eBay Low-High</option>
+                    </select>
+                </div>
+
+                <div class="flex items-end gap-2">
+                    @if (!Model.ShowArchived)
+                    {
+                        <button type="button"
+                                onclick="document.getElementById('addProductModal').classList.remove('hidden')"
+                                class="px-3 py-2 rounded-lg bg-brand-primary text-white text-sm font-medium whitespace-nowrap">
+                            Add Product
+                        </button>
+                    }
+                    <a asp-action="Products"
+                       asp-route-showArchived="@Model.ShowArchived"
+                       class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 no-underline">
+                        Reset
+                    </a>
+                </div>
+            </form>
+
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                    Showing @Model.StartItem to @Model.EndItem of @Model.TotalMatched product(s)
+                </div>
+                <div class="flex items-center gap-2">
+                    @if (!Model.ShowArchived)
+                    {
+                        <form asp-action="RefreshMarketPrices" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="showArchived" value="@Model.ShowArchived" />
+                            <input type="hidden" name="searchTerm" value="@Model.SearchTerm" />
+                            <input type="hidden" name="category" value="@Model.CategoryFilter" />
+                            <input type="hidden" name="stockStatus" value="@Model.StockStatusFilter" />
+                            <input type="hidden" name="sortBy" value="@Model.SortBy" />
+                            <input type="hidden" name="page" value="@Model.Page" />
+                            <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                            <button type="submit"
+                                    class="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                Refresh eBay Prices
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="text-xs font-semibold uppercase text-gray-500 border-b border-gray-100 dark:border-gray-700">
+                    <tr>
+                        <th class="px-4 py-3">Product</th>
+                        <th class="px-4 py-3">Category</th>
+                        <th class="px-4 py-3">Brand</th>
+                        <th class="px-4 py-3">Stock</th>
+                        <th class="px-4 py-3">Condition</th>
+                        <th class="px-4 py-3">Unit Cost</th>
+                        <th class="px-4 py-3">Retail</th>
+                        <th class="px-4 py-3">Suggested Price</th>
+                        <th class="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    @if (!Model.Products.Any())
+                    {
+                        <tr>
+                            <td colspan="9" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                                No products match the current filters.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var product in Model.Products)
+                        {
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" onclick="openProductInfoModal('@product.Id')">
+                                <td class="px-4 py-3">
+                                    <div class="font-semibold text-gray-900 dark:text-white">@product.Name</div>
+                                    <div class="text-xs text-gray-500">SKU: @product.Sku</div>
+                                </td>
+                                <td class="px-4 py-3 text-gray-700 dark:text-gray-300">@product.Category</td>
+                                <td class="px-4 py-3 text-gray-700 dark:text-gray-300">@product.Brand</td>
+                                <td class="px-4 py-3">
+                                    <div class="font-medium text-gray-900 dark:text-white">@product.StockQuantity</div>
+                                    <div class="text-xs @(product.StockStatus == "Low Stock" ? "text-yellow-600" : product.StockStatus == "Out of Stock" ? "text-red-600" : "text-green-600")">
+                                        @product.StockStatus
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div>
+                                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium @(product.ConditionStatus == "Good" ? "bg-emerald-100 text-emerald-700" : product.ConditionStatus == "For Inspection" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700")">
+                                            @product.ConditionStatus
+                                        </span>
+                                    </div>
+                                    <div class="text-xs mt-1 @(product.DamagedQuantity > 0 ? "text-red-600" : "text-gray-500")">
+                                        Damaged: @product.DamagedQuantity
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 text-gray-700 dark:text-gray-300">@product.UnitCost.ToString("C")</td>
+                                <td class="px-4 py-3 font-semibold text-gray-900 dark:text-white">@product.RetailPrice.ToString("C")</td>
+                                <td class="px-4 py-3">
+                                    @if (product.EbayLivePrice.HasValue && product.EbayLivePrice.Value > 0m)
+                                    {
+                                        <div class="font-semibold text-gray-900 dark:text-white">
+                                            @product.EbayLivePrice.Value.ToString("C")
+                                        </div>
+                                        <div class="text-xs text-gray-500">
+                                            Source: @(!string.IsNullOrWhiteSpace(product.MarketPriceSource) ? product.MarketPriceSource : "Unknown")
+                                        </div>
+                                        <div class="text-xs text-gray-500">
+                                            Updated:
+                                            @(product.LastMarketPriceSyncUtc.HasValue
+                                                ? BusinessTime.ConvertUtcToBusinessTime(product.LastMarketPriceSyncUtc.Value).ToString("MMM dd, yyyy HH:mm")
+                                                : "Not synced yet")
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-xs text-gray-500">No eBay reference</span>
+                                    }
+                                </td>
+                                <td class="px-4 py-3" onclick="event.stopPropagation();">
+                                    <div class="flex items-center justify-center gap-2">
+                                        @if (!Model.ShowArchived)
+                                        {
+                                            <button type="button"
+                                                    onclick="openEditProductModal('@product.Id')"
+                                                    class="px-2 py-1 rounded border border-gray-200 dark:border-gray-600 text-xs">
+                                                Edit
+                                            </button>
+                                            <button type="button"
+                                                    onclick="openQualityProductModal('@product.Id')"
+                                                    class="px-2 py-1 rounded border border-amber-200 text-amber-700 text-xs">
+                                                Quality
+                                            </button>
+                                            // Archrive Product
+                                            <form asp-action="ArchiveProduct" method="post" onsubmit="return confirm('Archive @product.Name?');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@product.Id" />
+                                                <input type="hidden" name="showArchived" value="@Model.ShowArchived" />
+                                                <input type="hidden" name="searchTerm" value="@Model.SearchTerm" />
+                                                <input type="hidden" name="category" value="@Model.CategoryFilter" />
+                                                <input type="hidden" name="stockStatus" value="@Model.StockStatusFilter" />
+                                                <input type="hidden" name="sortBy" value="@Model.SortBy" />
+                                                <input type="hidden" name="page" value="@Model.Page" />
+                                                <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                                <button type="submit" class="px-2 py-1 rounded border border-red-200 text-red-600 text-xs">
+                                                    Archive
+                                                </button>
+                                            </form>
+                                        }
+                                        else
+                                        {
+                                            <form asp-action="UnarchiveProduct" method="post" onsubmit="return confirm('Unarchive @product.Name?');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@product.Id" />
+                                                <input type="hidden" name="showArchived" value="@Model.ShowArchived" />
+                                                <input type="hidden" name="searchTerm" value="@Model.SearchTerm" />
+                                                <input type="hidden" name="category" value="@Model.CategoryFilter" />
+                                                <input type="hidden" name="stockStatus" value="@Model.StockStatusFilter" />
+                                                <input type="hidden" name="sortBy" value="@Model.SortBy" />
+                                                <input type="hidden" name="page" value="@Model.Page" />
+                                                <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                                <button type="submit" class="px-2 py-1 rounded border border-green-200 text-green-600 text-xs">
+                                                    Unarchive
+                                                </button>
+                                            </form>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="p-4 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50/30 dark:bg-gray-800/20">
+            <div class="text-xs text-gray-500 text-[13px]">
+                Showing
+                <span class="font-bold text-gray-900 dark:text-white">@Model.StartItem</span>
+                to
+                <span class="font-bold text-gray-900 dark:text-white">@Model.EndItem</span>
+                of
+                <span class="font-bold text-gray-900 dark:text-white">@Model.TotalMatched</span>
+                matching products
+            </div>
+            @if (Model.TotalPages > 0)
+            {
+                var startPage = Math.Max(1, Model.Page - 1);
+                var endPage = Math.Min(Model.TotalPages, startPage + 2);
+                startPage = Math.Max(1, endPage - 2);
+
+                <div class="flex items-center gap-2">
+                    @if (Model.HasPreviousPage)
+                    {
+                        <a asp-action="Products"
+                           asp-route-showArchived="@Model.ShowArchived"
+                           asp-route-searchTerm="@Model.SearchTerm"
+                           asp-route-category="@Model.CategoryFilter"
+                           asp-route-stockStatus="@Model.StockStatusFilter"
+                           asp-route-sortBy="@Model.SortBy"
+                           asp-route-page="@(Model.Page - 1)"
+                           asp-route-pageSize="@Model.PageSize"
+                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors no-underline">
+                            <span class="material-icons-outlined text-[18px]">chevron_left</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                            <span class="material-icons-outlined text-[18px]">chevron_left</span>
+                        </span>
+                    }
+
+                    @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                    {
+                        if (pageNumber == Model.Page)
+                        {
+                            <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-brand-primary bg-brand-primary text-white text-sm font-semibold">
+                                @pageNumber
+                            </span>
+                        }
+                        else
+                        {
+                            <a asp-action="Products"
+                               asp-route-showArchived="@Model.ShowArchived"
+                               asp-route-searchTerm="@Model.SearchTerm"
+                               asp-route-category="@Model.CategoryFilter"
+                               asp-route-stockStatus="@Model.StockStatusFilter"
+                               asp-route-sortBy="@Model.SortBy"
+                               asp-route-page="@pageNumber"
+                               asp-route-pageSize="@Model.PageSize"
+                               class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-semibold no-underline">
+                                @pageNumber
+                            </a>
+                        }
+                    }
+
+                    @if (Model.HasNextPage)
+                    {
+                        <a asp-action="Products"
+                           asp-route-showArchived="@Model.ShowArchived"
+                           asp-route-searchTerm="@Model.SearchTerm"
+                           asp-route-category="@Model.CategoryFilter"
+                           asp-route-stockStatus="@Model.StockStatusFilter"
+                           asp-route-sortBy="@Model.SortBy"
+                           asp-route-page="@(Model.Page + 1)"
+                           asp-route-pageSize="@Model.PageSize"
+                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors no-underline">
+                            <span class="material-icons-outlined text-[18px]">chevron_right</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                            <span class="material-icons-outlined text-[18px]">chevron_right</span>
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<div id="editProductModal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="edit-modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" aria-hidden="true" onclick="closeEditProductModal()"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+        <div class="relative inline-block align-bottom bg-white dark:bg-card-dark rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full border border-gray-100 dark:border-gray-700">
+            <div class="bg-gray-50/50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white" id="edit-modal-title">Edit Product</h3>
+                <button type="button" onclick="closeEditProductModal()" class="text-gray-400 hover:text-gray-500">x</button>
+            </div>
+
+            <div class="px-6 py-6">
+                <form asp-action="EditProduct" method="post" id="editProductForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" id="edit-id" name="Id" />
+                    <input type="hidden" name="showArchived" value="@Model.ShowArchived" />
+                    <input type="hidden" name="searchTerm" value="@Model.SearchTerm" />
+                    <input type="hidden" name="category" value="@Model.CategoryFilter" />
+                    <input type="hidden" name="stockStatus" value="@Model.StockStatusFilter" />
+                    <input type="hidden" name="sortBy" value="@Model.SortBy" />
+                    <input type="hidden" name="page" value="@Model.Page" />
+                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="edit-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name</label>
+                            <input id="edit-name" name="Name" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" required />
+                        </div>
+                        <div>
+                            <label for="edit-sku" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SKU</label>
+                            <input id="edit-sku" name="Sku" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" required />
+                        </div>
+                        <div>
+                            <label for="edit-category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                            <input id="edit-category" name="Category" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" />
+                        </div>
+                        <div>
+                            <label for="edit-brand" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Brand</label>
+                            <input id="edit-brand" name="Brand" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" />
+                        </div>
+                        <div class="md:col-span-2">
+                            <label for="edit-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                            <textarea id="edit-description" name="Description" rows="3" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800"></textarea>
+                        </div>
+                        <div>
+                            <label for="edit-stock-quantity" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stock Quantity</label>
+                            <input id="edit-stock-quantity" name="StockQuantity" type="number" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" />
+                        </div>
+                        <div>
+                            <label for="edit-unit-cost" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Unit Cost</label>
+                            <input id="edit-unit-cost" name="UnitCost" type="number" step="0.01" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" />
+                        </div>
+                        <div>
+                            <label for="edit-retail-price" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Retail Price</label>
+                            <input id="edit-retail-price" name="RetailPrice" type="number" step="0.01" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" />
+                        </div>
+                        <div class="md:col-span-2">
+                            <label for="edit-ebay-live-price" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Manual eBay Reference (PHP)</label>
+                            <div class="flex gap-2">
+                                <input id="edit-ebay-live-price" name="EbayLivePrice" type="number" step="0.01" class="flex-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" />
+                                <button type="button" id="editFetchPriceBtn" class="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 text-sm font-medium transition-colors border border-indigo-200">
+                                    Fetch Suggested Price
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="bg-gray-50/80 dark:bg-gray-800/80 px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex flex-row-reverse gap-2">
+                <button type="button" onclick="const form = document.getElementById('editProductForm'); if (form && form.requestSubmit) { form.requestSubmit(); } else if (form) { form.submit(); }" class="px-4 py-2 rounded-lg bg-brand-primary text-white text-sm font-medium">Save</button>
+                <button type="button" onclick="closeEditProductModal()" class="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="qualityProductModal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="quality-modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" aria-hidden="true" onclick="closeQualityProductModal()"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+        <div class="relative inline-block align-bottom bg-white dark:bg-card-dark rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-xl sm:w-full border border-gray-100 dark:border-gray-700">
+            <div class="bg-gray-50/50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white" id="quality-modal-title">Update Product Quality</h3>
+                <button type="button" onclick="closeQualityProductModal()" class="text-gray-400 hover:text-gray-500">x</button>
+            </div>
+
+            <div class="px-6 py-6">
+                <form asp-action="UpdateProductCondition" method="post" id="qualityProductForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" id="quality-id" name="id" />
+                    <input type="hidden" name="showArchived" value="@Model.ShowArchived" />
+                    <input type="hidden" name="searchTerm" value="@Model.SearchTerm" />
+                    <input type="hidden" name="category" value="@Model.CategoryFilter" />
+                    <input type="hidden" name="stockStatus" value="@Model.StockStatusFilter" />
+                    <input type="hidden" name="sortBy" value="@Model.SortBy" />
+                    <input type="hidden" name="page" value="@Model.Page" />
+                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                    <div class="space-y-4">
+                        <div>
+                            <label for="quality-product-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product</label>
+                            <input id="quality-product-name" type="text" readonly class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300" />
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="quality-damaged-quantity" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Damaged Quantity</label>
+                                <input id="quality-damaged-quantity" name="damagedQuantity" type="number" min="0" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" />
+                            </div>
+                            <div>
+                                <label for="quality-condition-status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Condition</label>
+                                <select id="quality-condition-status" name="conditionStatus" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
+                                    <option value="Good">Good</option>
+                                    <option value="Damaged">Damaged</option>
+                                    <option value="Defective">Defective</option>
+                                    <option value="For Inspection">For Inspection</option>
+                                    <option value="Expired">Expired</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="quality-last-condition-check-utc" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Condition Check (UTC)</label>
+                            <input id="quality-last-condition-check-utc" name="lastConditionCheckUtc" type="datetime-local" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800" />
+                        </div>
+                        <div>
+                            <label for="quality-condition-notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Condition Notes</label>
+                            <textarea id="quality-condition-notes" name="conditionNotes" rows="3" class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="bg-gray-50/80 dark:bg-gray-800/80 px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex flex-row-reverse gap-2">
+                <button type="button" onclick="const form = document.getElementById('qualityProductForm'); if (form && form.requestSubmit) { form.requestSubmit(); } else if (form) { form.submit(); }" class="px-4 py-2 rounded-lg bg-brand-primary text-white text-sm font-medium">Save Quality</button>
+                <button type="button" onclick="closeQualityProductModal()" class="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="productInfoModal" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="info-modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" aria-hidden="true" onclick="closeProductInfoModal()"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+        <div class="relative inline-block align-bottom bg-white dark:bg-card-dark rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full border border-gray-100 dark:border-gray-700">
+            <div class="bg-gray-50/50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white" id="info-modal-title">Product Information</h3>
+                <button type="button" onclick="closeProductInfoModal()" class="text-gray-400 hover:text-gray-500">x</button>
+            </div>
+
+            <div class="px-6 py-6 space-y-6">
+                <!-- Product Details -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pb-6 border-b border-gray-100 dark:border-gray-700">
+                    <div class="md:col-span-2">
+                        <label class="block text-xs text-gray-500 dark:text-gray-400">Name</label>
+                        <div id="info-name" class="font-medium text-gray-900 dark:text-white"></div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-xs text-gray-500 dark:text-gray-400">SKU</label>
+                        <div id="info-sku" class="font-medium text-gray-900 dark:text-white"></div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400">Category</label>
+                        <div id="info-category" class="font-medium text-gray-900 dark:text-white"></div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400">Brand</label>
+                        <div id="info-brand" class="font-medium text-gray-900 dark:text-white"></div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400">Stock</label>
+                        <div id="info-stock" class="font-medium text-gray-900 dark:text-white"></div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400">Condition</label>
+                        <div id="info-condition" class="font-medium text-gray-900 dark:text-white"></div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400">Damaged Qty</label>
+                        <div id="info-damaged-qty" class="font-medium text-gray-900 dark:text-white"></div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400">Unit Cost</label>
+                        <div id="info-cost" class="font-medium text-gray-900 dark:text-white"></div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 dark:text-gray-400">Retail Price</label>
+                        <div id="info-retail" class="font-medium text-gray-900 dark:text-white"></div>
+                    </div>
+                </div>
+
+                <!-- eBay Details -->
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                        <span class="material-icons-outlined text-[#e53238]" style="font-size: 18px;">travel_explore</span>
+                        eBay Suggested Pricing
+                    </h4>
+                    
+                    <div id="info-ebay-loading" class="hidden text-sm text-gray-500 py-4 flex items-center justify-center gap-2 border border-gray-100 dark:border-gray-800 rounded-xl bg-gray-50/50 dark:bg-gray-800/30">
+                        <div class="animate-spin rounded-full h-4 w-4 border-2 border-[#e53238] border-t-transparent"></div>
+                        Fetching live market data...
+                    </div>
+
+                    <div id="info-ebay-content" class="hidden">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50/40 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
+                            <div>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-2">Prices Near Median</label>
+                                <ul id="info-ebay-top-prices" class="space-y-1 text-sm font-medium text-gray-900 dark:text-white">
+                                </ul>
+                            </div>
+                            <div class="flex flex-col justify-center border-l border-blue-100 dark:border-blue-800/30 pl-4">
+                                <label class="block text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1">Suggested Price</label>
+                                <div id="info-ebay-suggested" class="text-2xl font-bold text-blue-700 dark:text-blue-300"></div>
+                                <div id="info-ebay-source" class="text-xs text-gray-500 mt-1"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="info-ebay-error" class="hidden text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-xl p-4 flex items-center gap-2">
+                        <span class="material-icons-outlined">error_outline</span>
+                        <span>Could not fetch market data or no references found on eBay.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50/80 dark:bg-gray-800/80 px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+                <button type="button" onclick="closeProductInfoModal()" class="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<partial name="_AddProductModal"
+         model="new kstech.Models.ProductViewModel { CategoryOptions = Model.CategoryOptions, BrandOptions = Model.BrandOptions }" />
+
+@section Scripts {
+    <script>
+        const selectedCategory = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.CategoryFilter));
+        const selectedStockStatus = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.StockStatusFilter));
+        const selectedSortBy = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SortBy));
+        const getProductForEditUrl = '@Url.Action("GetProductForEdit", "Inventory")';
+
+        function isReservedCategoryName(value) {
+            if (!value) {
+                return false;
+            }
+
+            const normalized = value.trim().toLowerCase();
+            return normalized === 'all' || normalized === 'all products' || normalized === '__other__';
+        }
+
+        function toDateTimeLocalInputValue(value) {
+            if (!value) {
+                return '';
+            }
+
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return '';
+            }
+
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const productFiltersForm = document.getElementById('productFiltersForm');
+            const searchInput = document.getElementById('product-search-filter');
+            const categorySelect = document.getElementById('product-category-filter');
+            const stockStatusSelect = document.getElementById('product-stock-filter');
+            const sortBySelect = document.getElementById('product-sort-filter');
+            const editProductForm = document.getElementById('editProductForm');
+            const qualityProductForm = document.getElementById('qualityProductForm');
+            const editCategoryInput = document.getElementById('edit-category');
+            let productSearchTimer = null;
+
+            if (categorySelect) {
+                categorySelect.value = selectedCategory || 'All';
+            }
+            if (stockStatusSelect) {
+                stockStatusSelect.value = selectedStockStatus || 'All';
+            }
+            if (sortBySelect) {
+                sortBySelect.value = selectedSortBy || 'name_asc';
+            }
+
+            const submitProductFilters = () => {
+                if (!productFiltersForm) {
+                    return;
+                }
+
+                if (typeof productFiltersForm.requestSubmit === 'function') {
+                    productFiltersForm.requestSubmit();
+                    return;
+                }
+
+                productFiltersForm.submit();
+            };
+
+            [categorySelect, stockStatusSelect, sortBySelect]
+                .filter(Boolean)
+                .forEach((filterSelect) => {
+                    filterSelect.addEventListener('change', submitProductFilters);
+                });
+
+            if (searchInput) {
+                searchInput.addEventListener('keydown', function (event) {
+                    if (event.key !== 'Enter') {
+                        return;
+                    }
+
+                    event.preventDefault();
+
+                    if (productSearchTimer) {
+                        window.clearTimeout(productSearchTimer);
+                        productSearchTimer = null;
+                    }
+
+                    submitProductFilters();
+                });
+
+                searchInput.addEventListener('input', function () {
+                    if (productSearchTimer) {
+                        window.clearTimeout(productSearchTimer);
+                    }
+
+                    productSearchTimer = window.setTimeout(function () {
+                        submitProductFilters();
+                    }, 450);
+                });
+            }
+
+            if (editProductForm && editCategoryInput) {
+                editProductForm.addEventListener('submit', function (event) {
+                    if (isReservedCategoryName(editCategoryInput.value)) {
+                        event.preventDefault();
+                        alert("Category names 'All' and '__OTHER__' are reserved. Choose a different category.");
+                        editCategoryInput.focus();
+                    }
+                });
+            }
+
+            if (qualityProductForm) {
+                qualityProductForm.addEventListener('submit', function (event) {
+                    const damagedQuantityInput = document.getElementById('quality-damaged-quantity');
+                    if (!damagedQuantityInput) {
+                        return;
+                    }
+
+                    const damagedQuantityValue = Number.parseInt(damagedQuantityInput.value || '0', 10);
+                    if (!Number.isFinite(damagedQuantityValue) || damagedQuantityValue < 0) {
+                        event.preventDefault();
+                        alert('Damaged quantity cannot be negative.');
+                        damagedQuantityInput.focus();
+                    }
+                });
+            }
+
+            const editFetchPriceBtn = document.getElementById('editFetchPriceBtn');
+            const editNameInput = document.getElementById('edit-name');
+            const editSkuInput = document.getElementById('edit-sku');
+            const editRetailPriceInput = document.getElementById('edit-retail-price');
+            const editEbayPriceInput = document.getElementById('edit-ebay-live-price');
+
+            if (editFetchPriceBtn) {
+                editFetchPriceBtn.addEventListener('click', async function () {
+                    const query = editNameInput.value.trim() || editSkuInput.value.trim();
+                    if (!query) {
+                        alert("Please enter a Product Name or SKU first.");
+                        return;
+                    }
+
+                    editFetchPriceBtn.disabled = true;
+                    editFetchPriceBtn.innerText = "Fetching...";
+
+                    try {
+                        const response = await fetch(`/Inventory/FetchSuggestedPrice?query=${encodeURIComponent(query)}`);
+                        if (!response.ok) {
+                            throw new Error("Could not fetch price.");
+                        }
+                        const data = await response.json();
+                        if (editRetailPriceInput) editRetailPriceInput.value = data.price;
+                        if (editEbayPriceInput) editEbayPriceInput.value = data.price;
+                        alert(`Suggested price found: ${data.currency} ${data.price}`);
+                    } catch (error) {
+                        alert("Failed to fetch suggested price or price not found.");
+                    } finally {
+                        editFetchPriceBtn.disabled = false;
+                        editFetchPriceBtn.innerText = "Fetch Suggested Price";
+                    }
+                });
+            }
+        });
+
+        async function openEditProductModal(productId) {
+            try {
+                const response = await fetch(`${getProductForEditUrl}?id=${encodeURIComponent(productId)}`);
+                if (!response.ok) {
+                    throw new Error('Failed to load product details.');
+                }
+
+                const product = await response.json();
+                document.getElementById('edit-id').value = product.id ?? '';
+                document.getElementById('edit-name').value = product.name ?? '';
+                document.getElementById('edit-sku').value = product.sku ?? '';
+                document.getElementById('edit-category').value = product.category ?? '';
+                document.getElementById('edit-brand').value = product.brand ?? '';
+                document.getElementById('edit-description').value = product.description ?? '';
+                document.getElementById('edit-stock-quantity').value = product.stockQuantity ?? 0;
+                document.getElementById('edit-unit-cost').value = product.unitCost ?? 0;
+                document.getElementById('edit-retail-price').value = product.retailPrice ?? 0;
+                document.getElementById('edit-ebay-live-price').value = product.ebayLivePrice ?? '';
+                document.getElementById('editProductModal').classList.remove('hidden');
+            } catch {
+                alert('Unable to load product details for editing.');
+            }
+        }
+
+        function closeEditProductModal() {
+            document.getElementById('editProductModal').classList.add('hidden');
+        }
+
+        async function openQualityProductModal(productId) {
+            try {
+                const response = await fetch(`${getProductForEditUrl}?id=${encodeURIComponent(productId)}`);
+                if (!response.ok) {
+                    throw new Error('Failed to load product quality details.');
+                }
+
+                const product = await response.json();
+                document.getElementById('quality-id').value = product.id ?? '';
+                document.getElementById('quality-product-name').value = product.name ?? '';
+                document.getElementById('quality-damaged-quantity').value = product.damagedQuantity ?? 0;
+                document.getElementById('quality-condition-status').value = product.conditionStatus ?? 'Good';
+                document.getElementById('quality-condition-notes').value = product.conditionNotes ?? '';
+                document.getElementById('quality-last-condition-check-utc').value = toDateTimeLocalInputValue(product.lastConditionCheckUtc);
+                document.getElementById('qualityProductModal').classList.remove('hidden');
+            } catch {
+                alert('Unable to load product quality details.');
+            }
+        }
+
+        function closeQualityProductModal() {
+            document.getElementById('qualityProductModal').classList.add('hidden');
+        }
+
+        async function openProductInfoModal(productId) {
+            try {
+                document.getElementById('productInfoModal').classList.remove('hidden');
+                document.getElementById('info-ebay-loading').classList.remove('hidden');
+                document.getElementById('info-ebay-content').classList.add('hidden');
+                document.getElementById('info-ebay-error').classList.add('hidden');
+                document.getElementById('info-ebay-top-prices').innerHTML = '';
+                document.getElementById('info-ebay-suggested').innerText = '';
+                document.getElementById('info-name').innerText = 'Loading...';
+                document.getElementById('info-sku').innerText = '-';
+                document.getElementById('info-category').innerText = '-';
+                document.getElementById('info-brand').innerText = '-';
+                document.getElementById('info-stock').innerText = '-';
+                document.getElementById('info-condition').innerText = '-';
+                document.getElementById('info-damaged-qty').innerText = '-';
+                document.getElementById('info-cost').innerText = '-';
+                document.getElementById('info-retail').innerText = '-';
+
+                const response = await fetch(`${getProductForEditUrl}?id=${encodeURIComponent(productId)}`);
+                if (!response.ok) throw new Error('Failed to load product details.');
+                const product = await response.json();
+
+                const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val || 0);
+
+                document.getElementById('info-name').innerText = product.name || '-';
+                document.getElementById('info-sku').innerText = product.sku || '-';
+                document.getElementById('info-category').innerText = product.category || '-';
+                document.getElementById('info-brand').innerText = product.brand || '-';
+                document.getElementById('info-stock').innerText = product.stockQuantity || 0;
+                document.getElementById('info-condition').innerText = product.conditionStatus || 'Good';
+                document.getElementById('info-damaged-qty').innerText = product.damagedQuantity || 0;
+                document.getElementById('info-cost').innerText = formatCurrency(product.unitCost);
+                document.getElementById('info-retail').innerText = formatCurrency(product.retailPrice);
+
+                const query = product.name || product.sku;
+                const ebayResponse = await fetch(`/Inventory/FetchSuggestedPrice?query=${encodeURIComponent(query)}`);
+                
+                document.getElementById('info-ebay-loading').classList.add('hidden');
+
+                if (ebayResponse.ok) {
+                    const ebayData = await ebayResponse.json();
+                    
+                    if (ebayData.topPrices && ebayData.topPrices.length > 0) {
+                        const topPricesHtml = ebayData.topPrices.map((p, idx) => `<li><span class="text-gray-500 mr-2">#${idx + 1}</span> ${formatCurrency(p)}</li>`).join('');
+                        document.getElementById('info-ebay-top-prices').innerHTML = topPricesHtml;
+                    } else {
+                        document.getElementById('info-ebay-top-prices').innerHTML = `<li class="text-gray-500">Prices not available</li>`;
+                    }
+
+                    document.getElementById('info-ebay-suggested').innerText = formatCurrency(ebayData.price);
+                    document.getElementById('info-ebay-source').innerText = `Source: ${ebayData.source || 'eBay'}`;
+                    document.getElementById('info-ebay-content').classList.remove('hidden');
+                } else {
+                    document.getElementById('info-ebay-error').classList.remove('hidden');
+                }
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('info-ebay-loading').classList.add('hidden');
+                document.getElementById('info-ebay-error').classList.remove('hidden');
+            }
+        }
+
+        function closeProductInfoModal() {
+            document.getElementById('productInfoModal').classList.add('hidden');
+        }
+    </script>
+}

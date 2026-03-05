@@ -1,0 +1,80 @@
+@model kstech.Models.ViewModels.OrderConfirmationViewModel
+@using kstech.Utilities
+@{
+    ViewData["Title"] = "Order Confirmation";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-2xl mx-auto store-plain-card p-6 text-center">
+        <div class="w-14 h-14 mx-auto mb-3 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+            <span class="material-icons-outlined text-3xl">check_circle</span>
+        </div>
+
+        <h1 class="font-display text-2xl text-store-ink mb-1">Order placed successfully</h1>
+        <p class="text-store-muted mb-1">Thank you for shopping with KSTech.</p>
+        <p class="text-store-muted mb-4">Your order number is <strong>#@Model.OrderId</strong>.</p>
+
+        <div class="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left text-sm">
+            <div class="flex justify-between py-1">
+                <span class="text-store-muted">Ordered at</span>
+                <span class="font-semibold text-store-ink">@BusinessTime.ConvertUtcToBusinessTime(Model.OrderDateUtc).ToString("MMM dd, yyyy HH:mm")</span>
+            </div>
+            <div class="flex justify-between py-1">
+                <span class="text-store-muted">Total</span>
+                <span class="font-semibold text-store-ink">@Model.TotalAmount.ToString("C")</span>
+            </div>
+            <div class="flex justify-between py-1">
+                <span class="text-store-muted">Order status</span>
+                <span class="font-semibold @(Model.OrderStatus == "Completed" ? "text-emerald-700" : "text-amber-700")">@Model.OrderStatus</span>
+            </div>
+            <div class="flex justify-between py-1">
+                <span class="text-store-muted">Payment status</span>
+                <span class="font-semibold @(Model.PaymentStatus == "Paid" ? "text-emerald-700" : "text-amber-700")">@Model.PaymentStatus</span>
+            </div>
+            <div class="flex justify-between py-1">
+                <span class="text-store-muted">Payment method</span>
+                <span class="font-semibold text-store-ink">@Model.PaymentMethod</span>
+            </div>
+        </div>
+
+        @if (TempData["OrderPaymentMessage"] != null)
+        {
+            <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left text-sm text-emerald-700">
+                @TempData["OrderPaymentMessage"]
+            </div>
+        }
+        @if (TempData["OrderPaymentError"] != null)
+        {
+            <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-left text-sm text-red-700">
+                @TempData["OrderPaymentError"]
+            </div>
+        }
+
+        @if (Model.CanProcessPayment)
+        {
+            <form asp-action="ProcessPayment" method="post" class="mb-4 rounded-xl border border-slate-200 p-3 text-left">
+                <input type="hidden" name="id" value="@Model.OrderId" />
+                <label for="paymentMethod" class="mb-2 block text-xs font-semibold text-store-ink">Process payment now</label>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <select
+                        id="paymentMethod"
+                        name="paymentMethod"
+                        class="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-store-ink focus:border-store-accent focus:outline-none focus:ring-2 focus:ring-store-accent/20">
+                        <option value="Card" selected="@(Model.PaymentMethod == "Card" ? "selected" : null)">Card</option>
+                        <option value="GCash" selected="@(Model.PaymentMethod == "GCash" ? "selected" : null)">GCash</option>
+                        <option value="BankTransfer" selected="@(Model.PaymentMethod == "BankTransfer" ? "selected" : null)">Bank Transfer</option>
+                    </select>
+                    <button type="submit" class="rounded-lg bg-store-accent px-4 py-2 text-sm font-semibold text-white hover:bg-store-ink store-action-btn">
+                        Pay @Model.TotalAmount.ToString("C")
+                    </button>
+                </div>
+            </form>
+        }
+
+        <div class="flex flex-col sm:flex-row justify-center gap-3">
+            <a href="@Url.Action("Products", "Store")" class="px-4 py-2 rounded-lg bg-store-accent text-white font-semibold no-underline hover:bg-store-ink store-action-btn">Keep shopping</a>
+            <a href="@Url.Action("Index", "Store")" class="px-4 py-2 rounded-lg border border-slate-200 text-store-ink font-semibold no-underline hover:border-store-accent">Back to home</a>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,102 @@
+@{
+    ViewData["Title"] = "Create Account";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-md mx-auto store-plain-card p-6">
+        <h1 class="font-display text-2xl text-store-ink mb-1">Create account</h1>
+        <p class="text-store-muted mb-4 text-sm">Use one account for faster checkout and order tracking.</p>
+
+        @if (ViewBag.Error != null)
+        {
+            <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                @ViewBag.Error
+            </div>
+        }
+        else if (TempData["ErrorMessage"] != null)
+        {
+            <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                @TempData["ErrorMessage"]
+            </div>
+        }
+
+        <form asp-action="Register" method="post" class="space-y-4">
+            <div>
+                <label for="fullName" class="block text-sm font-semibold text-store-ink mb-1">Full name</label>
+                <input id="fullName"
+                       name="fullName"
+                       type="text"
+                       required
+                       autocomplete="name"
+                       class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-store-accent focus:ring-store-accent/20 auth-live-input"
+                       placeholder="Jane Doe" />
+            </div>
+
+            <div>
+                <label for="email-address" class="block text-sm font-semibold text-store-ink mb-1">Email</label>
+                <input id="email-address"
+                       name="email"
+                       type="email"
+                       autocomplete="email"
+                       required
+                       class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-store-accent focus:ring-store-accent/20 auth-live-input"
+                       placeholder="you@example.com" />
+            </div>
+
+            <div>
+                <label for="password" class="block text-sm font-semibold text-store-ink mb-1">Password</label>
+                <div class="password-field-wrap">
+                    <input id="password"
+                           name="password"
+                           type="password"
+                           autocomplete="new-password"
+                           required
+                           minlength="8"
+                           pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}"
+                           title="Password must be at least 8 characters and include uppercase, lowercase, and a number."
+                           class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-store-accent focus:ring-store-accent/20 password-field-input auth-live-input"
+                           placeholder="Create a password" />
+                    <button type="button"
+                            class="password-toggle-btn"
+                            data-toggle-password="password"
+                            aria-label="Show password"
+                            title="Show password">
+                        <i class="bi bi-eye" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="auth-field-hint mt-2">
+                    Password should contain at least 8 characters, 1 uppercase letter, 1 lowercase letter, and 1 number.
+                </div>
+            </div>
+
+            <div>
+                <label for="confirmPassword" class="block text-sm font-semibold text-store-ink mb-1">Confirm password</label>
+                <div class="password-field-wrap">
+                    <input id="confirmPassword"
+                           name="confirmPassword"
+                           type="password"
+                           autocomplete="new-password"
+                           required
+                           data-matches="password"
+                           class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-store-accent focus:ring-store-accent/20 password-field-input auth-live-input"
+                           placeholder="Repeat your password" />
+                    <button type="button"
+                            class="password-toggle-btn"
+                            data-toggle-password="confirmPassword"
+                            aria-label="Show password"
+                            title="Show password">
+                        <i class="bi bi-eye" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
+
+            <button type="submit" class="w-full rounded-lg bg-store-accent text-white py-2 font-semibold hover:bg-store-ink store-action-btn">Create account</button>
+        </form>
+
+        <p class="text-sm text-store-muted mt-5 mb-0">
+            Already registered?
+            <a href="@Url.Action("Login", "Store")" class="font-semibold text-store-accent no-underline hover:text-store-ink">Sign in</a>
+        </p>
+    </div>
+</div>

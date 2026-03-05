@@ -1,0 +1,26 @@
+# MonsterASP Production Environment Variables Template
+# Copy these keys to MonsterASP website settings and set real values there.
+# Do not commit real secrets to source control.
+
+ASPNETCORE_ENVIRONMENT=Production
+
+ConnectionStrings__DefaultConnection=
+
+Authentication__Google__ClientId=
+Authentication__Google__ClientSecret=
+
+Brevo__ApiKey=
+Ebay__ClientId=
+Ebay__ClientSecret=
+Steam__ApiKey=
+
+Cloudinary__Enabled=true
+Cloudinary__CloudName=
+Cloudinary__ApiKey=
+Cloudinary__ApiSecret=
+Cloudinary__ReportFolder=kstech/reports
+
+Seed__EnableAutomaticSeeding=false
+Seed__EnableInDevelopmentOnly=true
+Seed__SuperAdminEmail=
+Seed__SuperAdminPassword=

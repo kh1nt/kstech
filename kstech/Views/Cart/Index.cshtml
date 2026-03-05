@@ -1,0 +1,212 @@
+﻿@using System.Linq
+@model kstech.Models.CartViewModel
+@{
+    ViewData["Title"] = "Cart";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+    var freeShippingThreshold = 150m;
+    var remainingForFreeShipping = freeShippingThreshold - Model.Total;
+    var hasFreeShipping = remainingForFreeShipping <= 0;
+    var shippingProgress = freeShippingThreshold <= 0 ? 100m : Math.Min((Model.Total / freeShippingThreshold) * 100m, 100m);
+    var shippingProgressWidth = $"{shippingProgress:0.#}%";
+}
+
+<div class="container mx-auto px-4 py-6">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="font-display text-2xl text-store-ink mb-0">Your cart</h1>
+        <a href="@Url.Action("Products", "Store")" class="text-sm font-semibold text-store-accent no-underline hover:text-store-ink">Continue shopping</a>
+    </div>
+
+    @if (!Model.IsSignedIn)
+    {
+        <div class="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Checkout requires a signed-in customer account.
+            <a href="@Url.Action("Login", "Store", new { returnUrl = Url.Action("Index", "Cart") })" class="font-semibold text-amber-900 no-underline hover:underline">Sign in to continue</a>.
+        </div>
+    }
+
+    @if (TempData["CartError"] != null)
+    {
+        <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            @TempData["CartError"]
+        </div>
+    }
+
+    @if (!Model.Items.Any())
+    {
+        <div class="bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center">
+            <span class="material-icons-outlined text-4xl text-slate-300 mb-2">shopping_cart</span>
+            <h2 class="font-display text-xl text-store-ink mb-1">Your cart is empty</h2>
+            <p class="text-store-muted mb-4">Add a product from the catalog to start checkout.</p>
+            <a href="@Url.Action("Products", "Store")" class="inline-block px-4 py-2 rounded-xl bg-store-accent text-white font-semibold no-underline hover:bg-store-ink store-action-btn">Browse products</a>
+        </div>
+    }
+    else
+    {
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
+            <section class="space-y-3">
+                <div class="flex justify-end">
+                    <form asp-action="ClearCart" method="post">
+                        <button type="submit" class="text-sm font-semibold text-red-600 hover:text-red-700">Clear all</button>
+                    </form>
+                </div>
+                @foreach (var item in Model.Items)
+                {
+                    <article class="store-plain-card p-3">
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <div class="w-full sm:w-20 h-20 bg-store-surface rounded-lg flex items-center justify-center overflow-hidden shrink-0">
+                                @if (!string.IsNullOrWhiteSpace(item.ImageUrl))
+                                {
+                                    <img src="@item.ImageUrl" alt="@item.ProductName" class="w-full h-full object-cover" />
+                                }
+                                else
+                                {
+                                    <span class="material-icons-outlined text-slate-300 text-4xl">image</span>
+                                }
+                            </div>
+
+                            <div class="flex-1">
+                                <a href="@Url.Action("Details", "Store", new { id = item.ProductId })" class="font-semibold text-store-ink no-underline hover:text-store-accent">@item.ProductName</a>
+                                <div class="grid grid-cols-3 gap-3 mt-3 text-sm">
+                                    <div>
+                                        <p class="text-store-muted mb-1">Price</p>
+                                        <p class="font-semibold text-store-ink mb-0">@item.Price.ToString("C")</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-store-muted mb-1">Quantity</p>
+                                        <p class="font-semibold text-store-ink mb-0">@item.Quantity</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-store-muted mb-1">Line total</p>
+                                        <p class="font-semibold text-store-ink mb-0">@item.Total.ToString("C")</p>
+                                    </div>
+                                </div>
+                                <form asp-action="UpdateQuantity" method="post" class="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                                    <input type="hidden" name="cartItemId" value="@item.CartItemId" />
+                                    <label class="text-xs text-store-muted mb-0" for="qty-@item.CartItemId">Adjust quantity</label>
+                                    <div class="flex items-center gap-2">
+                                        <input id="qty-@item.CartItemId"
+                                               type="number"
+                                               name="quantity"
+                                               min="0"
+                                               value="@item.Quantity"
+                                               class="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+                                        <button type="submit" class="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-store-ink hover:border-store-accent">
+                                            Update
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <div class="sm:self-start">
+                                <form asp-action="RemoveFromCart" method="post">
+                                    <input type="hidden" name="cartItemId" value="@item.CartItemId" />
+                                    <button type="submit" class="text-sm text-red-600 font-semibold hover:text-red-700">Remove</button>
+                                </form>
+                            </div>
+                        </div>
+                    </article>
+                }
+            </section>
+
+            <aside class="store-plain-card p-4 h-fit">
+                <h2 class="font-display text-lg text-store-ink mb-3">Order summary</h2>
+                <div class="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div class="flex items-center justify-between text-xs mb-2">
+                        <span class="text-store-muted">Free shipping progress</span>
+                        <span class="font-semibold text-store-ink">@Math.Min(shippingProgress, 100m).ToString("0.#")%</span>
+                    </div>
+                    <div class="h-2 rounded-full bg-slate-200 overflow-hidden">
+                        <div class="h-full rounded-full bg-store-accent transition-all duration-300" style="width: @shippingProgressWidth;"></div>
+                    </div>
+                    <p class="text-xs text-store-muted mt-2 mb-0">
+                        @if (hasFreeShipping)
+                        {
+                            <span>You qualified for free shipping.</span>
+                        }
+                        else
+                        {
+                            <span>Add @remainingForFreeShipping.ToString("C") more to unlock free shipping.</span>
+                        }
+                    </p>
+                </div>
+
+                <div class="space-y-3 text-sm mb-4">
+                    <div class="flex justify-between">
+                        <span class="text-store-muted">Subtotal</span>
+                        <span class="font-semibold text-store-ink">@Model.Total.ToString("C")</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-store-muted">Items</span>
+                        <span class="font-semibold text-store-ink">@Model.ItemCount</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-store-muted">Estimated tax</span>
+                        <span class="font-semibold text-store-ink">@((0m).ToString("C"))</span>
+                    </div>
+                    <div class="pt-3 border-t border-slate-200 flex justify-between text-base">
+                        <span class="font-semibold text-store-ink">Total</span>
+                        <span class="font-display text-store-ink">@Model.Total.ToString("C")</span>
+                    </div>
+                </div>
+
+                @if (Model.IsSignedIn)
+                {
+                    <form asp-action="Checkout" method="post">
+                        <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <label class="mb-1 block text-xs font-semibold text-store-ink" for="paymentMethod">Payment method</label>
+                            <select
+                                id="paymentMethod"
+                                name="paymentMethod"
+                                class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-store-ink focus:border-store-accent focus:outline-none focus:ring-2 focus:ring-store-accent/20">
+                                <option value="Card">Card</option>
+                                <option value="GCash">GCash</option>
+                                <option value="BankTransfer">Bank Transfer</option>
+                            </select>
+                            <div class="mt-3 space-y-2 text-xs text-store-muted">
+                                <label class="flex items-center gap-2">
+                                    <input type="radio" name="payNow" value="true" checked />
+                                    <span>Pay now (recommended)</span>
+                                </label>
+                                <label class="flex items-center gap-2">
+                                    <input type="radio" name="payNow" value="false" />
+                                    <span>Place order as pending and pay later</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        @if (Model.AvailableLoyaltyPoints > 0)
+                        {
+                            <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                                <p class="mb-2 text-xs font-semibold text-emerald-800">
+                                    Loyalty balance: @Model.AvailableLoyaltyPoints pts
+                                </p>
+                                <div class="space-y-1 text-xs text-emerald-700">
+                                    <p>Point value: @Model.LoyaltyPointValue.ToString("C") each</p>
+                                    <p>Maximum usable now: @Model.MaxRedeemablePoints pts (@Model.MaxLoyaltyDiscount.ToString("C"))</p>
+                                    <p>Estimated points earned this order: @Model.EstimatedPointsToEarn</p>
+                                </div>
+                                <label class="mt-3 mb-1 block text-xs font-semibold text-emerald-900" for="pointsToRedeem">Redeem points</label>
+                                <input
+                                    id="pointsToRedeem"
+                                    name="pointsToRedeem"
+                                    type="number"
+                                    min="0"
+                                    max="@Model.MaxRedeemablePoints"
+                                    value="0"
+                                    class="w-full rounded-lg border border-emerald-200 px-3 py-2 text-sm text-store-ink focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100" />
+                            </div>
+                        }
+                        <button type="submit" class="w-full rounded-lg bg-store-accent text-white px-4 py-2 font-semibold hover:bg-store-ink store-action-btn">Place order</button>
+                    </form>
+                }
+                else
+                {
+                    <a href="@Url.Action("Login", "Store", new { returnUrl = Url.Action("Index", "Cart") })"
+                       class="block text-center w-full rounded-lg bg-store-ink text-white px-4 py-2 font-semibold no-underline hover:bg-store-accent store-action-btn">
+                        Sign in to checkout
+                    </a>
+                }
+            </aside>
+        </div>
+    }
+</div>

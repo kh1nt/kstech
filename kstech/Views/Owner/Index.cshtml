@@ -1,0 +1,151 @@
+@model kstech.Models.ViewModels.OwnerMonitoringViewModel
+@using kstech.Utilities
+
+@{
+    ViewData["Title"] = "Owner Monitoring";
+}
+
+<div class="flex flex-col gap-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Owner Monitoring</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Superadmin oversight for each owner workspace.</p>
+    </div>
+
+    @if (TempData["OwnerScopeError"] is string ownerScopeError && !string.IsNullOrWhiteSpace(ownerScopeError))
+    {
+        <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+            @ownerScopeError
+        </div>
+    }
+
+    @if (Model.SelectedOwnerUserId.HasValue)
+    {
+        <div class="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300 sm:flex-row sm:items-center sm:justify-between">
+            <p class="m-0">
+                Viewing workspace for
+                <span class="font-semibold">@(!string.IsNullOrWhiteSpace(Model.SelectedOwnerName) ? Model.SelectedOwnerName : $"Owner #{Model.SelectedOwnerUserId.Value}")</span>
+                (ID: @Model.SelectedOwnerUserId.Value)
+            </p>
+            <form asp-action="ClearOwnerScope" method="post" class="m-0">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="inline-flex items-center rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/30">
+                    Return to Global View
+                </button>
+            </form>
+        </div>
+    }
+    else
+    {
+        <div class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300">
+            <span class="font-semibold">Global SuperAdmin view.</span>
+            You are viewing all owner workspaces. Click <span class="font-semibold">View Workspace</span> to inspect a specific owner.
+        </div>
+    }
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="rounded-xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Owners</p>
+            <p class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">@Model.TotalOwners</p>
+        </div>
+        <div class="rounded-xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Active Owners</p>
+            <p class="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">@Model.ActiveOwners</p>
+        </div>
+        <div class="rounded-xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Employees</p>
+            <p class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">@Model.TotalEmployees</p>
+        </div>
+        <div class="rounded-xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Monthly Revenue</p>
+            <p class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">@Model.MonthlyRevenue.ToString("C0")</p>
+        </div>
+    </div>
+
+    <div class="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+                    <tr>
+                        <th class="px-6 py-4 text-left">Owner</th>
+                        <th class="px-6 py-4 text-left">Workspace</th>
+                        <th class="px-6 py-4 text-left">Monthly Sales</th>
+                        <th class="px-6 py-4 text-left">Last Activity</th>
+                        <th class="px-6 py-4 text-left">Status</th>
+                        <th class="px-6 py-4 text-left">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    @if (Model.Owners.Count > 0)
+                    {
+                        @foreach (var owner in Model.Owners)
+                        {
+                            <tr class="text-gray-700 dark:text-gray-200">
+                                <td class="px-6 py-4">
+                                    <p class="font-semibold">@owner.FullName</p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">@owner.Email</p>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <p>Employees: <span class="font-semibold">@owner.EmployeeCount</span></p>
+                                    <p>Products: <span class="font-semibold">@owner.ProductCount</span></p>
+                                    <p>Customers: <span class="font-semibold">@owner.CustomerCount</span></p>
+                                    <p>Orders: <span class="font-semibold">@owner.OrderCount</span></p>
+                                </td>
+                                <td class="px-6 py-4 font-semibold">@owner.MonthlySales.ToString("C0")</td>
+                                <td class="px-6 py-4 text-xs text-gray-500 dark:text-gray-400">
+                                    @(owner.LastActivityUtc.HasValue
+                                        ? BusinessTime.ConvertUtcToBusinessTime(owner.LastActivityUtc.Value).ToString("MMM dd, yyyy HH:mm")
+                                        : "No activity yet")
+                                </td>
+                                <td class="px-6 py-4">
+                                    <span class="rounded-full px-2.5 py-1 text-xs font-semibold @(owner.IsActive ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300")">
+                                        @(owner.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                    <div class="mt-2">
+                                        <span class="rounded-full px-2.5 py-1 text-xs font-semibold @(owner.AllowSuperAdminWorkspaceEdits
+                                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300")">
+                                            @(owner.AllowSuperAdminWorkspaceEdits ? "SuperAdmin edit: allowed" : "SuperAdmin edit: view only")
+                                        </span>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    @if (Model.SelectedOwnerUserId == owner.UserId)
+                                    {
+                                        <div class="flex items-center gap-2">
+                                            <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                                Viewing
+                                            </span>
+                                            <a href="@Url.Action("Index", "Home")" class="text-xs font-semibold text-emerald-700 no-underline hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200">
+                                                Open dashboard
+                                            </a>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <form asp-action="SelectOwnerScope" method="post" class="m-0">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="ownerUserId" value="@owner.UserId" />
+                                            <input type="hidden" name="redirectController" value="Home" />
+                                            <input type="hidden" name="redirectAction" value="Index" />
+                                            <button type="submit" class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                                                @(owner.AllowSuperAdminWorkspaceEdits ? "View Workspace" : "View Workspace (Read-only)")
+                                            </button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                No owner accounts found.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

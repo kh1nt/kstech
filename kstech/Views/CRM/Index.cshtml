@@ -1,0 +1,1048 @@
+@model kstech.Models.CustomerManagementViewModel
+@{
+    ViewData["Title"] = "Customer Relationship Management";
+}
+
+<div class="space-y-6">
+    <div class="flex flex-col gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Customer Relationship Management</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage profiles, loyalty progression, and outreach execution.</p>
+        </div>
+
+        @if (TempData["CrmMessage"] != null)
+        {
+            <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                @TempData["CrmMessage"]
+            </div>
+        }
+
+        @if (TempData["CrmError"] != null)
+        {
+            <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                @TempData["CrmError"]
+            </div>
+        }
+    </div>
+
+    <div class="flex space-x-8 border-b border-gray-200 dark:border-gray-700 tabs-container">
+        <button id="tab-customers" onclick="switchTab('customers')" class="pb-3 border-b-2 border-brand-primary font-semibold text-gray-900 dark:text-white transition-colors whitespace-nowrap">
+            Customer Database
+        </button>
+        <button id="tab-loyalty" onclick="switchTab('loyalty')" class="pb-3 border-b-2 border-transparent hover:border-gray-300 text-gray-500 dark:text-gray-400 font-medium transition-colors whitespace-nowrap">
+            Loyalty Program
+        </button>
+    </div>
+
+    <section id="customers-view" class="space-y-6">
+        <div class="bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-sm space-y-4">
+            <div class="grid grid-cols-1 xl:grid-cols-5 gap-3">
+                <div class="xl:col-span-2 relative">
+                    <span class="material-icons-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+                    <input id="crmSearchInput" type="text" placeholder="Search by name, email, or phone..." class="w-full pl-11 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary outline-none transition-all" />
+                </div>
+                <select id="crmTierFilter" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200">
+                    <option value="all">All Tiers</option>
+                    @foreach (var tier in Model.LoyaltyTierDetails.Select(detail => detail.Tier).Distinct())
+                    {
+                        <option value="@tier">@tier</option>
+                    }
+                </select>
+                <select id="crmOptInFilter" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200">
+                    <option value="all">All Email Preferences</option>
+                    <option value="true">Email On</option>
+                    <option value="false">Email Off</option>
+                </select>
+                <select id="crmSortSelect" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200">
+                    <option value="spent_desc">Sort: Highest Spend</option>
+                    <option value="points_desc">Sort: Highest Points</option>
+                    <option value="name_asc">Sort: Name A-Z</option>
+                    <option value="joined_desc">Sort: Newest Customer</option>
+                </select>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <p id="crmResultCount" class="text-sm text-gray-500 dark:text-gray-400">Showing 0 to 0 of @Model.Customers.Count customers</p>
+                <div class="flex items-center gap-3">
+                    <div class="inline-flex items-center rounded-xl border border-gray-200 dark:border-gray-700 p-1 bg-white dark:bg-card-dark">
+                        <button id="crmTableViewButton" type="button" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors bg-brand-primary text-white">
+                            Table
+                        </button>
+                        <button id="crmCardViewButton" type="button" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            Cards
+                        </button>
+                    </div>
+                    <button id="crmResetFilters" type="button" class="text-sm font-medium text-brand-primary hover:underline">Reset Filters</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="crmCustomerCards" class="hidden grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+            @foreach (var customer in Model.Customers)
+            {
+                <article
+                    data-crm-customer-card
+                    data-id="@customer.Id"
+                    data-name="@customer.Name"
+                    data-email="@customer.Email"
+                    data-phone="@customer.Phone"
+                    data-tier="@customer.Level"
+                    data-opt-in="@(customer.MarketingOptIn ? "true" : "false")"
+                    data-points="@customer.LoyaltyPoints"
+                    data-spent='@customer.TotalSpent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)'
+                    data-joined="@customer.RegistrationDate.Ticks"
+                    tabindex="0"
+                    class="bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary/40">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex items-start gap-3 min-w-0">
+                            <div class="w-11 h-11 rounded-full bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-300 shrink-0">
+                                <span class="material-icons-outlined">person</span>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-semibold text-gray-900 dark:text-white truncate">@customer.Name</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 truncate">@customer.Email</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Joined @customer.RegistrationDate.ToString("MMM dd, yyyy")</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-semibold text-gray-700 dark:text-gray-200">@customer.Level</span>
+                    </div>
+
+                    <div class="mt-4 grid grid-cols-2 gap-2 text-xs">
+                        <div class="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2">
+                            <p class="text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Spent</p>
+                            <p class="mt-1 font-semibold text-gray-900 dark:text-white">@customer.TotalSpent.ToString("C")</p>
+                        </div>
+                        <div class="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2">
+                            <p class="text-gray-500 dark:text-gray-400 uppercase tracking-wide">Loyalty Points</p>
+                            <p class="mt-1 font-semibold text-gray-900 dark:text-white">@customer.LoyaltyPoints.ToString("N0")</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 flex items-center justify-between gap-3">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            <span class="font-medium">Phone:</span>
+                            @(string.IsNullOrWhiteSpace(customer.Phone) ? "Not available" : customer.Phone)
+                        </div>
+                        <span class="text-[11px] font-semibold text-gray-600 dark:text-gray-300">
+                            @(customer.MarketingOptIn ? "Email On" : "Email Off")
+                        </span>
+                    </div>
+
+                    <div class="mt-4 flex items-center justify-end">
+                        <button type="button" data-open-message class="inline-flex items-center gap-1.5 rounded-lg border border-brand-primary/30 bg-brand-primary/5 px-3 py-1.5 text-xs font-semibold text-brand-primary hover:bg-brand-primary hover:text-white transition-colors">
+                            <span class="material-icons-outlined text-[15px]">mail</span>
+                            Email
+                        </button>
+                    </div>
+                </article>
+            }
+        </div>
+
+        <div id="crmCustomerTableWrapper" class="bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm text-left">
+                    <thead class="text-xs uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50">
+                        <tr>
+                            <th class="px-4 py-3">Customer</th>
+                            <th class="px-4 py-3">Tier</th>
+                            <th class="px-4 py-3 text-right">Total Spent</th>
+                            <th class="px-4 py-3 text-right">Loyalty Points</th>
+                            <th class="px-4 py-3">Phone</th>
+                            <th class="px-4 py-3 text-center">Email Pref.</th>
+                            <th class="px-4 py-3 text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="crmCustomerTableBody" class="divide-y divide-gray-100 dark:divide-gray-700">
+                        @foreach (var customer in Model.Customers)
+                        {
+                            <tr
+                                data-crm-customer-row
+                                data-id="@customer.Id"
+                                data-name="@customer.Name"
+                                data-email="@customer.Email"
+                                data-phone="@customer.Phone"
+                                data-tier="@customer.Level"
+                                data-opt-in="@(customer.MarketingOptIn ? "true" : "false")"
+                                data-points="@customer.LoyaltyPoints"
+                                data-spent='@customer.TotalSpent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)'
+                                data-joined="@customer.RegistrationDate.Ticks"
+                                tabindex="0"
+                                class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer">
+                                <td class="px-4 py-3">
+                                    <div class="font-semibold text-gray-900 dark:text-white">@customer.Name</div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">@customer.Email</div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">Joined @customer.RegistrationDate.ToString("MMM dd, yyyy")</div>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-xs font-semibold text-gray-700 dark:text-gray-200">@customer.Level</span>
+                                </td>
+                                <td class="px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">@customer.TotalSpent.ToString("C")</td>
+                                <td class="px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">@customer.LoyaltyPoints.ToString("N0")</td>
+                                <td class="px-4 py-3 text-gray-600 dark:text-gray-300">@(string.IsNullOrWhiteSpace(customer.Phone) ? "Not available" : customer.Phone)</td>
+                                <td class="px-4 py-3 text-center">
+                                    <span class="text-[11px] font-semibold text-gray-600 dark:text-gray-300">
+                                        @(customer.MarketingOptIn ? "Email On" : "Email Off")
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <button type="button" data-open-message class="inline-flex items-center gap-1.5 rounded-lg border border-brand-primary/30 bg-brand-primary/5 px-3 py-1.5 text-xs font-semibold text-brand-primary hover:bg-brand-primary hover:text-white transition-colors">
+                                        <span class="material-icons-outlined text-[15px]">mail</span>
+                                        Email
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="crmCustomerPaginationWrapper" class="hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark p-4 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div id="crmPaginationSummary" class="text-xs text-gray-500 text-[13px]"></div>
+            <div id="crmCustomerPagination" class="flex items-center gap-2"></div>
+        </div>
+
+        <div id="crmNoResults" class="hidden rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
+            No customers match your current filters.
+        </div>
+    </section>
+
+    <section id="loyalty-view" class="space-y-6 opacity-0 pointer-events-none h-0 overflow-hidden">
+        <div class="flex flex-col xl:flex-row gap-4 xl:items-stretch">
+            <div class="w-full xl:w-2/5 bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-sm flex flex-col h-full">
+                <div class="flex items-center justify-between mb-5">
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Points Distribution</h3>
+                </div>
+                <div class="h-52">
+                    <canvas id="pointsChart"></canvas>
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-2">
+                    @for (var i = 0; i < Math.Min(Model.LoyaltyPointBucketLabels.Count, Model.LoyaltyPointBucketValues.Count); i++)
+                    {
+                        <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 px-3 py-2">
+                            <p class="text-[11px] text-gray-500 dark:text-gray-400">@Model.LoyaltyPointBucketLabels[i] points</p>
+                            <p class="text-sm font-semibold text-gray-900 dark:text-white">@Model.LoyaltyPointBucketValues[i] customer(s)</p>
+                        </div>
+                    }
+                </div>
+                <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                    Outstanding points: @Model.TotalOutstandingPoints.ToString("N0")
+                    (estimated liability: @Model.LoyaltyLiability.ToString("C")).
+                </p>
+            </div>
+
+            <div class="w-full xl:w-3/5 bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-sm">
+                <div class="flex items-center gap-2 mb-5">
+                    <span class="material-icons-outlined text-yellow-500">workspace_premium</span>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Tier Rules & Benefits</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    @foreach (var tier in Model.LoyaltyTierDetails)
+                    {
+                        <div class="rounded-xl border p-3 @tier.ColorClass">
+                            <div class="flex items-start justify-between gap-4">
+                                <div>
+                                    <p class="font-semibold">@tier.Tier</p>
+                                    <p class="text-[11px] opacity-90">
+                                        Spend at least @tier.SpendThreshold.ToString("C0") and earn @tier.EarnMultiplier.ToString("0.##")x points.
+                                    </p>
+                                </div>
+                                <span class="rounded-md bg-white/60 px-2 py-1 text-xs font-semibold text-gray-700">@tier.Members members</span>
+                            </div>
+                            <ul class="mt-2 space-y-1 text-[11px]">
+                                @foreach (var benefit in tier.Benefits)
+                                {
+                                    <li class="flex items-start gap-2">
+                                        <span class="material-icons-outlined text-sm">check_circle</span>
+                                        <span>@benefit</span>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Customer Loyalty Status</h3>
+                <div class="relative max-w-sm w-full">
+                    <span class="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+                    <input id="loyaltySearchInput" type="text" placeholder="Search customer in loyalty table..." class="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary outline-none transition-all" />
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-800/50">
+                        <tr>
+                            <th class="px-4 py-3 rounded-l-lg">Customer</th>
+                            <th class="px-4 py-3">Tier</th>
+                            <th class="px-4 py-3 text-right">Current Points</th>
+                            <th class="px-4 py-3 text-right">Lifetime Rewards</th>
+                            <th class="px-4 py-3 rounded-r-lg text-right">Orders</th>
+                        </tr>
+                    </thead>
+                    <tbody id="loyaltyTableBody" class="divide-y divide-gray-100 dark:divide-gray-700">
+                        @if (Model.Customers.Any())
+                        {
+                            foreach (var customer in Model.Customers.OrderByDescending(c => c.LoyaltyPoints))
+                            {
+                                <tr data-loyalty-row data-loyalty-search="@($"{customer.Name} {customer.Email} {customer.Level}")" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                    <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                        <div class="font-semibold">@customer.Name</div>
+                                        <div class="text-xs text-gray-500">@customer.Email</div>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold @customer.LevelColorClass">@customer.Level</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">@customer.LoyaltyPoints.ToString("N0")</td>
+                                    <td class="px-4 py-3 text-right text-green-600 dark:text-green-400 font-semibold">@customer.LifetimeRewardsValue.ToString("C")</td>
+                                    <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-300">@customer.OrderCount</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="5" class="px-4 py-6 text-center text-sm text-gray-500">No loyalty members found.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div id="quickMessageModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/50" data-close-quick-message-modal></div>
+    <div class="relative z-10 h-full w-full flex items-center justify-center p-4">
+        <div class="w-full max-w-5xl rounded-2xl bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 shadow-2xl">
+            <div class="flex items-start justify-between gap-4 border-b border-gray-200 dark:border-gray-700 px-6 py-5">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Send Email</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        Sending to <span id="quickMessageCustomerName" class="font-semibold text-gray-700 dark:text-gray-200">-</span>
+                        <span class="mx-1">|</span>
+                        <span id="quickMessageCustomerEmail">No email available</span>
+                    </p>
+                    <p class="mt-1 text-xs text-gray-400">Outbound email only. Customer replies will appear in your email inbox, not in this modal.</p>
+                </div>
+                <button type="button" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" data-close-quick-message-modal>
+                    <span class="material-icons-outlined">close</span>
+                </button>
+            </div>
+
+            <form id="quickMessageForm" asp-action="SendQuickMessage" method="post" class="px-6 py-5 space-y-4">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="quickMessageCustomerId" name="CustomerId" />
+
+                <div class="grid grid-cols-1 xl:grid-cols-5 gap-4">
+                    <div class="xl:col-span-3 space-y-4">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Suggestions</p>
+                            <div id="quickMessageTemplateButtons" class="mt-2 flex flex-wrap gap-2"></div>
+                        </div>
+
+                        <div>
+                            <label for="quickMessageSubject" class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Subject</label>
+                            <input id="quickMessageSubject" name="Subject" type="text" maxlength="50" required placeholder="e.g. Your points update" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary outline-none" />
+                            <div class="mt-2 text-right text-xs text-gray-500" id="quickMessageSubjectCounter">0/50</div>
+                        </div>
+
+                        <div>
+                            <label for="quickMessageBody" class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Message</label>
+                            <textarea id="quickMessageBody" name="Message" rows="6" maxlength="320" required placeholder="Write your email message..." class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary outline-none"></textarea>
+                            <div class="mt-2 flex items-center justify-between text-xs">
+                                <span id="quickMessageEmailWarning" class="text-red-600 hidden">An email address is required to queue a message.</span>
+                                <span id="quickMessagePreferenceWarning" class="text-amber-600 hidden">Email preference is off for this customer.</span>
+                                <span id="quickMessageCounter" class="ml-auto text-gray-500">0/320</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <aside class="xl:col-span-2 space-y-3">
+                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/60 p-3">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Customer Context</p>
+                            <div class="mt-2 space-y-1.5 text-sm text-gray-700 dark:text-gray-200">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-500">Tier</span>
+                                    <span id="quickMessageTier" class="font-semibold">-</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-500">Points</span>
+                                    <span id="quickMessagePoints" class="font-semibold">0</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-500">Total spend</span>
+                                    <span id="quickMessageSpent" class="font-semibold">-</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-500">Email preference</span>
+                                    <span id="quickMessageEmailPreference" class="font-semibold">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+                            <div class="flex items-center justify-between gap-3">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Recent Email Activity</p>
+                                <span class="text-[11px] text-gray-400">Queued / Sent / Failed</span>
+                            </div>
+                            <div id="quickMessageHistoryList" class="mt-2 max-h-60 overflow-y-auto space-y-2 text-xs text-gray-600 dark:text-gray-300">
+                                <div class="rounded-lg border border-dashed border-gray-200 px-3 py-2 text-gray-500">No recent messages yet.</div>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+
+                <div class="flex items-center justify-end gap-3 pt-2">
+                    <button type="button" data-close-quick-message-modal class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+                    <button id="quickMessageSubmit" type="submit" class="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50">
+                        Send Email
+                        <span class="material-icons-outlined text-[16px]">send</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const chartElement = document.getElementById('pointsChart');
+            if (chartElement) {
+                const ctx = chartElement.getContext('2d');
+                const bucketLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.LoyaltyPointBucketLabels));
+                const bucketValues = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.LoyaltyPointBucketValues));
+
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: bucketLabels,
+                        datasets: [{
+                            data: bucketValues,
+                            backgroundColor: ['#d1d5db', '#e5e7eb', '#a9f090', '#236460'],
+                            borderRadius: 8,
+                            borderSkipped: false,
+                            barThickness: 36
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: { display: false, grid: { display: false } },
+                            x: { grid: { display: false }, ticks: { color: '#6b7280' } }
+                        }
+                    }
+                });
+            }
+
+            const customerCardsContainer = document.getElementById('crmCustomerCards');
+            const allCustomerCards = customerCardsContainer ? Array.from(customerCardsContainer.querySelectorAll('[data-crm-customer-card]')) : [];
+            const customerTableWrapper = document.getElementById('crmCustomerTableWrapper');
+            const customerTableBody = document.getElementById('crmCustomerTableBody');
+            const allCustomerRows = customerTableBody ? Array.from(customerTableBody.querySelectorAll('[data-crm-customer-row]')) : [];
+            const searchInput = document.getElementById('crmSearchInput');
+            const tierFilter = document.getElementById('crmTierFilter');
+            const optInFilter = document.getElementById('crmOptInFilter');
+            const sortSelect = document.getElementById('crmSortSelect');
+            const resetFiltersButton = document.getElementById('crmResetFilters');
+            const cardViewButton = document.getElementById('crmCardViewButton');
+            const tableViewButton = document.getElementById('crmTableViewButton');
+            const resultCountLabel = document.getElementById('crmResultCount');
+            const noResultsElement = document.getElementById('crmNoResults');
+            const paginationWrapper = document.getElementById('crmCustomerPaginationWrapper');
+            const paginationSummary = document.getElementById('crmPaginationSummary');
+            const paginationContainer = document.getElementById('crmCustomerPagination');
+            const customerViewStorageKey = 'crmCustomerViewMode';
+            const customerPageSize = 10;
+            let activeCustomerView = 'table';
+            let currentCustomerPage = 1;
+
+            function sortCustomerElements(elements, mode) {
+                const sorted = elements.slice();
+                switch (mode) {
+                    case 'points_desc':
+                        sorted.sort((a, b) => Number(b.dataset.points || 0) - Number(a.dataset.points || 0));
+                        break;
+                    case 'name_asc':
+                        sorted.sort((a, b) => (a.dataset.name || '').localeCompare(b.dataset.name || ''));
+                        break;
+                    case 'joined_desc':
+                        sorted.sort((a, b) => Number(b.dataset.joined || 0) - Number(a.dataset.joined || 0));
+                        break;
+                    case 'spent_desc':
+                    default:
+                        sorted.sort((a, b) => Number(b.dataset.spent || 0) - Number(a.dataset.spent || 0));
+                        break;
+                }
+
+                return sorted;
+            }
+
+            function updateViewToggleAppearance(mode) {
+                const isCardView = mode === 'cards';
+                if (cardViewButton) {
+                    cardViewButton.classList.toggle('bg-brand-primary', isCardView);
+                    cardViewButton.classList.toggle('text-white', isCardView);
+                    cardViewButton.classList.toggle('text-gray-600', !isCardView);
+                    cardViewButton.classList.toggle('dark:text-gray-300', !isCardView);
+                    cardViewButton.classList.toggle('hover:bg-gray-100', !isCardView);
+                    cardViewButton.classList.toggle('dark:hover:bg-gray-700', !isCardView);
+                }
+                if (tableViewButton) {
+                    tableViewButton.classList.toggle('bg-brand-primary', !isCardView);
+                    tableViewButton.classList.toggle('text-white', !isCardView);
+                    tableViewButton.classList.toggle('text-gray-600', isCardView);
+                    tableViewButton.classList.toggle('dark:text-gray-300', isCardView);
+                    tableViewButton.classList.toggle('hover:bg-gray-100', isCardView);
+                    tableViewButton.classList.toggle('dark:hover:bg-gray-700', isCardView);
+                }
+            }
+
+            function setCustomerView(mode) {
+                activeCustomerView = mode === 'table' ? 'table' : 'cards';
+                if (customerCardsContainer) {
+                    customerCardsContainer.classList.toggle('hidden', activeCustomerView !== 'cards');
+                }
+                if (customerTableWrapper) {
+                    customerTableWrapper.classList.toggle('hidden', activeCustomerView !== 'table');
+                }
+                updateViewToggleAppearance(activeCustomerView);
+                try {
+                    localStorage.setItem(customerViewStorageKey, activeCustomerView);
+                } catch {
+                    // Ignore storage failures.
+                }
+            }
+
+            function matchesCustomerFilters(customerElement, searchTerm, tierValue, optInValue) {
+                const haystack = `${customerElement.dataset.name || ''} ${customerElement.dataset.email || ''} ${customerElement.dataset.phone || ''}`.toLowerCase();
+                const matchesSearch = !searchTerm || haystack.includes(searchTerm);
+                const matchesTier = tierValue === 'all' || (customerElement.dataset.tier || '').toLowerCase() === tierValue;
+                const matchesOptIn = optInValue === 'all' || (customerElement.dataset.optIn || '').toLowerCase() === optInValue;
+                return matchesSearch && matchesTier && matchesOptIn;
+            }
+
+            function createPagerIconButton(iconName, disabled, onClick) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.innerHTML = `<span class="material-icons-outlined text-[18px]">${iconName}</span>`;
+
+                if (disabled) {
+                    button.disabled = true;
+                    button.className = 'h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 cursor-not-allowed';
+                    return button;
+                }
+
+                button.className = 'h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800/70 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors';
+                button.addEventListener('click', onClick);
+                return button;
+            }
+
+            function createPagerNumberButton(pageNumber, isActive, onClick) {
+                if (isActive) {
+                    const activeBadge = document.createElement('span');
+                    activeBadge.className = 'h-10 w-10 inline-flex items-center justify-center rounded-xl border border-brand-primary bg-brand-primary text-white text-sm font-semibold';
+                    activeBadge.textContent = String(pageNumber);
+                    return activeBadge;
+                }
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800/70 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm font-semibold transition-colors';
+                button.textContent = String(pageNumber);
+                button.addEventListener('click', onClick);
+                return button;
+            }
+
+            function renderCustomerPagination(totalFiltered, totalPages, startItem, endItem) {
+                if (!paginationWrapper || !paginationContainer || !paginationSummary) {
+                    return;
+                }
+
+                if (totalFiltered <= 0) {
+                    paginationWrapper.classList.add('hidden');
+                    paginationContainer.innerHTML = '';
+                    paginationSummary.textContent = '';
+                    return;
+                }
+
+                paginationWrapper.classList.remove('hidden');
+                paginationSummary.textContent = `Showing ${startItem} to ${endItem} of ${totalFiltered} customers`;
+                paginationContainer.innerHTML = '';
+
+                const hasPreviousPage = currentCustomerPage > 1;
+                const hasNextPage = currentCustomerPage < totalPages;
+                let startPage = Math.max(1, currentCustomerPage - 1);
+                let endPage = Math.min(totalPages, startPage + 2);
+                startPage = Math.max(1, endPage - 2);
+
+                paginationContainer.appendChild(
+                    createPagerIconButton('chevron_left', !hasPreviousPage, function () {
+                        currentCustomerPage = currentCustomerPage - 1;
+                        applyCustomerFilters();
+                    }));
+
+                for (let pageNumber = startPage; pageNumber <= endPage; pageNumber++) {
+                    const isActive = pageNumber === currentCustomerPage;
+                    paginationContainer.appendChild(
+                        createPagerNumberButton(pageNumber, isActive, function () {
+                            currentCustomerPage = pageNumber;
+                            applyCustomerFilters();
+                        }));
+                }
+
+                paginationContainer.appendChild(
+                    createPagerIconButton('chevron_right', !hasNextPage, function () {
+                        currentCustomerPage = currentCustomerPage + 1;
+                        applyCustomerFilters();
+                    }));
+            }
+
+            function applyCustomerFilters() {
+                if (!customerCardsContainer && !customerTableBody) {
+                    return;
+                }
+
+                const searchTerm = (searchInput ? searchInput.value : '').trim().toLowerCase();
+                const tierValue = (tierFilter ? tierFilter.value : 'all').toLowerCase();
+                const optInValue = (optInFilter ? optInFilter.value : 'all').toLowerCase();
+                const sortMode = sortSelect ? sortSelect.value : 'spent_desc';
+
+                const filteredCards = allCustomerCards.filter(card => matchesCustomerFilters(card, searchTerm, tierValue, optInValue));
+                const filteredRows = allCustomerRows.filter(row => matchesCustomerFilters(row, searchTerm, tierValue, optInValue));
+
+                const sortedCards = sortCustomerElements(filteredCards, sortMode);
+                const sortedRows = sortCustomerElements(filteredRows, sortMode);
+                const totalFiltered = sortedCards.length;
+                const totalPages = Math.max(1, Math.ceil(totalFiltered / customerPageSize));
+                currentCustomerPage = Math.min(Math.max(1, currentCustomerPage), totalPages);
+
+                const startIndex = (currentCustomerPage - 1) * customerPageSize;
+                const endIndexExclusive = startIndex + customerPageSize;
+                const pagedCards = sortedCards.slice(startIndex, endIndexExclusive);
+                const pagedRows = sortedRows.slice(startIndex, endIndexExclusive);
+                const startItem = totalFiltered == 0 ? 0 : startIndex + 1;
+                const endItem = totalFiltered == 0 ? 0 : Math.min(endIndexExclusive, totalFiltered);
+
+                allCustomerCards.forEach(card => card.classList.add('hidden'));
+                pagedCards.forEach(card => {
+                    card.classList.remove('hidden');
+                    customerCardsContainer.appendChild(card);
+                });
+                allCustomerRows.forEach(row => row.classList.add('hidden'));
+                pagedRows.forEach(row => {
+                    row.classList.remove('hidden');
+                    customerTableBody.appendChild(row);
+                });
+
+                if (resultCountLabel) {
+                    resultCountLabel.textContent = totalFiltered > 0
+                        ? `Showing ${startItem} to ${endItem} of ${totalFiltered} customers`
+                        : `Showing 0 to 0 of ${allCustomerCards.length} customers`;
+                }
+
+                if (noResultsElement) {
+                    noResultsElement.classList.toggle('hidden', totalFiltered > 0);
+                }
+
+                renderCustomerPagination(totalFiltered, totalPages, startItem, endItem);
+            }
+
+            function handleCustomerFilterChange() {
+                currentCustomerPage = 1;
+                applyCustomerFilters();
+            }
+
+            if (searchInput) searchInput.addEventListener('input', handleCustomerFilterChange);
+            if (tierFilter) tierFilter.addEventListener('change', handleCustomerFilterChange);
+            if (optInFilter) optInFilter.addEventListener('change', handleCustomerFilterChange);
+            if (sortSelect) sortSelect.addEventListener('change', handleCustomerFilterChange);
+            if (cardViewButton) {
+                cardViewButton.addEventListener('click', function () {
+                    setCustomerView('cards');
+                });
+            }
+            if (tableViewButton) {
+                tableViewButton.addEventListener('click', function () {
+                    setCustomerView('table');
+                });
+            }
+            if (resetFiltersButton) {
+                resetFiltersButton.addEventListener('click', function () {
+                    if (searchInput) searchInput.value = '';
+                    if (tierFilter) tierFilter.value = 'all';
+                    if (optInFilter) optInFilter.value = 'all';
+                    if (sortSelect) sortSelect.value = 'spent_desc';
+                    currentCustomerPage = 1;
+                    applyCustomerFilters();
+                });
+            }
+
+            setCustomerView('table');
+            applyCustomerFilters();
+
+            const outreachHistoryByCustomer = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.OutreachHistoryByCustomer));
+            const currencyFormatter = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
+
+            const modal = document.getElementById('quickMessageModal');
+            const messageForm = document.getElementById('quickMessageForm');
+            const subjectInput = document.getElementById('quickMessageSubject');
+            const messageInput = document.getElementById('quickMessageBody');
+            const subjectCounter = document.getElementById('quickMessageSubjectCounter');
+            const messageCounter = document.getElementById('quickMessageCounter');
+            const customerNameLabel = document.getElementById('quickMessageCustomerName');
+            const customerEmailLabel = document.getElementById('quickMessageCustomerEmail');
+            const customerIdInput = document.getElementById('quickMessageCustomerId');
+            const submitButton = document.getElementById('quickMessageSubmit');
+            const emailWarning = document.getElementById('quickMessageEmailWarning');
+            const preferenceWarning = document.getElementById('quickMessagePreferenceWarning');
+            const templateButtonsContainer = document.getElementById('quickMessageTemplateButtons');
+            const historyList = document.getElementById('quickMessageHistoryList');
+            const tierValue = document.getElementById('quickMessageTier');
+            const pointsValue = document.getElementById('quickMessagePoints');
+            const spentValue = document.getElementById('quickMessageSpent');
+            const emailPreferenceValue = document.getElementById('quickMessageEmailPreference');
+
+            let activeCustomer = null;
+            try {
+                localStorage.removeItem('crmQuickEmailHistory');
+            } catch {
+                // Ignore storage cleanup failures.
+            }
+
+            function toHistoryArray(value) {
+                return Array.isArray(value) ? value : [];
+            }
+
+            function escapeHtml(value) {
+                return String(value || '')
+                    .replaceAll('&', '&amp;')
+                    .replaceAll('<', '&lt;')
+                    .replaceAll('>', '&gt;')
+                    .replaceAll('"', '&quot;')
+                    .replaceAll("'", '&#39;');
+            }
+
+            function getServerHistoryForCustomer(customerId) {
+                if (!customerId) {
+                    return [];
+                }
+
+                const key = String(customerId);
+                const rawHistory = outreachHistoryByCustomer[key] || outreachHistoryByCustomer[customerId] || [];
+                return toHistoryArray(rawHistory).map(entry => ({
+                    type: 'server',
+                    subject: entry.subject || entry.Subject || 'Quick Email',
+                    status: entry.deliveryStatus || entry.DeliveryStatus || 'Queued',
+                    source: entry.source || entry.Source || 'Quick Email',
+                    campaignName: entry.campaignName || entry.CampaignName || '',
+                    createdAtUtc: entry.dateSent || entry.DateSent || null,
+                    body: ''
+                }));
+            }
+
+            function renderHistory(customerId) {
+                if (!historyList) {
+                    return [];
+                }
+
+                const sortedHistory = getServerHistoryForCustomer(customerId)
+                    .sort((left, right) => {
+                        const leftTime = left.createdAtUtc ? new Date(left.createdAtUtc).getTime() : 0;
+                        const rightTime = right.createdAtUtc ? new Date(right.createdAtUtc).getTime() : 0;
+                        return rightTime - leftTime;
+                    });
+                const dedupedHistory = [];
+                const seenKeys = new Set();
+                sortedHistory.forEach(entry => {
+                    const parsedDate = entry.createdAtUtc ? new Date(entry.createdAtUtc) : null;
+                    const minuteBucket = parsedDate && !Number.isNaN(parsedDate.getTime())
+                        ? parsedDate.toISOString().slice(0, 16)
+                        : '';
+                    const dedupeKey = `${(entry.subject || '').toLowerCase()}|${(entry.source || '').toLowerCase()}|${minuteBucket}`;
+                    if (seenKeys.has(dedupeKey)) {
+                        return;
+                    }
+
+                    seenKeys.add(dedupeKey);
+                    dedupedHistory.push(entry);
+                });
+
+                const combinedHistory = dedupedHistory.slice(0, 8);
+
+                if (combinedHistory.length === 0) {
+                    historyList.innerHTML = '<div class="rounded-lg border border-dashed border-gray-200 px-3 py-2 text-gray-500">No recent messages yet.</div>';
+                    return combinedHistory;
+                }
+
+                historyList.innerHTML = combinedHistory
+                    .map(entry => {
+                        const parsedTimestamp = entry.createdAtUtc ? new Date(entry.createdAtUtc) : null;
+                        const timestamp = parsedTimestamp && !Number.isNaN(parsedTimestamp.getTime())
+                            ? parsedTimestamp.toLocaleString()
+                            : 'Unknown time';
+                        const sourceLabel = entry.campaignName
+                            ? `Campaign: ${entry.campaignName}`
+                            : entry.source;
+                        const safeSubject = escapeHtml(entry.subject);
+                        const safeStatus = escapeHtml(entry.status);
+                        const safeSourceLabel = escapeHtml(sourceLabel);
+                        const safeTimestamp = escapeHtml(timestamp);
+                        const safeBodyPreview = entry.body
+                            ? `<div class="mt-1 text-[11px] text-gray-500">${escapeHtml(entry.body)}</div>`
+                            : '';
+                        return `
+                            <div class="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="font-semibold text-gray-800 dark:text-gray-100">${safeSubject}</span>
+                                    <span class="text-[10px] uppercase tracking-wide text-gray-400">${safeStatus}</span>
+                                </div>
+                                <div class="mt-1 text-[11px] text-gray-500">${safeSourceLabel}</div>
+                                ${safeBodyPreview}
+                                <div class="mt-1 text-[10px] text-gray-400">${safeTimestamp}</div>
+                            </div>`;
+                    })
+                    .join('');
+
+                return combinedHistory;
+            }
+
+            function updateCounters() {
+                if (subjectInput && subjectCounter) {
+                    subjectCounter.textContent = `${subjectInput.value.length}/50`;
+                }
+
+                if (messageInput && messageCounter) {
+                    messageCounter.textContent = `${messageInput.value.length}/320`;
+                }
+            }
+
+            function buildTemplates(customer, history) {
+                const templates = [
+                    {
+                        label: 'Restock Alert',
+                        subject: 'Item back in stock',
+                        body: `Hi ${customer.name}, the item you asked about is back in stock. Reply to this email and we can reserve it for you.`
+                    },
+                    {
+                        label: 'Points Reminder',
+                        subject: 'Your loyalty points update',
+                        body: `Hi ${customer.name}, you currently have ${customer.points.toLocaleString()} loyalty points available. Reply if you want a redemption suggestion.`
+                    },
+                    {
+                        label: 'Tier Benefit',
+                        subject: `${customer.tier} member benefits`,
+                        body: `Hi ${customer.name}, as a ${customer.tier} member you have extra loyalty perks available. Reply and we will send your current benefit options.`
+                    }
+                ];
+
+                if (customer.tier === 'Gold' || customer.tier === 'Platinum') {
+                    templates.push({
+                        label: 'Priority Offer',
+                        subject: 'Priority access for your tier',
+                        body: `Hi ${customer.name}, we are sharing an early-access offer reserved for ${customer.tier} members. Reply if you want the details first.`
+                    });
+                }
+
+                const latestCampaign = history.find(entry => (entry.source || '').toLowerCase().includes('campaign'));
+                if (latestCampaign) {
+                    templates.push({
+                        label: 'Campaign Follow-up',
+                        subject: `Follow-up: ${latestCampaign.subject}`,
+                        body: `Hi ${customer.name}, thanks for reading our recent campaign "${latestCampaign.subject}". Reply if you want personalized recommendations.`
+                    });
+                }
+
+                if (!customer.emailEnabled) {
+                    templates.push({
+                        label: 'Preference Check',
+                        subject: 'Your email preference',
+                        body: `Hi ${customer.name}, we currently have your email marketing preference set to off. Reply if you want us to keep notifications paused or enable selected updates only.`
+                    });
+                }
+
+                return templates;
+            }
+
+            function renderTemplateButtons(customer, history) {
+                if (!templateButtonsContainer || !subjectInput || !messageInput) {
+                    return;
+                }
+
+                const templates = buildTemplates(customer, history);
+                templateButtonsContainer.innerHTML = '';
+                templates.forEach(template => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50';
+                    button.textContent = template.label;
+                    button.addEventListener('click', function () {
+                        subjectInput.value = template.subject;
+                        messageInput.value = template.body;
+                        messageInput.focus();
+                        updateCounters();
+                    });
+                    templateButtonsContainer.appendChild(button);
+                });
+            }
+
+            function setModalCustomer(card) {
+                if (!card) {
+                    return;
+                }
+
+                const customer = {
+                    id: card.dataset.id || '',
+                    name: card.dataset.name || 'Customer',
+                    email: card.dataset.email || '',
+                    tier: card.dataset.tier || 'Bronze',
+                    points: Number(card.dataset.points || 0),
+                    spent: Number(card.dataset.spent || 0),
+                    emailEnabled: (card.dataset.optIn || '').toLowerCase() === 'true'
+                };
+
+                activeCustomer = customer;
+                if (customerNameLabel) customerNameLabel.textContent = customer.name;
+                if (customerEmailLabel) customerEmailLabel.textContent = customer.email || 'No email available';
+                if (customerIdInput) customerIdInput.value = customer.id;
+                if (tierValue) tierValue.textContent = customer.tier;
+                if (pointsValue) pointsValue.textContent = customer.points.toLocaleString();
+                if (spentValue) spentValue.textContent = currencyFormatter.format(customer.spent);
+                if (emailPreferenceValue) emailPreferenceValue.textContent = customer.emailEnabled ? 'Email On' : 'Email Off';
+
+                const canSubmit = Boolean(customer.email && customer.email.trim().length > 0);
+                if (submitButton) submitButton.disabled = !canSubmit;
+                if (emailWarning) emailWarning.classList.toggle('hidden', canSubmit);
+                if (preferenceWarning) preferenceWarning.classList.toggle('hidden', customer.emailEnabled);
+
+                const history = renderHistory(customer.id);
+                renderTemplateButtons(customer, history);
+            }
+
+            function openQuickMessageModal(card) {
+                if (!modal) {
+                    return;
+                }
+
+                setModalCustomer(card);
+                if (subjectInput) {
+                    subjectInput.value = '';
+                }
+                if (messageInput) {
+                    messageInput.value = '';
+                    messageInput.focus();
+                }
+                updateCounters();
+                modal.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+            }
+
+            function closeQuickMessageModal() {
+                if (!modal) {
+                    return;
+                }
+
+                modal.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+                if (messageForm) {
+                    messageForm.reset();
+                }
+                activeCustomer = null;
+                updateCounters();
+            }
+
+            function wireCustomerMessageTriggers(customerElement) {
+                customerElement.addEventListener('click', function () {
+                    openQuickMessageModal(customerElement);
+                });
+
+                customerElement.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openQuickMessageModal(customerElement);
+                    }
+                });
+
+                const directMessageButton = customerElement.querySelector('[data-open-message]');
+                if (directMessageButton) {
+                    directMessageButton.addEventListener('click', function (event) {
+                        event.stopPropagation();
+                        openQuickMessageModal(customerElement);
+                    });
+                }
+            }
+
+            allCustomerCards.forEach(wireCustomerMessageTriggers);
+            allCustomerRows.forEach(wireCustomerMessageTriggers);
+
+            document.querySelectorAll('[data-close-quick-message-modal]').forEach(button => {
+                button.addEventListener('click', closeQuickMessageModal);
+            });
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+                    closeQuickMessageModal();
+                }
+            });
+
+            if (subjectInput) {
+                subjectInput.addEventListener('input', updateCounters);
+            }
+            if (messageInput) {
+                messageInput.addEventListener('input', updateCounters);
+            }
+            updateCounters();
+
+            const loyaltySearchInput = document.getElementById('loyaltySearchInput');
+            const loyaltyRows = Array.from(document.querySelectorAll('[data-loyalty-row]'));
+            if (loyaltySearchInput) {
+                loyaltySearchInput.addEventListener('input', function () {
+                    const query = loyaltySearchInput.value.trim().toLowerCase();
+                    loyaltyRows.forEach(row => {
+                        const searchable = (row.dataset.loyaltySearch || '').toLowerCase();
+                        const visible = !query || searchable.includes(query);
+                        row.classList.toggle('hidden', !visible);
+                    });
+                });
+            }
+        });
+
+        function switchTab(tabName) {
+            const customersTab = document.getElementById('tab-customers');
+            const loyaltyTab = document.getElementById('tab-loyalty');
+            const customersView = document.getElementById('customers-view');
+            const loyaltyView = document.getElementById('loyalty-view');
+
+            if (!customersTab || !loyaltyTab || !customersView || !loyaltyView) {
+                return;
+            }
+
+            if (tabName === 'customers') {
+                customersTab.classList.replace('border-transparent', 'border-brand-primary');
+                customersTab.classList.replace('text-gray-500', 'text-gray-900');
+                loyaltyTab.classList.replace('border-brand-primary', 'border-transparent');
+                loyaltyTab.classList.replace('text-gray-900', 'text-gray-500');
+
+                customersView.classList.remove('opacity-0', 'pointer-events-none', 'h-0', 'overflow-hidden');
+                loyaltyView.classList.add('opacity-0', 'pointer-events-none', 'h-0', 'overflow-hidden');
+            } else {
+                loyaltyTab.classList.replace('border-transparent', 'border-brand-primary');
+                loyaltyTab.classList.replace('text-gray-500', 'text-gray-900');
+                customersTab.classList.replace('border-brand-primary', 'border-transparent');
+                customersTab.classList.replace('text-gray-900', 'text-gray-500');
+
+                loyaltyView.classList.remove('opacity-0', 'pointer-events-none', 'h-0', 'overflow-hidden');
+                customersView.classList.add('opacity-0', 'pointer-events-none', 'h-0', 'overflow-hidden');
+            }
+        }
+    </script>
+}

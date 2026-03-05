@@ -1,0 +1,137 @@
+@{
+    ViewData["Title"] = "Create an account";
+    Layout = "~/Views/Shared/_AuthLayout.cshtml";
+}
+
+<div class="auth-card">
+    <div class="auth-sidebar">
+        <div class="brand-logo mb-0">
+            <img src="~/logo.png" alt="KSTech Logo" />
+            <span>KSTech</span>
+        </div>
+        <p class="small text-white-50 mb-4 mt-2" style="font-size: 0.75rem;">Computer Parts Inventory and Customer Engagement System</p>
+        <h1 class="display-6 fw-bold mb-3">Empowering your customer engagement.</h1>
+        <p class="lead fs-6 opacity-75">
+            Tracking real-time data, sales analytics, and stock levels seamlessly.
+        </p>
+
+        <div class="mt-4 p-3 bg-white bg-opacity-10 rounded-3">
+            <div class="d-flex justify-content-between text-white small mb-2">
+                <span>Growth</span>
+                <span class="fw-bold" style="color: #98f5a4;">+24.5% <i class="bi bi-graph-up-arrow"></i></span>
+            </div>
+            <div class="d-flex align-items-end gap-1" style="height: 60px;">
+                <div class="w-25 bg-white bg-opacity-25 rounded-1" style="height: 40%;"></div>
+                <div class="w-25 bg-white bg-opacity-50 rounded-1" style="height: 60%;"></div>
+                <div class="w-25 bg-white bg-opacity-75 rounded-1" style="height: 75%;"></div>
+                <div class="w-25 rounded-1" style="height: 100%; background-color: #98f5a4;"></div>
+                <div class="w-25 bg-white bg-opacity-50 rounded-1" style="height: 85%;"></div>
+            </div>
+        </div>
+
+        <div class="mt-auto pt-3">
+            <p class="small opacity-50 mb-0">&copy; 2026 KSTech System. All rights reserved.</p>
+        </div>
+    </div>
+    <div class="auth-content">
+        <h2 class="fw-bold mb-2">Create an account</h2>
+        <p class="text-muted mb-4">Enter your details to access the inventory system.</p>
+
+        @if (ViewBag.Error != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @ViewBag.Error
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+        else if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @TempData["ErrorMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+
+        <form asp-action="Register" method="post">
+            <div class="mb-3">
+                <label class="form-label text-muted small fw-semibold">Full Name</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-person"></i></span>
+                    <input type="text" class="form-control auth-live-input" name="fullName" placeholder="Khint Steven" required autocomplete="name" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label text-muted small fw-semibold">Email Address</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                    <input type="email" class="form-control auth-live-input" name="email" placeholder="khint@kstech.com" required autocomplete="email" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label text-muted small fw-semibold">Password</label>
+                <div class="input-group password-field-wrap">
+                    <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                    <input id="account-register-password"
+                           type="password"
+                           class="form-control password-field-input auth-live-input"
+                           name="password"
+                           placeholder="********"
+                           autocomplete="new-password"
+                           minlength="8"
+                           pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}"
+                           title="Password must be at least 8 characters and include uppercase, lowercase, and a number."
+                           required />
+                    <button type="button"
+                            class="password-toggle-btn"
+                            data-toggle-password="account-register-password"
+                            aria-label="Show password"
+                            title="Show password">
+                        <i class="bi bi-eye" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="auth-field-hint mt-2">
+                    Password should contain at least 8 characters, 1 uppercase letter, 1 lowercase letter, and 1 number.
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label text-muted small fw-semibold">Confirm Password</label>
+                <div class="input-group password-field-wrap">
+                    <span class="input-group-text"><i class="bi bi-shield-lock"></i></span>
+                    <input id="account-register-confirm-password"
+                           type="password"
+                           class="form-control password-field-input auth-live-input"
+                           name="confirmPassword"
+                           placeholder="********"
+                           autocomplete="new-password"
+                           data-matches="account-register-password"
+                           required />
+                    <button type="button"
+                            class="password-toggle-btn"
+                            data-toggle-password="account-register-confirm-password"
+                            aria-label="Show password"
+                            title="Show password">
+                        <i class="bi bi-eye" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-check mb-4">
+                <input class="form-check-input" type="checkbox" id="terms" required />
+                <label class="form-check-label small text-muted" for="terms">
+                    I agree to the <a href="#" class="text-decoration-none" style="color: #236460;">Terms of Service</a> and <a href="#" class="text-decoration-none" style="color: #236460;">Privacy Policy</a>.
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 mb-4">Create Account</button>
+
+            <div class="text-center">
+                <p class="small text-muted">
+                    Already have an account? <a href="@Url.Action("Login", "Account")" class="text-decoration-none fw-bold" style="color: #236460;">Log in here</a>
+                </p>
+            </div>
+        </form>
+    </div>
+</div>

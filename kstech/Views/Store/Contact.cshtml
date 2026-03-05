@@ -1,0 +1,56 @@
+@model kstech.Models.ViewModels.ContactViewModel
+@{
+    ViewBag.Title = "Contact Us - KSTech";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+
+<div class="mx-auto w-full max-w-2xl px-4 py-10 md:py-12">
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 md:p-8 shadow-[0_18px_45px_rgba(15,35,54,0.10)]">
+        <div class="mb-6 text-center">
+            <span class="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-full bg-store-accent-soft text-store-accent">
+                <span class="material-icons-outlined text-[30px]">support_agent</span>
+            </span>
+            <h1 class="font-display text-2xl font-semibold text-store-ink md:text-3xl">How can we help?</h1>
+            <p class="mx-auto mt-2 max-w-xl text-sm text-store-muted">Send us a message and we'll get back to you as soon as possible.</p>
+        </div>
+
+        @if (TempData["ContactSuccess"] != null)
+        {
+            <div class="mb-6 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 fade-in">
+                <span class="material-icons-outlined">check_circle</span>
+                @TempData["ContactSuccess"]
+            </div>
+        }
+
+        <form asp-action="Contact" method="post" class="space-y-5">
+            <div>
+                <label asp-for="Subject" class="mb-1.5 block text-sm font-semibold text-store-ink"></label>
+                <input asp-for="Subject"
+                       class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-store-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-store-accent focus:ring-4 focus:ring-store-accent/15"
+                       placeholder="e.g. Question about my recent order" />
+                <span asp-validation-for="Subject" class="text-xs text-red-500 mt-1 block"></span>
+            </div>
+
+            <div>
+                <label asp-for="Message" class="mb-1.5 block text-sm font-semibold text-store-ink"></label>
+                <textarea asp-for="Message"
+                          rows="7"
+                          class="w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-store-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-store-accent focus:ring-4 focus:ring-store-accent/15"
+                          placeholder="Please describe your issue or question in detail..."></textarea>
+                <p class="mt-1 text-xs text-store-muted">Include your order ID if this is related to a purchase.</p>
+                <span asp-validation-for="Message" class="text-xs text-red-500 mt-1 block"></span>
+            </div>
+
+            <button type="submit" class="w-full rounded-xl bg-store-accent px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-store-accent/25 transition hover:bg-store-ink focus:outline-none focus:ring-4 focus:ring-store-accent/20">
+                <span class="flex items-center justify-center gap-2">
+                    <span class="material-icons-outlined text-sm">send</span>
+                    Send Message
+                </span>
+            </button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,0 +1,493 @@
+@using System.Collections.Generic
+@using System.Linq
+@using System.Text.Json
+@model kstech.Models.HomeDashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+
+    var lowStockPreview = Model.LowStockSkus?
+        .Where(sku => !string.IsNullOrWhiteSpace(sku))
+        .Take(3)
+        .ToList() ?? new List<string>();
+    var hasMoreLowStockSkus = Model.LowStockSkus != null && Model.LowStockSkus.Count > lowStockPreview.Count;
+    var selectedRange = string.IsNullOrWhiteSpace(Model.FilterPeriod) ? "this_month" : Model.FilterPeriod;
+    var selectedRangeLabel = selectedRange switch
+    {
+        "today" => "Today",
+        "yesterday" => "Yesterday",
+        "last_7_days" => "Last 7 Days",
+        "this_year" => "This Year",
+        "custom" => "Custom Range",
+        _ => "Monthly"
+    };
+    var selectedDateRange = $"{Model.StartDate:MMM dd, yyyy} - {Model.EndDate:MMM dd, yyyy}";
+}
+
+<div class="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+    <div class="dashboard-header">
+        <div>
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+            <p class="text-gray-500 dark:text-gray-400 mt-1">Overview of inventory and retail performance.</p>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Period: @selectedDateRange</p>
+        </div>
+    </div>
+    <form asp-action="Index" method="get" id="homeFilterForm" class="flex flex-wrap items-end gap-2 md:justify-end">
+        <input type="hidden" id="rangePreset" name="range" value="@selectedRange" />
+        <div class="relative">
+            <button type="button"
+                    id="rangePresetToggle"
+                    class="min-w-40 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2.5 flex items-center justify-between gap-2 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-primary/30">
+                <span class="flex items-center gap-2">
+                    <span class="material-icons-outlined text-[18px] text-gray-500 dark:text-gray-300">calendar_today</span>
+                    <span id="rangePresetLabel" class="text-sm font-medium text-gray-700 dark:text-gray-200">@selectedRangeLabel</span>
+                </span>
+                <span class="material-icons-outlined text-[18px] text-gray-500 dark:text-gray-300">expand_more</span>
+            </button>
+            <div id="rangePresetMenu" class="hidden absolute left-0 z-20 mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark shadow-lg">
+                <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="today">Today</button>
+                <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="yesterday">Yesterday</button>
+                <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="last_7_days">Last 7 Days</button>
+                <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="this_month">This Month</button>
+                <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="this_year">This Year</button>
+                <div class="border-t border-gray-200 dark:border-gray-700"></div>
+                <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="custom">Custom Range</button>
+            </div>
+        </div>
+
+        <div id="customRangeFields" class="flex flex-wrap items-end gap-2 @(selectedRange == "custom" ? string.Empty : "hidden")">
+            <div>
+                <label for="startDate" class="block text-xs text-gray-500 mb-1">From</label>
+                <input id="startDate" name="startDate" type="date" value="@Model.StartDate.ToString("yyyy-MM-dd")" class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm" />
+            </div>
+            <div>
+                <label for="endDate" class="block text-xs text-gray-500 mb-1">To</label>
+                <input id="endDate" name="endDate" type="date" value="@Model.EndDate.ToString("yyyy-MM-dd")" class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm" />
+            </div>
+            <button type="submit" class="hidden">Apply</button>
+        </div>
+
+        <a asp-action="Index"
+           asp-route-range="this_month"
+           class="rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 no-underline hover:no-underline">
+            Reset
+        </a>
+
+        <a asp-action="ExportDashboardReportPdf"
+           asp-route-range="@Model.FilterPeriod"
+           asp-route-startDate="@Model.StartDate.ToString("yyyy-MM-dd")"
+           asp-route-endDate="@Model.EndDate.ToString("yyyy-MM-dd")"
+           class="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg font-medium hover:bg-brand-primary/90 transition-colors shadow-sm no-underline hover:no-underline">
+            <i class="fa-solid fa-download"></i>
+            <span class="hidden sm:inline">Export PDF</span>
+        </a>
+    </form>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        @if (Model.LowStockCount > 0)
+        {
+            <div class="alert alert-warning flex flex-col md:flex-row justify-between items-center gap-4 bg-orange-50 border-orange-100 text-orange-800 rounded-xl p-4" role="alert">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 shrink-0">
+                        <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+                    </div>
+                    <div>
+                        <h5 class="font-bold text-lg mb-0.5">Low Stock Alert</h5>
+                        <p class="mb-0 text-sm">
+                            <strong>@Model.LowStockCount</strong> items are running low.
+                            @if (lowStockPreview.Any())
+                            {
+                                <span class="text-xs text-orange-600/70 ml-1">SKUs: @string.Join(", ", lowStockPreview)@(hasMoreLowStockSkus ? "..." : string.Empty)</span>
+                            }
+                        </p>
+                    </div>
+                </div>
+                <a href="@Url.Action("Products", "Inventory")" class="px-4 py-2 bg-white text-orange-600 border border-orange-200 rounded-lg text-sm font-bold hover:bg-orange-50 transition-colors whitespace-nowrap">Restock Now</a>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center text-center aspect-square md:aspect-auto md:flex-row md:items-center md:text-left md:justify-start gap-4">
+        <div class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-orange-50 dark:bg-orange-900/20 text-orange-500 flex items-center justify-center text-xl md:text-2xl shrink-0">
+            <i class="fa-solid fa-bag-shopping"></i>
+        </div>
+        <div class="flex flex-col items-center md:items-start w-full">
+            <span class="text-xs md:text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">Total Sales</span>
+            <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-lg md:text-2xl font-bold text-gray-900 dark:text-white">@Model.TotalSales.ToString("C0")</span>
+                <span class="text-xs font-bold px-1.5 py-0.5 rounded @GetChangeBadgeClass(Model.SalesChangePercentage) hidden md:inline-block">@FormatChangePercentage(Model.SalesChangePercentage)</span>
+            </div>
+            <div class="text-xs text-gray-400 hidden md:block">vs prior same-length period</div>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center text-center aspect-square md:aspect-auto md:flex-row md:items-center md:text-left md:justify-start gap-4">
+        <div class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center text-xl md:text-2xl shrink-0">
+            <i class="fa-solid fa-peso-sign"></i>
+        </div>
+        <div class="flex flex-col items-center md:items-start w-full">
+            <span class="text-xs md:text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">Total Profits</span>
+            <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-lg md:text-2xl font-bold text-gray-900 dark:text-white">@Model.TotalProfits.ToString("C0")</span>
+                <span class="text-xs font-bold px-1.5 py-0.5 rounded @GetChangeBadgeClass(Model.ProfitChangePercentage) hidden md:inline-block">@FormatChangePercentage(Model.ProfitChangePercentage)</span>
+            </div>
+            <div class="text-xs text-gray-400 hidden md:block">vs prior same-length period</div>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center text-center aspect-square md:aspect-auto md:flex-row md:items-center md:text-left md:justify-start gap-4">
+        <div class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-500 flex items-center justify-center text-xl md:text-2xl shrink-0">
+            <i class="fa-solid fa-clipboard-check"></i>
+        </div>
+        <div class="flex flex-col items-center md:items-start w-full">
+            <span class="text-xs md:text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">Stock Health</span>
+            <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-lg md:text-2xl font-bold text-gray-900 dark:text-white">@Model.StockHealthPercentage.ToString("0.##")%</span>
+                <span class="text-xs font-bold px-1.5 py-0.5 rounded @GetChangeBadgeClass(Model.StockHealthChangePercentage) hidden md:inline-block">@FormatChangePercentage(Model.StockHealthChangePercentage)</span>
+            </div>
+            <div class="text-xs text-gray-400 hidden md:block">@Model.AtRiskSkuCount.ToString("N0") of @Model.ActiveSkuCount.ToString("N0") SKUs at risk (@Model.StockAtRiskPercentage.ToString("0.##")%)</div>
+            <div class="text-xs text-gray-400 hidden md:block">vs period start</div>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center text-center aspect-square md:aspect-auto md:flex-row md:items-center md:text-left md:justify-start gap-4">
+        <div class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-purple-50 dark:bg-purple-900/20 text-purple-600 flex items-center justify-center text-xl md:text-2xl shrink-0">
+            <i class="fa-solid fa-user-check"></i>
+        </div>
+        <div class="flex flex-col items-center md:items-start w-full">
+            <span class="text-xs md:text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">Active Customers</span>
+            <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-lg md:text-2xl font-bold text-gray-900 dark:text-white">@Model.ActiveCustomers.ToString("N0")</span>
+                <span class="text-xs font-bold px-1.5 py-0.5 rounded @GetChangeBadgeClass(Model.CustomerChangePercentage) hidden md:inline-block">@FormatChangePercentage(Model.CustomerChangePercentage)</span>
+            </div>
+            <div class="text-xs text-gray-400 hidden md:block">vs prior same-length period</div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 lg:col-span-2">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Sales Trend</h3>
+        </div>
+        <div style="height: 300px; position: relative;">
+            <canvas id="salesChart"></canvas>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Sales Share by Category</h3>
+        </div>
+        <div style="height: 250px; display: flex; justify-content: center;">
+            <canvas id="pieChart"></canvas>
+        </div>
+        <div class="mt-4">
+            <div class="grid grid-cols-2 gap-2 text-center text-xs text-gray-500 dark:text-gray-400">
+                @if (Model.CategoryLabels != null && Model.CategoryLabels.Any())
+                {
+                    @for (int i = 0; i < Math.Min(4, Model.CategoryLabels.Count); i++)
+                    {
+                        <div class="mb-2">
+                            <i class="fas fa-circle me-1" style="color: @GetColor(i)"></i> @Model.CategoryLabels[i] @Model.CategoryData[i]%
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="col-span-2 text-gray-400 dark:text-gray-500 py-2">No category sales data in selected range.</div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 mb-6 overflow-hidden">
+    <div class="p-6 flex justify-between items-center border-b border-gray-100 dark:border-gray-700">
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white">Recent Orders</h3>
+        <a href="@Url.Action("Sales", "BusinessIntelligence")" class="px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">View All</a>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                    <th class="px-6 py-4 font-medium uppercase tracking-wider">ORDER ID</th>
+                    <th class="px-6 py-4 font-medium uppercase tracking-wider">CUSTOMER</th>
+                    <th class="px-6 py-4 font-medium uppercase tracking-wider">DATE</th>
+                    <th class="px-6 py-4 font-medium uppercase tracking-wider">AMOUNT</th>
+                    <th class="px-6 py-4 font-medium uppercase tracking-wider">STATUS</th>
+                </tr>
+            </thead>
+            <tbody class="text-sm">
+                @if (Model.RecentOrders != null && Model.RecentOrders.Any())
+                {
+                    @foreach (var order in Model.RecentOrders)
+                    {
+                        <tr class="border-b border-gray-50 dark:border-gray-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                            <td class="px-6 py-4 font-bold text-gray-900 dark:text-white">#@order.OrderId</td>
+                            <td class="px-6 py-4">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400 mr-3">
+                                        <i class="fa-solid fa-user text-xs"></i>
+                                    </div>
+                                    <span class="font-medium text-gray-900 dark:text-white">@order.CustomerName</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 text-gray-500 dark:text-gray-400">@order.OrderDate.ToString("MMM dd, yyyy")</td>
+                            <td class="px-6 py-4 font-bold text-gray-900 dark:text-white">@order.TotalAmount.ToString("C0")</td>
+                            <td class="px-6 py-4">
+                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold
+                                    @(order.Status == "Completed" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" :
+                                      order.Status == "Pending" ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300")">
+                                    @order.Status
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No recent orders found for the selected period.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+    <div class="p-6 flex justify-between items-center border-b border-gray-100 dark:border-gray-700">
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white">Top Selling Products</h3>
+        <a href="@Url.Action("Products", "Inventory")" class="px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">View All</a>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                    <th class="px-6 py-4 font-medium uppercase tracking-wider">PRODUCT NAME</th>
+                    <th class="px-6 py-4 font-medium uppercase tracking-wider">CATEGORY</th>
+                    <th class="px-6 py-4 font-medium uppercase tracking-wider">PRICE</th>
+                    <th class="px-6 py-4 font-medium uppercase tracking-wider">UNITS SOLD</th>
+                    <th class="px-6 py-4 font-medium uppercase tracking-wider">REVENUE</th>
+                </tr>
+            </thead>
+            <tbody class="text-sm">
+                @if (Model.FastSellingProducts != null && Model.FastSellingProducts.Any())
+                {
+                    @foreach (var item in Model.FastSellingProducts)
+                    {
+                        <tr class="border-b border-gray-50 dark:border-gray-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                            <td class="px-6 py-4 font-bold text-gray-900 dark:text-white">@item.Name</td>
+                            <td class="px-6 py-4 text-gray-500 dark:text-gray-400">@item.Category</td>
+                            <td class="px-6 py-4 text-gray-900 dark:text-white">@item.RetailPrice.ToString("C0")</td>
+                            <td class="px-6 py-4 font-bold text-center text-gray-900 dark:text-white">@item.TotalSold</td>
+                            <td class="px-6 py-4 font-bold text-green-600 dark:text-green-400">@((item.RetailPrice * item.TotalSold).ToString("C0"))</td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No sales data available for the selected period.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script id="dashboardChartData" type="application/json">
+        @Html.Raw(JsonSerializer.Serialize(new
+        {
+            salesLabels = Model.SalesChartLabels,
+            salesData = Model.SalesChartData,
+            pieLabels = Model.CategoryLabels,
+            pieData = Model.CategoryData
+        }))
+    </script>
+    <script src="~/js/dashboard.js" asp-append-version="true"></script>
+    <script>
+        const dateFilterForm = document.getElementById('homeFilterForm');
+        const rangePresetInput = document.getElementById('rangePreset');
+        const rangePresetToggle = document.getElementById('rangePresetToggle');
+        const rangePresetLabel = document.getElementById('rangePresetLabel');
+        const rangePresetMenu = document.getElementById('rangePresetMenu');
+        const customRangeFields = document.getElementById('customRangeFields');
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+
+        const rangeLabels = {
+            today: 'Today',
+            yesterday: 'Yesterday',
+            last_7_days: 'Last 7 Days',
+            this_month: 'Monthly',
+            this_year: 'This Year',
+            custom: 'Custom Range'
+        };
+
+        function toLocalDateInputValue(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function getLocalToday() {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return today;
+        }
+
+        function resolvePresetDates(range) {
+            const end = getLocalToday();
+            const start = new Date(end);
+
+            switch (range) {
+                case 'today':
+                    break;
+                case 'yesterday':
+                    start.setDate(start.getDate() - 1);
+                    end.setDate(end.getDate() - 1);
+                    break;
+                case 'last_7_days':
+                    start.setDate(start.getDate() - 6);
+                    break;
+                case 'this_year':
+                    start.setMonth(0, 1);
+                    break;
+                case 'this_month':
+                default:
+                    start.setDate(1);
+                    break;
+            }
+
+            return { start, end };
+        }
+
+        function syncDateBounds() {
+            if (!startDateInput || !endDateInput) {
+                return;
+            }
+
+            startDateInput.max = endDateInput.value || '';
+            endDateInput.min = startDateInput.value || '';
+        }
+
+        function setRangeLabel(range) {
+            if (!rangePresetLabel) {
+                return;
+            }
+
+            rangePresetLabel.textContent = rangeLabels[range] || rangeLabels.this_month;
+        }
+
+        function setCustomRangeVisibility(showCustom) {
+            if (!customRangeFields) {
+                return;
+            }
+
+            customRangeFields.classList.toggle('hidden', !showCustom);
+        }
+
+        function closePresetMenu() {
+            rangePresetMenu?.classList.add('hidden');
+        }
+
+        function selectPreset(range, shouldSubmit) {
+            if (!rangePresetInput) {
+                return;
+            }
+
+            rangePresetInput.value = range;
+            setRangeLabel(range);
+
+            const isCustomRange = range === 'custom';
+            setCustomRangeVisibility(isCustomRange);
+
+            if (!isCustomRange) {
+                const { start, end } = resolvePresetDates(range);
+                if (startDateInput && endDateInput) {
+                    startDateInput.value = toLocalDateInputValue(start);
+                    endDateInput.value = toLocalDateInputValue(end);
+                    syncDateBounds();
+                }
+
+                if (shouldSubmit) {
+                    dateFilterForm?.submit();
+                }
+            }
+        }
+
+        rangePresetToggle?.addEventListener('click', () => {
+            rangePresetMenu?.classList.toggle('hidden');
+        });
+
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof Node)) {
+                return;
+            }
+
+            if (!rangePresetMenu?.contains(target) && !rangePresetToggle?.contains(target)) {
+                closePresetMenu();
+            }
+        });
+
+        document.querySelectorAll('.range-preset-option').forEach((option) => {
+            option.addEventListener('click', () => {
+                const selectedRange = option.dataset.range || 'this_month';
+                closePresetMenu();
+                selectPreset(selectedRange, selectedRange !== 'custom');
+            });
+        });
+
+        startDateInput?.addEventListener('change', syncDateBounds);
+        endDateInput?.addEventListener('change', syncDateBounds);
+
+        setRangeLabel(rangePresetInput?.value || 'this_month');
+        setCustomRangeVisibility((rangePresetInput?.value || 'this_month') === 'custom');
+        syncDateBounds();
+    </script>
+}
+
+@functions {
+    string GetColor(int index)
+    {
+        var colors = new[] { "#236460", "#a9f090", "#6AD2FF", "#fcd34d", "#fca5a5" };
+        return colors[index % colors.Length];
+    }
+
+    string FormatChangePercentage(double value)
+    {
+        var rounded = Math.Round(value, 2);
+        if (rounded > 0)
+        {
+            return $"+{rounded:0.##}%";
+        }
+
+        return $"{rounded:0.##}%";
+    }
+
+    string GetChangeBadgeClass(double value)
+    {
+        if (value > 0)
+        {
+            return "bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400";
+        }
+
+        if (value < 0)
+        {
+            return "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400";
+        }
+
+        return "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300";
+    }
+}

@@ -1,0 +1,206 @@
+﻿@using System.Linq
+@model kstech.Models.ViewModels.StoreHomeViewModel
+@{
+    ViewData["Title"] = "Home";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+
+<section class="py-8">
+    <div class="container mx-auto px-4">
+        <div class="rounded-3xl bg-gradient-to-br from-store-ink via-slate-900 to-store-accent text-white p-6 md:p-8 overflow-hidden relative store-fade-up">
+            <div class="absolute -right-16 -top-16 w-44 h-44 rounded-full bg-store-highlight/20 blur-2xl"></div>
+            <div class="absolute -left-12 -bottom-16 w-44 h-44 rounded-full bg-store-accent/40 blur-2xl"></div>
+
+            <div class="relative z-10 max-w-3xl">
+                <span class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/15 text-[11px] font-semibold uppercase tracking-wide">
+                    <span class="material-icons-outlined text-sm">videogame_asset</span>
+                    Game-ready hardware, all in stock
+                </span>
+                <h1 class="font-display text-3xl md:text-4xl mt-3 mb-3">Find the right build for the games you play.</h1>
+                <p class="text-slate-200 text-base mb-6">Browse by game and we'll show you exactly what hardware you need — or shop by component if you already know what you're after.</p>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <a href="@Url.Action("Games", "Store")" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-store-highlight text-store-ink text-sm font-semibold no-underline hover:bg-white store-action-btn">
+                        <span class="material-icons-outlined text-base">videogame_asset</span>
+                        Shop by game
+                    </a>
+                    <a href="@Url.Action("Products", "Store")" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-white/30 text-white text-sm font-semibold no-underline hover:bg-white/10 store-action-btn">
+                        Browse all products
+                        <span class="material-icons-outlined text-base">arrow_forward</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="pb-8">
+    <div class="container mx-auto px-4">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            @* Browse by Component *@
+            <div>
+                <div class="flex items-end justify-between mb-4">
+                    <div>
+                        <h2 class="font-display text-xl text-store-ink">Browse by component</h2>
+                        <p class="text-sm text-store-muted mb-0">Know what part you need? Start here.</p>
+                    </div>
+                    <a href="@Url.Action("Products", "Store")" class="text-sm font-semibold text-store-accent no-underline hover:text-store-ink">View all →</a>
+                </div>
+                <div class="grid grid-cols-2 gap-2.5">
+                    @foreach (var category in Model.Categories)
+                    {
+                        <a href="@Url.Action("Products", "Store", new { category = category.Name })" class="store-plain-card rounded-lg p-3 no-underline hover:border-store-accent hover:-translate-y-0.5 transition-all">
+                            <p class="font-semibold text-store-ink mb-1">@category.Name</p>
+                            <p class="text-xs text-store-muted mb-0">@category.Count product@(category.Count == 1 ? "" : "s")</p>
+                        </a>
+                    }
+                </div>
+            </div>
+
+            @* Trending Games *@
+            <div>
+                <div class="flex items-end justify-between mb-4">
+                    <div>
+                        <h2 class="font-display text-xl text-store-ink">Trending on Steam</h2>
+                        <p class="text-sm text-store-muted mb-0">Top played games on Steam, refreshed daily.</p>
+                    </div>
+                    <a href="@Url.Action("Games", "Store")" class="text-sm font-semibold text-store-accent no-underline hover:text-store-ink">See all games →</a>
+                </div>
+                @if (Model.TrendingGames.Any())
+                {
+                    <div class="flex flex-col gap-2.5">
+                        @foreach (var game in Model.TrendingGames)
+                        {
+                            <a href="@Url.Action("Games", "Store")" class="store-plain-card rounded-xl overflow-hidden no-underline flex items-center gap-0 hover:-translate-y-0.5 hover:border-store-accent transition-all group">
+                                @if (!string.IsNullOrWhiteSpace(game.BannerUrl))
+                                {
+                                    <img src="@game.BannerUrl" alt="@game.Name" class="h-16 w-28 object-cover flex-shrink-0 rounded-l-xl" />
+                                }
+                                <div class="px-3 py-2 flex-1 min-w-0">
+                                    <p class="font-semibold text-store-ink text-sm mb-0.5 truncate group-hover:text-store-accent transition-colors">@game.Name</p>
+                                    <p class="text-xs text-store-muted mb-0 flex items-center gap-1">
+                                        <span class="material-icons-outlined text-[13px] text-emerald-500">circle</span>
+                                        @game.PlayerCount.ToString("N0") peak players
+                                    </p>
+                                </div>
+                                <div class="pr-3 flex-shrink-0">
+                                    <span class="material-icons-outlined text-store-muted text-base">chevron_right</span>
+                                </div>
+                            </a>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="store-plain-card rounded-xl p-6 text-center">
+                        <span class="material-icons-outlined text-slate-300 text-4xl block mb-2">videogame_asset</span>
+                        <p class="text-sm text-store-muted mb-0">Game data not available right now.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</section>
+
+@if (Model.RecommendedProducts != null && Model.RecommendedProducts.Any())
+{
+    <section class="pb-10">
+        <div class="container mx-auto px-4">
+            <div class="flex items-end justify-between mb-4">
+                <div>
+                    <h2 class="font-display text-xl text-store-ink flex items-center gap-2">
+                        <span class="material-icons-outlined text-indigo-500">memory</span>
+                        Optimize your PC
+                    </h2>
+                    <p class="text-sm text-store-muted mb-0">@Model.RecommendationBasis</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                @foreach (var product in Model.RecommendedProducts)
+                {
+                    <article class="store-product-card p-3 flex flex-col h-full border-t-2 border-indigo-400">
+                        <a href="@Url.Action("Details", "Store", new { id = product.Id })" class="block bg-store-surface rounded-lg aspect-square mb-3 overflow-hidden no-underline">
+                            @if (!string.IsNullOrWhiteSpace(product.ImageUrl))
+                            {
+                                <img src="@product.ImageUrl" alt="@product.Name" class="w-full h-full object-contain p-3" />
+                            }
+                            else
+                            {
+                                <div class="w-full h-full flex items-center justify-center text-slate-300">
+                                    <span class="material-icons-outlined text-4xl">image</span>
+                                </div>
+                            }
+                        </a>
+
+                        <a href="@Url.Action("Details", "Store", new { id = product.Id })" class="font-semibold text-store-ink no-underline hover:text-store-accent mb-2">@product.Name</a>
+                        <p class="text-xs @(product.StockQuantity > 0 ? "text-emerald-600" : "text-red-600") mb-2">@product.StockStatus</p>
+
+                        <div class="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                            <div>
+                                <p class="text-sm font-semibold text-store-ink mb-0">@product.RetailPrice.ToString("C")</p>
+                            </div>
+                            <form asp-controller="Cart" asp-action="AddToCart" method="post" class="js-store-add-to-cart">
+                                <input type="hidden" name="productId" value="@product.Id" />
+                                <button type="submit"
+                                        class="px-3 py-1.5 rounded-lg text-xs font-semibold store-action-btn @(product.StockQuantity > 0 ? "bg-store-accent text-white hover:bg-store-ink" : "bg-slate-200 text-slate-500 cursor-not-allowed")"
+                                        @(product.StockQuantity > 0 ? null : "disabled")>
+                                    Add
+                                </button>
+                            </form>
+                        </div>
+                    </article>
+                }
+            </div>
+        </div>
+    </section>
+}
+
+<section class="pb-10">
+    <div class="container mx-auto px-4">
+        <div class="flex items-end justify-between mb-4">
+            <div>
+                <h2 class="font-display text-xl text-store-ink">Recommended now</h2>
+                <p class="text-sm text-store-muted mb-0">@Model.FeaturedBasis</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            @foreach (var product in Model.FeaturedProducts.Take(6))
+            {
+                <article class="store-product-card p-3 flex flex-col h-full">
+                    <a href="@Url.Action("Details", "Store", new { id = product.Id })" class="block bg-store-surface rounded-lg aspect-square mb-3 overflow-hidden no-underline">
+                        @if (!string.IsNullOrWhiteSpace(product.ImageUrl))
+                        {
+                            <img src="@product.ImageUrl" alt="@product.Name" class="w-full h-full object-contain p-3" />
+                        }
+                        else
+                        {
+                            <div class="w-full h-full flex items-center justify-center text-slate-300">
+                                <span class="material-icons-outlined text-4xl">image</span>
+                            </div>
+                        }
+                    </a>
+
+                    <p class="text-xs text-store-muted mb-1">@product.Brand &middot; @product.Category</p>
+                    <a href="@Url.Action("Details", "Store", new { id = product.Id })" class="font-semibold text-store-ink no-underline hover:text-store-accent mb-2">@product.Name</a>
+                    <p class="text-xs @(product.StockQuantity > 0 ? "text-emerald-600" : "text-red-600") mb-2">@product.StockStatus</p>
+
+                    <div class="mt-auto flex items-center justify-between gap-2">
+                        <div>
+                            <p class="text-base font-display text-store-ink mb-0">@product.RetailPrice.ToString("C")</p>
+                        </div>
+                        <form asp-controller="Cart" asp-action="AddToCart" method="post" class="js-store-add-to-cart">
+                            <input type="hidden" name="productId" value="@product.Id" />
+                            <button type="submit"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-semibold store-action-btn @(product.StockQuantity > 0 ? "bg-store-accent text-white hover:bg-store-ink" : "bg-slate-200 text-slate-500 cursor-not-allowed")"
+                                    @(product.StockQuantity > 0 ? null : "disabled")>
+                                Add
+                            </button>
+                        </form>
+                    </div>
+                </article>
+            }
+        </div>
+    </div>
+</section>

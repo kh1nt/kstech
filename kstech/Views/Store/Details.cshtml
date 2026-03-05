@@ -1,0 +1,116 @@
+@model kstech.Models.ProductViewModel
+@{
+    ViewData["Title"] = Model.Name;
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+
+<div class="bg-white border-b border-slate-200">
+    <div class="container mx-auto px-4 py-2.5">
+        <div class="text-xs text-store-muted flex items-center gap-2">
+            <a href="@Url.Action("Index", "Store")" class="text-store-muted no-underline hover:text-store-accent">Home</a>
+            <span>/</span>
+            <a href="@Url.Action("Products", "Store")" class="text-store-muted no-underline hover:text-store-accent">Products</a>
+            <span>/</span>
+            <a href="@Url.Action("Products", "Store", new { category = Model.Category })" class="text-store-muted no-underline hover:text-store-accent">@Model.Category</a>
+            <span>/</span>
+            <span class="text-store-ink font-semibold">@Model.Name</span>
+        </div>
+    </div>
+</div>
+
+<div class="container mx-auto px-4 py-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+
+        <div class="store-plain-card p-4 store-fade-up">
+            <div class="bg-store-surface rounded-lg flex items-center justify-center overflow-hidden aspect-square">
+                @if (!string.IsNullOrWhiteSpace(Model.ImageUrl))
+                {
+                    <img src="@Model.ImageUrl" alt="@Model.Name" class="w-full h-full object-contain p-4" />
+                }
+                else
+                {
+                    <span class="material-icons-outlined text-slate-300 text-7xl">image</span>
+                }
+            </div>
+        </div>
+
+        <div class="lg:sticky lg:top-20 flex flex-col gap-4">
+            <div class="flex flex-wrap items-center gap-1.5">
+                <span class="inline-flex items-center rounded-full bg-store-accent-soft text-store-accent text-[11px] font-semibold px-2.5 py-1">@Model.Category</span>
+                <span class="inline-flex items-center rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold px-2.5 py-1">@Model.Brand</span>
+                @if (Model.IsBestSeller)
+                {
+                    <span class="inline-flex items-center rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold px-2.5 py-1">Best seller</span>
+                }
+            </div>
+
+            <div>
+                <h1 class="font-display text-2xl text-store-ink mb-1.5">@Model.Name</h1>
+                <p class="text-sm text-store-muted mb-0">@Model.Description</p>
+            </div>
+
+            <div class="store-plain-card p-4">
+                <div class="flex items-start justify-between gap-3 mb-2">
+                    <div>
+                        <p class="text-2xl font-display text-store-ink mb-0">@Model.RetailPrice.ToString("C")</p>
+                    </div>
+                    @if (Model.StockQuantity > 0)
+                    {
+                        <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold px-2.5 py-1">@Model.StockStatus</span>
+                    }
+                    else
+                    {
+                        <span class="inline-flex items-center rounded-full bg-red-100 text-red-700 text-[11px] font-semibold px-2.5 py-1">Out of stock</span>
+                    }
+                </div>
+
+
+                <form asp-controller="Cart" asp-action="AddToCart" method="post" class="js-store-add-to-cart">
+                    <input type="hidden" name="productId" value="@Model.Id" />
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <input type="number"
+                               name="quantity"
+                               min="1"
+                               max="@(Model.StockQuantity > 0 ? Model.StockQuantity : 1)"
+                               value="1"
+                               class="w-full sm:w-28 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20"
+                               @(Model.StockQuantity > 0 ? null : "disabled") />
+                        <button type="submit"
+                                class="flex-1 rounded-lg px-4 py-2 text-sm font-semibold store-action-btn @(Model.StockQuantity > 0 ? "bg-store-accent text-white hover:bg-store-ink" : "bg-slate-200 text-slate-500 cursor-not-allowed")"
+                                @(Model.StockQuantity > 0 ? null : "disabled")>
+                            Add to cart
+                        </button>
+                        <a href="@Url.Action("Index", "Cart")" class="sm:w-auto text-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-store-ink no-underline hover:border-store-accent">Go to cart</a>
+                    </div>
+                </form>
+
+                <p class="text-xs text-store-muted mt-3 mb-0">Returns: @Model.ReturnPolicy &middot; Warranty: @Model.Warranty</p>
+            </div>
+
+            <div class="store-plain-card p-4">
+                <h2 class="font-display text-base text-store-ink mb-2">Product details</h2>
+                <dl class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    @foreach (var spec in Model.KeySpecs)
+                    {
+                        <div class="rounded-lg bg-store-surface px-3 py-2">
+                            <dt class="text-[11px] uppercase tracking-wide text-store-muted mb-0.5">@spec.Key</dt>
+                            <dd class="text-sm font-semibold text-store-ink mb-0">@spec.Value</dd>
+                        </div>
+                    }
+                    <div class="rounded-lg bg-store-surface px-3 py-2">
+                        <dt class="text-[11px] uppercase tracking-wide text-store-muted mb-0.5">Stock</dt>
+                        <dd class="text-sm font-semibold text-store-ink mb-0">@Model.StockQuantity unit@(Model.StockQuantity == 1 ? "" : "s")</dd>
+                    </div>
+                    @if (Model.TotalSold > 0)
+                    {
+                        <div class="rounded-lg bg-store-surface px-3 py-2">
+                            <dt class="text-[11px] uppercase tracking-wide text-store-muted mb-0.5">Units sold</dt>
+                            <dd class="text-sm font-semibold text-store-ink mb-0">@Model.TotalSold</dd>
+                        </div>
+                    }
+                </dl>
+            </div>
+
+
+    </div>
+</div>

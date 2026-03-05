@@ -1,0 +1,512 @@
+@model kstech.Models.ViewModels.TechnicalInquiryListViewModel
+@{
+    ViewData["Title"] = "Customer Inquiries";
+}
+
+<div class="space-y-6">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Customer Inquiries</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage and resolve technical inquiries from customers.</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="@Url.Action("Inquiries", new { status = "Open" })" class="no-underline hover:no-underline px-4 py-2 rounded-lg text-sm font-semibold @(Model.FilterStatus == "Open" ? "bg-brand-primary text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700")">Open</a>
+            <a href="@Url.Action("Inquiries", new { status = "Resolved" })" class="no-underline hover:no-underline px-4 py-2 rounded-lg text-sm font-semibold @(Model.FilterStatus == "Resolved" ? "bg-brand-primary text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700")">Resolved</a>
+            <a href="@Url.Action("Inquiries", new { status = "All" })" class="no-underline hover:no-underline px-4 py-2 rounded-lg text-sm font-semibold @(Model.FilterStatus == "All" ? "bg-brand-primary text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700")">All</a>
+        </div>
+    </div>
+
+    @if (TempData["CrmMessage"] != null)
+    {
+        <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            @TempData["CrmMessage"]
+        </div>
+    }
+    
+    @if (TempData["CrmError"] != null)
+    {
+        <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            @TempData["CrmError"]
+        </div>
+    }
+
+    <div class="bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm text-left">
+                <thead class="text-xs uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50">
+                    <tr>
+                        <th class="px-4 py-3">Customer</th>
+                        <th class="px-4 py-3">Subject</th>
+                        <th class="px-4 py-3">Submitted</th>
+                        <th class="px-4 py-3">Status</th>
+                        <th class="px-4 py-3 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    @if (Model.Inquiries.Any())
+                    {
+                        foreach (var inquiry in Model.Inquiries)
+                        {
+                            var customerEmailActivity = Model.EmailActivityByCustomerId.TryGetValue(inquiry.CustomerID, out var activities)
+                                ? activities
+                                : new List<kstech.Models.ViewModels.InquiryEmailActivityViewModel>();
+                            var relevantEmailActivity = customerEmailActivity
+                                .Where(activity => activity.DateSentUtc >= inquiry.DateSubmittedUtc)
+                                .OrderBy(activity => activity.DateSentUtc)
+                                .ToList();
+
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                <td class="px-4 py-4 align-top">
+                                    <div class="font-semibold text-gray-900 dark:text-white">@inquiry.CustomerName</div>
+                                    <div class="text-xs text-gray-500">@inquiry.CustomerEmail</div>
+                                </td>
+                                <td class="px-4 py-4 align-top max-w-md">
+                                    <div class="font-semibold text-gray-900 dark:text-white mb-1">@inquiry.Subject</div>
+                                    <p class="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">@inquiry.Message</p>
+                                    
+                                    @if (inquiry.IsResolved && !string.IsNullOrWhiteSpace(inquiry.ResolutionNotes))
+                                    {
+                                        <div class="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Resolution Notes</p>
+                                            <p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">@inquiry.ResolutionNotes</p>
+                                        </div>
+                                    }
+                                </td>
+                                <td class="px-4 py-4 align-top whitespace-nowrap text-gray-600 dark:text-gray-400">
+                                    @inquiry.DateSubmittedUtc.ToString("MMM dd, yyyy HH:mm")
+                                </td>
+                                <td class="px-4 py-4 align-top">
+                                    @if (inquiry.IsResolved)
+                                    {
+                                        <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 px-2.5 py-1 text-[11px] font-semibold">
+                                            Resolved
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="inline-flex items-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 px-2.5 py-1 text-[11px] font-semibold">
+                                            Open
+                                        </span>
+                                    }
+                                </td>
+                                <td class="px-4 py-4 align-top text-right">
+                                    <div class="flex flex-wrap items-center justify-end gap-2">
+                                        <a href="@Url.Action("Inquiry", new { id = inquiry.InquiryID, status = Model.FilterStatus })"
+                                           class="no-underline hover:no-underline inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+                                            <span class="material-icons-outlined text-[15px]">open_in_new</span>
+                                            Open
+                                        </a>
+                                        <button type="button"
+                                                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                                                onclick="toggleActivityRow(@inquiry.InquiryID)"
+                                                data-activity-toggle-button="@inquiry.InquiryID">
+                                            <span class="material-icons-outlined text-[15px]" data-activity-toggle-icon="@inquiry.InquiryID">visibility</span>
+                                            <span data-activity-toggle-label="@inquiry.InquiryID">View Activity</span>
+                                        </button>
+
+                                        @if (!inquiry.IsResolved)
+                                        {
+                                            <button type="button"
+                                                    class="inline-flex items-center gap-1.5 rounded-lg border border-brand-primary/30 bg-brand-primary/5 px-3 py-1.5 text-xs font-semibold text-brand-primary hover:bg-brand-primary hover:text-white transition-colors"
+                                                    onclick="openReplyModal(@inquiry.InquiryID, '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(inquiry.Subject))', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(inquiry.Message))', @inquiry.CustomerID, '@inquiry.DateSubmittedUtc.ToString("o")')">
+                                                <span class="material-icons-outlined text-[15px]">reply</span>
+                                                Reply
+                                            </button>
+                                            <button type="button"
+                                                    class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-600 hover:text-white transition-colors"
+                                                    onclick="openResolveModal(@inquiry.InquiryID, '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(inquiry.Subject))')">
+                                                <span class="material-icons-outlined text-[15px]">check_circle</span>
+                                                Mark Resolved
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr id="activityRow-@inquiry.InquiryID" class="hidden bg-gray-50/60 dark:bg-gray-900/20">
+                                <td colspan="5" class="px-4 pb-4 pt-0">
+                                    <div class="mt-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark shadow-sm">
+                                        <div class="grid grid-cols-1 xl:grid-cols-5 gap-4 p-4">
+                                            <div class="xl:col-span-2 space-y-3">
+                                                <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/60 p-3">
+                                                    <div class="flex items-center justify-between gap-3">
+                                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Inquiry Context</p>
+                                                        <span class="text-[11px] text-gray-400">@inquiry.DateSubmittedUtc.ToString("MMM dd, yyyy HH:mm")</span>
+                                                    </div>
+                                                    <p class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">@inquiry.Subject</p>
+                                                    <p class="mt-2 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">@inquiry.Message</p>
+                                                </div>
+
+                                                @if (inquiry.IsResolved)
+                                                {
+                                                    <div class="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-900/20 p-3">
+                                                        <div class="flex items-center justify-between gap-3">
+                                                            <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Resolved</p>
+                                                            <span class="text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
+                                                                @(inquiry.DateResolvedUtc.HasValue ? inquiry.DateResolvedUtc.Value.ToString("MMM dd, yyyy HH:mm") : "Time unavailable")
+                                                            </span>
+                                                        </div>
+                                                        @if (!string.IsNullOrWhiteSpace(inquiry.ResolutionNotes))
+                                                        {
+                                                            <p class="mt-2 text-sm text-emerald-900 dark:text-emerald-100 whitespace-pre-wrap">@inquiry.ResolutionNotes</p>
+                                                        }
+                                                        else
+                                                        {
+                                                            <p class="mt-2 text-sm text-emerald-800 dark:text-emerald-200">No resolution notes were saved.</p>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+
+                                            <div class="xl:col-span-3">
+                                                <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3 h-full">
+                                                    <div class="flex items-center justify-between gap-3">
+                                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Activity Timeline</p>
+                                                        <span class="text-[11px] text-gray-400">Since inquiry date</span>
+                                                    </div>
+
+                                                    <div class="mt-3 space-y-2 max-h-[360px] overflow-y-auto">
+                                                        <div class="relative rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
+                                                            <div class="absolute left-3 top-3 h-2 w-2 rounded-full bg-amber-500"></div>
+                                                            <div class="pl-4">
+                                                                <div class="flex items-center justify-between gap-2">
+                                                                    <span class="font-semibold text-gray-800 dark:text-gray-100">Inquiry received</span>
+                                                                    <span class="text-[10px] uppercase tracking-wide text-gray-400">Open</span>
+                                                                </div>
+                                                                <div class="mt-1 text-[11px] text-gray-500">Customer Inquiry</div>
+                                                                <div class="mt-1 rounded-md bg-gray-50 dark:bg-gray-800/70 px-2.5 py-2 text-[11px] leading-5 text-gray-600 dark:text-gray-300 whitespace-pre-wrap">@inquiry.Message</div>
+                                                                <div class="mt-1 text-[10px] text-gray-400">@inquiry.DateSubmittedUtc.ToString("MMM dd, yyyy HH:mm")</div>
+                                                            </div>
+                                                        </div>
+
+                                                        @if (relevantEmailActivity.Any())
+                                                        {
+                                                            foreach (var activity in relevantEmailActivity)
+                                                            {
+                                                                <div class="relative rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
+                                                                    <div class="absolute left-3 top-3 h-2 w-2 rounded-full bg-brand-primary"></div>
+                                                                    <div class="pl-4">
+                                                                        <div class="flex items-center justify-between gap-2">
+                                                                            <span class="font-semibold text-gray-800 dark:text-gray-100">@activity.Subject</span>
+                                                                            <span class="text-[10px] uppercase tracking-wide text-gray-400">@activity.DeliveryStatus</span>
+                                                                        </div>
+                                                                        <div class="mt-1 text-[11px] text-gray-500">@activity.Source</div>
+                                                                        <div class="mt-1 text-[10px] text-gray-400">@activity.DateSentUtc.ToString("MMM dd, yyyy HH:mm")</div>
+                                                                    </div>
+                                                                </div>
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            <div class="rounded-lg border border-dashed border-gray-200 px-3 py-2 text-xs text-gray-500">
+                                                                No direct email activity recorded for this customer since the inquiry date.
+                                                            </div>
+                                                        }
+
+                                                        @if (inquiry.IsResolved)
+                                                        {
+                                                            <div class="relative rounded-lg border border-emerald-200 dark:border-emerald-800 px-3 py-2 bg-emerald-50/50 dark:bg-emerald-900/10">
+                                                                <div class="absolute left-3 top-3 h-2 w-2 rounded-full bg-emerald-500"></div>
+                                                                <div class="pl-4">
+                                                                    <div class="flex items-center justify-between gap-2">
+                                                                        <span class="font-semibold text-emerald-900 dark:text-emerald-100">Inquiry resolved</span>
+                                                                        <span class="text-[10px] uppercase tracking-wide text-emerald-700/80 dark:text-emerald-300/80">Resolved</span>
+                                                                    </div>
+                                                                    <div class="mt-1 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">Support Workflow</div>
+                                                                    <div class="mt-1 text-[10px] text-emerald-700/80 dark:text-emerald-300/80">
+                                                                        @(inquiry.DateResolvedUtc.HasValue ? inquiry.DateResolvedUtc.Value.ToString("MMM dd, yyyy HH:mm") : "Time unavailable")
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="5" class="px-4 py-8 text-center text-sm text-gray-500">
+                                No inquiries found for the current filter.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Reply Modal -->
+<div id="replyModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/50" onclick="closeReplyModal()"></div>
+    <div class="relative z-10 h-full w-full flex items-center justify-center p-4">
+        <div class="w-full max-w-6xl rounded-2xl bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-6 py-5">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Reply to Inquiry</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">This sends an email reply and keeps the inquiry open.</p>
+                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Customer replies will return to your email inbox unless you add inbound email sync later.</p>
+                </div>
+                <button type="button" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onclick="closeReplyModal()">
+                    <span class="material-icons-outlined">close</span>
+                </button>
+            </div>
+
+            <form asp-action="ReplyInquiry" method="post" class="px-6 py-5">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="replyInquiryId" name="inquiryId" />
+                <input type="hidden" name="status" value="@Model.FilterStatus" />
+
+                <div class="grid grid-cols-1 xl:grid-cols-5 gap-4">
+                    <div class="xl:col-span-3 space-y-4">
+                        <div>
+                            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Replying to: <span id="replyModalSubject" class="font-semibold text-gray-900 dark:text-white"></span>
+                            </p>
+                        </div>
+
+                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800/60 p-4">
+                            <div class="flex items-center justify-between gap-3 mb-2">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Original Inquiry</p>
+                                <span id="replyModalSubmittedAt" class="text-[11px] text-gray-400">-</span>
+                            </div>
+                            <p id="replyModalOriginalMessage" class="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">-</p>
+                        </div>
+
+                        <div>
+                            <label for="ReplyMessage" class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Reply message</label>
+                            <textarea id="ReplyMessage" name="replyMessage" rows="8" maxlength="1000" placeholder="Type your reply to the customer..." class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary outline-none"></textarea>
+                            <p class="text-xs text-gray-500 mt-1">The inquiry remains open until you use Mark Resolved.</p>
+                        </div>
+                    </div>
+
+                    <aside class="xl:col-span-2">
+                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 p-3 bg-white/70 dark:bg-gray-900/20">
+                            <div class="flex items-center justify-between gap-3">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Inquiry Activity</p>
+                                <span class="text-[11px] text-gray-400">Since inquiry date</span>
+                            </div>
+                            <div id="replyModalActivityTimeline" class="mt-2 max-h-[440px] overflow-y-auto space-y-2 text-xs text-gray-600 dark:text-gray-300">
+                                <div class="rounded-lg border border-dashed border-gray-200 px-3 py-2 text-gray-500">Open an inquiry to view activity.</div>
+                            </div>
+                            <p class="mt-2 text-[11px] text-gray-400">
+                                Older outbound email bodies are not retained after send in the current data model, so history may show subject/status only.
+                            </p>
+                        </div>
+                    </aside>
+                </div>
+
+                <div class="flex items-center justify-end gap-3 pt-4">
+                    <button type="button" onclick="closeReplyModal()" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+                    <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:brightness-95">
+                        <span class="material-icons-outlined text-[16px]">send</span>
+                        Send Reply
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Resolve Modal -->
+<div id="resolveModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/50" onclick="closeResolveModal()"></div>
+    <div class="relative z-10 h-full w-full flex items-center justify-center p-4">
+        <div class="w-full max-w-2xl rounded-2xl bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-6 py-5">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Mark Inquiry Resolved</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Use Reply first if you still need to continue the conversation.</p>
+                </div>
+                <button type="button" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onclick="closeResolveModal()">
+                    <span class="material-icons-outlined">close</span>
+                </button>
+            </div>
+
+            <form asp-action="ResolveInquiry" method="post" class="px-6 py-5 space-y-4">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="modalInquiryId" name="InquiryID" />
+                <input type="hidden" name="status" value="@Model.FilterStatus" />
+                
+                <div>
+                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Replying to: <span id="modalSubject" class="font-semibold text-gray-900 dark:text-white"></span></p>
+                </div>
+
+                <div>
+                    <label for="ResolutionNotes" class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Resolution notes (optional)</label>
+                    <textarea id="ResolutionNotes" name="ResolutionNotes" rows="6" maxlength="1000" placeholder="Add internal notes about the resolution (optional)..." class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-primary/40 focus:border-brand-primary outline-none"></textarea>
+                    <p class="text-xs text-gray-500 mt-1">This marks the inquiry as resolved. It does not send an email.</p>
+                </div>
+
+                <div class="flex items-center justify-end gap-3 pt-4">
+                    <button type="button" onclick="closeResolveModal()" class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+                    <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:brightness-95">
+                        <span class="material-icons-outlined text-[16px]">check_circle</span>
+                        Resolve Inquiry
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const inquiryEmailActivityByCustomerId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.EmailActivityByCustomerId));
+
+        function toArray(value) {
+            return Array.isArray(value) ? value : [];
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function formatTimestamp(value) {
+            if (!value) {
+                return 'Unknown time';
+            }
+
+            const parsed = new Date(value);
+            return Number.isNaN(parsed.getTime()) ? 'Unknown time' : parsed.toLocaleString();
+        }
+
+        function renderReplyActivityTimeline(customerId, inquirySubject, originalMessage, inquirySubmittedAtUtc) {
+            const timeline = document.getElementById('replyModalActivityTimeline');
+            if (!timeline) {
+                return;
+            }
+
+            const customerKey = String(customerId || '');
+            const rawEmailActivity = inquiryEmailActivityByCustomerId[customerKey] || inquiryEmailActivityByCustomerId[customerId] || [];
+            const inquirySubmittedTime = inquirySubmittedAtUtc ? new Date(inquirySubmittedAtUtc).getTime() : 0;
+            const emailEvents = toArray(rawEmailActivity).map(entry => ({
+                type: 'outbound-email',
+                title: entry.subject || entry.Subject || 'Direct Email',
+                status: entry.deliveryStatus || entry.DeliveryStatus || 'Unknown',
+                source: entry.source || entry.Source || 'Direct Email',
+                timestamp: entry.dateSentUtc || entry.DateSentUtc || null
+            }))
+                .filter(entry => {
+                    if (!inquirySubmittedTime) {
+                        return true;
+                    }
+
+                    const eventTime = entry.timestamp ? new Date(entry.timestamp).getTime() : 0;
+                    return eventTime >= inquirySubmittedTime;
+                });
+
+            const activityItems = [
+                {
+                    type: 'inquiry',
+                    title: inquirySubject || 'Inquiry received',
+                    status: 'Open',
+                    source: 'Customer Inquiry',
+                    timestamp: inquirySubmittedAtUtc || null,
+                    body: originalMessage || ''
+                },
+                ...emailEvents
+            ]
+                .sort((left, right) => {
+                    const leftTime = left.timestamp ? new Date(left.timestamp).getTime() : 0;
+                    const rightTime = right.timestamp ? new Date(right.timestamp).getTime() : 0;
+                    return leftTime - rightTime;
+                });
+
+            if (activityItems.length === 0) {
+                timeline.innerHTML = '<div class="rounded-lg border border-dashed border-gray-200 px-3 py-2 text-gray-500">No activity available.</div>';
+                return;
+            }
+
+            timeline.innerHTML = activityItems
+                .map(item => {
+                    const isInquiry = item.type === 'inquiry';
+                    const dotClass = isInquiry ? 'bg-amber-500' : 'bg-brand-primary';
+                    const title = escapeHtml(item.title);
+                    const source = escapeHtml(item.source);
+                    const status = escapeHtml(item.status);
+                    const timestamp = escapeHtml(formatTimestamp(item.timestamp));
+                    const body = item.body
+                        ? `<div class="mt-1 rounded-md bg-gray-50 dark:bg-gray-800/70 px-2.5 py-2 text-[11px] leading-5 text-gray-600 dark:text-gray-300 whitespace-pre-wrap">${escapeHtml(item.body)}</div>`
+                        : '';
+                    return `
+                        <div class="relative rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
+                            <div class="absolute left-3 top-3 h-2 w-2 rounded-full ${dotClass}"></div>
+                            <div class="pl-4">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="font-semibold text-gray-800 dark:text-gray-100">${title}</span>
+                                    <span class="text-[10px] uppercase tracking-wide text-gray-400">${status}</span>
+                                </div>
+                                <div class="mt-1 text-[11px] text-gray-500">${source}</div>
+                                ${body}
+                                <div class="mt-1 text-[10px] text-gray-400">${timestamp}</div>
+                            </div>
+                        </div>`;
+                })
+                .join('');
+        }
+
+        function openReplyModal(id, subject, originalMessage, customerId, submittedAtUtc) {
+            document.getElementById('replyInquiryId').value = id;
+            document.getElementById('replyModalSubject').textContent = subject;
+            document.getElementById('replyModalOriginalMessage').textContent = originalMessage || '-';
+            document.getElementById('replyModalSubmittedAt').textContent = formatTimestamp(submittedAtUtc);
+            renderReplyActivityTimeline(customerId, subject, originalMessage, submittedAtUtc);
+            document.getElementById('replyModal').classList.remove('hidden');
+            document.getElementById('ReplyMessage').focus();
+        }
+
+        function closeReplyModal() {
+            document.getElementById('replyModal').classList.add('hidden');
+            document.getElementById('replyInquiryId').value = '';
+            document.getElementById('replyModalSubject').textContent = '';
+            document.getElementById('replyModalOriginalMessage').textContent = '-';
+            document.getElementById('replyModalSubmittedAt').textContent = '-';
+            document.getElementById('replyModalActivityTimeline').innerHTML = '<div class="rounded-lg border border-dashed border-gray-200 px-3 py-2 text-gray-500">Open an inquiry to view activity.</div>';
+            document.getElementById('ReplyMessage').value = '';
+        }
+
+        function openResolveModal(id, subject) {
+            document.getElementById('modalInquiryId').value = id;
+            document.getElementById('modalSubject').textContent = subject;
+            document.getElementById('resolveModal').classList.remove('hidden');
+            document.getElementById('ResolutionNotes').focus();
+        }
+
+        function closeResolveModal() {
+            document.getElementById('resolveModal').classList.add('hidden');
+            document.getElementById('modalInquiryId').value = '';
+            document.getElementById('modalSubject').textContent = '';
+            document.getElementById('ResolutionNotes').value = '';
+        }
+
+        function toggleActivityRow(inquiryId) {
+            const row = document.getElementById(`activityRow-${inquiryId}`);
+            if (!row) {
+                return;
+            }
+
+            const willOpen = row.classList.contains('hidden');
+            row.classList.toggle('hidden', !willOpen);
+
+            const label = document.querySelector(`[data-activity-toggle-label="${inquiryId}"]`);
+            const icon = document.querySelector(`[data-activity-toggle-icon="${inquiryId}"]`);
+            if (label) {
+                label.textContent = willOpen ? 'Hide Activity' : 'View Activity';
+            }
+            if (icon) {
+                icon.textContent = willOpen ? 'visibility_off' : 'visibility';
+            }
+        }
+    </script>
+}

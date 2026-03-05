@@ -1,0 +1,426 @@
+﻿@using kstech.Models.Entities
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@inject kstech.Services.ITenantContext TenantContext
+@inject kstech.Data.ApplicationDbContext DbContext
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KSTech</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script>
+        tailwind.config = {
+            corePlugins: {
+                preflight: false,
+            },
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "brand-primary": "#236460", // Dark Teal 
+                        "brand-secondary": "#a9f090", // Light green accent
+                        "background-light": "#f3f5f6",
+                        "background-dark": "#111827",
+                        "card-light": "#ffffff",
+                        "card-dark": "#1f2937",
+                        "text-light": "#1f2937",
+                        "text-dark": "#f3f4f6",
+                        "muted-light": "#6b7280",
+                        "muted-dark": "#9ca3af",
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Inter', 'sans-serif'],
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.5rem",
+                        'xl': '1rem',
+                        '2xl': '1.5rem',
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        /* Scoped scrollbar styles */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+        
+        /* Partial Reset for Tailwind components where Preflight is off */
+        .tw-reset h1, .tw-reset h2, .tw-reset h3 { font-weight: 700; margin: 0; line-height: 1.2; }
+        .tw-reset p { margin: 0; }
+        .tw-reset button { border: none; background: transparent; }
+        .tw-reset img { display: block; max-width: 100%; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-sans transition-colors duration-200 min-h-screen flex overflow-hidden lg:tw-reset">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-brand-primary text-white flex-shrink-0 flex flex-col h-screen fixed z-20 transition-all duration-300 rounded-r-2xl shadow-2xl overflow-hidden sidebar">
+        <div class="p-6 flex items-center justify-between sidebar-header">
+            <div class="flex items-center space-x-3">
+                <div class="h-10 w-10 flex items-center justify-center">
+                    <!-- Placeholder logo or user's logo -->
+                    <img src="/logo.png" alt="kstechlogo" class="h-10 w-auto object-contain" />
+                </div>
+                <span class="text-3xl font-bold tracking-tight sidebar-text">KSTech</span>
+            </div>
+            <!-- Sidebar Toggle Button (Desktop) -->
+            <button class="text-white opacity-70 hover:opacity-100 sidebar-toggle transition-opacity p-2 hidden md:block" aria-label="Collapse sidebar" title="Collapse sidebar">
+                <span class="material-icons-outlined text-2xl sidebar-toggle-icon">menu_open</span>
+            </button>
+            <!-- Sidebar Close Button (Mobile) - Matches Desktop Style -->
+             <button class="text-white opacity-70 hover:opacity-100 sidebar-close-mobile transition-opacity p-2 md:hidden">
+                <span class="material-icons-outlined text-2xl">menu_open</span>
+            </button>
+        </div>
+        
+        <nav class="flex-1 overflow-y-auto custom-scrollbar px-2 space-y-2 py-4">
+            @{
+                var controller = ViewContext.RouteData.Values["controller"]?.ToString();
+                
+                // Role Checks
+                var isOwner = User.IsInRole("Owner");
+                var isSuperAdmin = User.IsInRole("SuperAdmin");
+                var isInventoryManager = User.IsInRole("Inventory Manager");
+                var isSalesStaff = User.IsInRole("Sales Staff");
+
+                var hasSuperAdminOwnerScope = isSuperAdmin && TenantContext.HasOwnerScope;
+                var canAccessOwnerWorkspaceModules = isOwner || hasSuperAdminOwnerScope;
+                var canAccessHomeDashboard = canAccessOwnerWorkspaceModules;
+                var canAccessEmployees = canAccessOwnerWorkspaceModules;
+                var canAccessCrm = canAccessOwnerWorkspaceModules || isSalesStaff;
+                var canAccessInventory = canAccessOwnerWorkspaceModules || isInventoryManager;
+                var canAccessSalesManagement = canAccessOwnerWorkspaceModules || isSalesStaff;
+                var canAccessBusinessIntelligence = canAccessOwnerWorkspaceModules;
+                var canAccessActivityLogs = isOwner || isSuperAdmin;
+            }
+
+            @if (isSuperAdmin)
+            {
+                <a class="flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-colors no-underline whitespace-nowrap @(controller == "Owner" ? "bg-brand-secondary text-brand-primary font-semibold shadow-lg" : "text-white hover:bg-white/10 opacity-80")" 
+                   href="@Url.Action("Index", "Owner")">
+                    <span class="material-icons-outlined">admin_panel_settings</span>
+                    <span class="font-medium sidebar-text">Owners</span>
+                </a>
+            }
+
+            @if (canAccessHomeDashboard)
+            {
+                <a class="flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-colors no-underline whitespace-nowrap @(controller == "Home" ? "bg-brand-secondary text-brand-primary font-semibold shadow-lg" : "text-white hover:bg-white/10 opacity-80")" 
+                   href="@Url.Action("Index", "Home")">
+                    <span class="material-icons-outlined">dashboard</span>
+                    <span class="font-medium sidebar-text">Dashboard</span>
+                </a>
+            }
+
+            <!-- Employee Management Group -->
+            @if (canAccessEmployees)
+            {
+                var isEmployeeActive = controller == "Employee";
+                <div class="space-y-1">
+                    <a href="@Url.Action("Index", "Employee")" 
+                       class="flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-colors no-underline whitespace-nowrap @(isEmployeeActive ? "bg-brand-secondary text-brand-primary font-semibold shadow-lg" : "text-white opacity-80 hover:bg-white/10")">
+                        <span class="material-icons-outlined">badge</span>
+                        <span class="sidebar-text">Employees</span>
+                    </a>
+                </div>
+            }
+            
+            <!-- CRM Group -->
+            @if (canAccessCrm)
+            {
+                var isCrmIndexActive = controller == "CRM" && ViewContext.RouteData.Values["action"]?.ToString() == "Index";
+                var isCrmMarketingActive = controller == "CRM" && ViewContext.RouteData.Values["action"]?.ToString() == "Marketing";
+                var isCrmInquiriesActive = controller == "CRM" && ViewContext.RouteData.Values["action"]?.ToString() == "Inquiries";
+                var isCrmActive = isCrmIndexActive || isCrmMarketingActive || isCrmInquiriesActive;
+                
+                <div class="space-y-1">
+                    <!-- Main Link -->
+                    <a href="@Url.Action("Index", "CRM")" 
+                       class="flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-colors no-underline whitespace-nowrap @(isCrmIndexActive ? "bg-brand-secondary text-brand-primary font-semibold shadow-lg" : "text-white opacity-80 hover:bg-white/10")">
+                        <span class="material-icons-outlined">people</span>
+                        <span class="sidebar-text">CRM</span>
+                    </a>
+                    
+                    <!-- Submenu (Always Visible) -->
+                    <div class="pl-4 space-y-1 mt-1">
+                        <!-- Marketing -->
+                        <a class="flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors no-underline whitespace-nowrap @(isCrmMarketingActive ? "bg-white/10 text-white font-semibold" : "text-white hover:bg-white/5 opacity-70")"
+                           href="@Url.Action("Marketing", "CRM")">
+                            <span class="material-icons-outlined" style="font-size: 1.25rem;">campaign</span>
+                            <span class="sidebar-text text-sm">Marketing</span>
+                        </a>
+                        <!-- Inquiries -->
+                        <a class="flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors no-underline whitespace-nowrap @(isCrmInquiriesActive ? "bg-white/10 text-white font-semibold" : "text-white hover:bg-white/5 opacity-70")"
+                           href="@Url.Action("Inquiries", "CRM")">
+                            <span class="material-icons-outlined" style="font-size: 1.25rem;">help_outline</span>
+                            <span class="sidebar-text text-sm">Inquiries</span>
+                        </a>
+                    </div>
+                </div>
+            }
+            
+            <!-- Inventory Group -->
+            @if (canAccessInventory)
+            {
+                var isInventoryController = controller == "Inventory";
+                var action = ViewContext.RouteData.Values["action"]?.ToString();
+                var isInventoryIndexActive = isInventoryController && action == "Index";
+                
+                <div class="space-y-1">
+                    <!-- Main Link -->
+                    <a href="@Url.Action("Index", "Inventory")" 
+                       class="flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-colors no-underline whitespace-nowrap @(isInventoryIndexActive ? "bg-brand-secondary text-brand-primary font-semibold shadow-lg" : "text-white opacity-80 hover:bg-white/10")">
+                        <span class="material-icons-outlined">inventory_2</span>
+                        <span class="sidebar-text">Inventory</span>
+                    </a>
+                    
+                    <!-- Submenu (Always Visible) -->
+                    <div class="pl-4 space-y-1 mt-1">
+                        <!-- Product (Products) -->
+                        <a class="flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors no-underline whitespace-nowrap @(isInventoryController && action == "Products" ? "bg-white/10 text-white font-semibold" : "text-white hover:bg-white/5 opacity-70")"
+                           href="@Url.Action("Products", "Inventory")">
+                            <span class="material-icons-outlined" style="font-size: 1.25rem;">list_alt</span>
+                            <span class="sidebar-text text-sm">Products</span>
+                        </a>
+                        <!-- Procurement -->
+                        <a class="flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors no-underline whitespace-nowrap @(isInventoryController && action == "Procurement" ? "bg-white/10 text-white font-semibold" : "text-white hover:bg-white/5 opacity-70")"
+                           href="@Url.Action("Procurement", "Inventory")">
+                            <span class="material-icons-outlined" style="font-size: 1.25rem;">shopping_cart</span>
+                            <span class="sidebar-text text-sm">Procurement</span>
+                        </a>
+                        <a class="flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors no-underline whitespace-nowrap @(isInventoryController && action == "History" ? "bg-white/10 text-white font-semibold" : "text-white hover:bg-white/5 opacity-70")"
+                           href="@Url.Action("History", "Inventory")">
+                            <span class="material-icons-outlined" style="font-size: 1.25rem;">history</span>
+                            <span class="sidebar-text text-sm">History</span>
+                        </a>
+                    </div>
+                </div>
+            }
+            
+            <!-- Business Intelligence Group -->
+            @if (canAccessSalesManagement)
+            {
+                var isBiActive = controller == "BusinessIntelligence";
+                var biAction = ViewContext.RouteData.Values["action"]?.ToString();
+                
+                <div class="space-y-1">
+                    @if (canAccessBusinessIntelligence)
+                    {
+                        <!-- Main Link -->
+                        <a href="@Url.Action("Index", "BusinessIntelligence")" 
+                           class="flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-colors no-underline whitespace-nowrap @(isBiActive && biAction == "Index" ? "bg-brand-secondary text-brand-primary font-semibold shadow-lg" : "text-white opacity-80 hover:bg-white/10")">
+                            <span class="material-icons-outlined">insights</span>
+                            <span class="sidebar-text">Business Intelligence</span>
+                        </a>
+                    }
+                    
+                    <!-- Submenu (Always Visible) -->
+                    <div class="pl-4 space-y-1 mt-1">
+                        <!-- Sales -->
+                        <a class="flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors no-underline whitespace-nowrap @(controller == "BusinessIntelligence" && biAction == "Sales" ? "bg-white/10 text-white font-semibold" : "text-white hover:bg-white/5 opacity-70")"
+                           href="@Url.Action("Sales", "BusinessIntelligence")">
+                            <span class="material-icons-outlined" style="font-size: 1.25rem;">analytics</span>
+                            <span class="sidebar-text text-sm">Sales</span>
+                        </a>
+                        @if (canAccessBusinessIntelligence)
+                        {
+                            <!-- Financial -->
+                            <a class="flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors no-underline whitespace-nowrap @(controller == "BusinessIntelligence" && biAction == "Financial" ? "bg-white/10 text-white font-semibold" : "text-white hover:bg-white/5 opacity-70")"
+                               href="@Url.Action("Financial", "BusinessIntelligence")">
+                                <span class="material-icons-outlined" style="font-size: 1.25rem;">attach_money</span>
+                                <span class="sidebar-text text-sm">Financial</span>
+                            </a>
+                            <a class="flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-colors no-underline whitespace-nowrap @(controller == "BusinessIntelligence" && biAction == "Budget" ? "bg-white/10 text-white font-semibold" : "text-white hover:bg-white/5 opacity-70")"
+                               href="@Url.Action("Budget", "BusinessIntelligence")">
+                                <span class="material-icons-outlined" style="font-size: 1.25rem;">account_balance_wallet</span>
+                                <span class="sidebar-text text-sm">Budget</span>
+                            </a>
+                        }
+                    </div>
+                </div>
+            }
+            
+            
+
+            <div class="mt-4 pt-4">
+                <p class="px-4 text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 sidebar-text">System</p>
+                
+                @if (canAccessActivityLogs)
+                {
+                    <a class="flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-colors no-underline whitespace-nowrap @(controller == "ActivityLogs" ? "bg-brand-secondary text-brand-primary font-semibold shadow-lg" : "text-white hover:bg-white/10 opacity-80")" 
+                       href="@Url.Action("Index", "ActivityLogs")">
+                        <span class="material-icons-outlined">history_edu</span> <!-- or security, assignment -->
+                        <span class="sidebar-text">Activity Logs</span>
+                    </a>
+                }
+
+                <a class="flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-colors no-underline whitespace-nowrap @(controller == "Settings" ? "bg-brand-secondary text-brand-primary font-semibold shadow-lg" : "text-white hover:bg-white/10 opacity-80")" 
+                   href="@Url.Action("Index", "Settings")">
+                    <span class="material-icons-outlined">settings</span>
+                    <span class="sidebar-text">Settings</span>
+                </a>
+            </div>
+        </nav>
+        
+        <div class="px-4 py-3 mt-auto border-t border-white/10 sidebar-account-footer">
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "User";
+                var roleDisplay = string.IsNullOrWhiteSpace(role) ? "User" : role;
+                var name = Context.Session.GetString("Auth.AdminScheme.FullName")
+                    ?? User.FindFirst("FullName")?.Value
+                    ?? User.Identity?.Name
+                    ?? "Default User";
+                var displayName = string.IsNullOrWhiteSpace(name) ? "Default User" : name.Trim();
+                
+                <div class="sidebar-user-row">
+                    <div class="sidebar-user-avatar" aria-hidden="true">
+                        <span class="material-icons-outlined">person</span>
+                    </div>
+                    <div class="sidebar-user-details">
+                        <p class="sidebar-user-name" title="@displayName">@displayName</p>
+                        <p class="sidebar-user-role" title="@roleDisplay">@roleDisplay</p>
+                    </div>
+                    <form class="sidebar-logout-wrap" asp-area="" asp-controller="Account" asp-action="Logout" method="post">
+                        <button type="submit" class="sidebar-logout-btn" title="Log out" aria-label="Log out">
+                            <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+                        </button>
+                    </form>
+                </div>
+            }
+            else
+            {
+                <a href="@Url.Action("Login", "Account")" class="flex items-center justify-center w-full py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg text-white text-sm font-medium transition-colors">
+                    <span class="material-icons-outlined text-sm mr-2">login</span>
+                    Sign In
+                </a>
+            }
+        </div>
+    </aside>
+
+    <script>
+        // Apply sidebar state immediately to prevent flash
+        (function() {
+            if (sessionStorage.getItem('sidebarCollapsed') === 'true') {
+                var sidebar = document.querySelector('.sidebar');
+                var mainContent = document.querySelector('main');
+                var sidebarTexts = document.querySelectorAll('.sidebar-text');
+                
+                if (sidebar) {
+                    sidebar.classList.remove('w-64');
+                    sidebar.classList.add('w-20');
+                }
+                var toggleIcon = document.querySelector('.sidebar-toggle-icon');
+                var toggleButton = document.querySelector('.sidebar-toggle');
+                if (toggleIcon) {
+                    toggleIcon.textContent = 'menu';
+                }
+                if (toggleButton) {
+                    toggleButton.setAttribute('aria-label', 'Open sidebar');
+                    toggleButton.setAttribute('title', 'Open sidebar');
+                }
+                if (mainContent) {
+                    mainContent.classList.remove('ml-64');
+                    mainContent.classList.add('ml-20');
+                }
+                sidebarTexts.forEach(function(text) {
+                    text.classList.add('hidden');
+                });
+            }
+        })();
+    </script>
+
+    <!-- Mobile Sidebar Overlay -->
+    <div class="fixed inset-0 bg-black/50 z-10 hidden sidebar-overlay md:hidden"></div>
+
+    <!-- Main Content -->
+    <main class="flex-1 md:ml-64 p-4 md:p-8 overflow-y-auto h-screen bg-background-light dark:bg-background-dark tw-reset transition-all duration-300 main-content-area">
+        <!-- Top Bar / Header -->
+        <div class="md:hidden mb-6 flex items-center justify-between">
+             <div class="flex items-center gap-3">
+                <button class="p-2 -ml-2 text-gray-600 sidebar-open-mobile">
+                    <span class="material-icons-outlined text-2xl">menu</span>
+                </button>
+                <span class="font-bold text-lg text-gray-800">KSTech</span>
+            </div>
+             <div class="flex items-center gap-3">
+               <!-- Mobile User Profile could go here if needed -->
+            </div>
+        </div>
+
+        @{
+            var selectedOwnerUserId = TenantContext.IsSuperAdmin ? TenantContext.OwnerUserId : null;
+            var selectedOwnerName = string.Empty;
+            var superAdminCanEditScopedOwner = !selectedOwnerUserId.HasValue || TenantContext.CanEditOwnerWorkspace;
+
+            if (selectedOwnerUserId.HasValue)
+            {
+                selectedOwnerName = DbContext.Users
+                    .AsNoTracking()
+                    .Where(user => user.UserID == selectedOwnerUserId.Value)
+                    .Select(user => user.FullName)
+                    .FirstOrDefault() ?? $"Owner #{selectedOwnerUserId.Value}";
+            }
+        }
+
+        @if (TenantContext.IsSuperAdmin && selectedOwnerUserId.HasValue)
+        {
+            <div class="mb-4 rounded-xl border px-4 py-3 @(superAdminCanEditScopedOwner ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20" : "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20")">
+                <div class="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                    <p class="m-0 @(superAdminCanEditScopedOwner ? "text-emerald-800 dark:text-emerald-300" : "text-amber-800 dark:text-amber-300")">
+                        Viewing owner workspace:
+                        <span class="font-semibold">@selectedOwnerName</span>
+                        (ID: @selectedOwnerUserId.Value)
+                        @if (!superAdminCanEditScopedOwner)
+                        {
+                            <span class="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+                                Read-only
+                            </span>
+                        }
+                    </p>
+                    <form asp-controller="Owner" asp-action="ClearOwnerScope" method="post" class="m-0">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-semibold @(superAdminCanEditScopedOwner ? "border-emerald-300 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/30" : "border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30")">
+                            Return to Global View
+                        </button>
+                    </form>
+                </div>
+            </div>
+        }
+        else if (TenantContext.IsSuperAdmin)
+        {
+            <div class="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300">
+                Global SuperAdmin mode is active. Select an owner in the <span class="font-semibold">Owners</span> tab to open workspace modules.
+            </div>
+        }
+
+        @RenderBody()
+    </main>
+    
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

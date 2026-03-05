@@ -1,0 +1,643 @@
+@model kstech.Models.ViewModels.ProcurementListViewModel
+
+@{
+    ViewData["Title"] = "Procurement";
+    var phpCulture = System.Globalization.CultureInfo.GetCultureInfo("en-PH");
+    var budgetOptions = ViewBag.ProcurementBudgetOptions as List<kstech.Models.ViewModels.ProcurementBudgetOptionViewModel> ?? new List<kstech.Models.ViewModels.ProcurementBudgetOptionViewModel>();
+    var budgetAvailabilityById = budgetOptions
+        .GroupBy(option => option.BudgetId)
+        .ToDictionary(group => group.Key, group => group.First());
+    var suggestedBudget = budgetOptions.FirstOrDefault(option => option.IsSuggested) ?? budgetOptions.FirstOrDefault();
+    var draftCount = Model.Procurements.Count(procurement => string.Equals(procurement.Status, "Draft", StringComparison.OrdinalIgnoreCase));
+    var noBudgetCount = Model.Procurements.Count(procurement =>
+        !procurement.BudgetId.HasValue &&
+        (string.Equals(procurement.Status, "Draft", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(procurement.Status, "Approved", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(procurement.Status, "PartiallyReceived", StringComparison.OrdinalIgnoreCase)));
+    var totalVisibleOrdered = Model.Procurements.Sum(procurement => procurement.TotalProcurementCost);
+    var paginationStartPage = Math.Max(1, Model.Page - 1);
+    var paginationEndPage = Math.Min(Model.TotalPages, paginationStartPage + 2);
+    paginationStartPage = Math.Max(1, paginationEndPage - 2);
+    var canManageProcurementActions = User.IsInRole("Owner") || User.IsInRole("SuperAdmin");
+}
+
+<div class="flex flex-col h-full">
+    <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Procurement Management</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Create POs, optionally link budget, then approve and receive inventory.</p>
+        </div>
+        <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+            <button onclick="openCreateProcurementModal()" class="px-4 py-2 rounded-lg bg-brand-primary text-white hover:bg-brand-primary/90 font-medium transition-colors flex items-center justify-center">
+                <span class="material-icons-outlined mr-2">add_shopping_cart</span>
+                New Purchase Order
+            </button>
+        </div>
+    </div>
+
+    @if (TempData["ProcurementMessage"] != null)
+    {
+        <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+            @TempData["ProcurementMessage"]
+        </div>
+    }
+    @if (TempData["ProcurementError"] != null)
+    {
+        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            @TempData["ProcurementError"]
+        </div>
+    }
+
+    <div class="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div class="rounded-xl border border-sky-100 bg-sky-50 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-sky-700">Budget In Focus</p>
+            @if (suggestedBudget != null)
+            {
+                <p class="mt-1 text-sm font-semibold text-sky-900">@suggestedBudget.Label</p>
+                <p class="mt-1 text-xs text-sky-700">
+                    Available: @suggestedBudget.AvailableAmount.ToString("C", phpCulture)
+                    | Budget: @suggestedBudget.BudgetAmount.ToString("C", phpCulture)
+                </p>
+            }
+            else
+            {
+                <p class="mt-1 text-sm text-sky-900">No active budget available.</p>
+            }
+        </div>
+        <div class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Draft PO's</p>
+            <p class="mt-1 text-xl font-bold text-amber-900">@draftCount</p>
+            <p class="mt-1 text-xs text-amber-700">Draft = saved PO, not owner-approved yet. Owner can delete draft PO's.</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">No Budget Linked</p>
+            <p class="mt-1 text-xl font-bold text-gray-900 dark:text-white">@noBudgetCount</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Approval still works, but reserve tracking stays zero.</p>
+        </div>
+    </div>
+
+    @if (false && Model.ReorderSuggestions.Any())
+    {
+        <div class="mb-6 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-4">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-indigo-700">Auto Reorder Suggestions</p>
+                    <p class="mt-1 text-sm font-semibold text-indigo-900">
+                        @Model.ReorderSuggestions.Count item(s), @Model.ReorderSuggestedTotalUnits unit(s), est. @Model.ReorderSuggestedTotalCost.ToString("C", phpCulture)
+                    </p>
+                    <p class="mt-1 text-xs text-indigo-700">
+                        Generated from low-stock and out-of-stock items using current inventory thresholds.
+                    </p>
+                </div>
+                <form asp-action="CreateAutoReorderDraftPurchaseOrder" method="post" class="flex flex-wrap items-end gap-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="page" value="@Model.Page" />
+                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                    <input type="hidden" name="sortBy" value="@Model.SortBy" />
+                    <input type="hidden" name="budgetFilter" value="@Model.BudgetFilter" />
+                    <input type="hidden" name="statusFilter" value="@Model.StatusFilter" />
+                    <div>
+                        <label for="auto-reorder-max-items" class="block text-[11px] font-semibold uppercase tracking-wide text-indigo-700">Items</label>
+                        <select id="auto-reorder-max-items" name="maxItems" class="mt-1 rounded-lg border border-indigo-200 bg-white px-2 py-1.5 text-xs text-indigo-900">
+                            <option value="3">Top 3</option>
+                            <option value="5" selected>Top 5</option>
+                            <option value="8">Top 8</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="auto-reorder-supplier" class="block text-[11px] font-semibold uppercase tracking-wide text-indigo-700">Supplier Label</label>
+                        <input id="auto-reorder-supplier" name="supplierName" value="Auto Reorder Suggestion" class="mt-1 rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs text-indigo-900" />
+                    </div>
+                    <button type="submit" class="rounded-lg border border-green-700 bg-green-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-300">
+                        Create Draft PO
+                    </button>
+                </form>
+            </div>
+
+            <div class="mt-4 overflow-x-auto">
+                <table class="w-full text-xs">
+                    <thead>
+                        <tr class="text-indigo-700">
+                            <th class="py-1 pr-3 text-left">Product</th>
+                            <th class="py-1 pr-3 text-left">Stock</th>
+                            <th class="py-1 pr-3 text-left">Suggested Qty</th>
+                            <th class="py-1 pr-3 text-right">Unit Cost</th>
+                            <th class="py-1 text-right">Est. Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-indigo-100">
+                        @foreach (var suggestion in Model.ReorderSuggestions.Take(8))
+                        {
+                            <tr>
+                                <td class="py-2 pr-3">
+                                    <div class="font-semibold text-gray-900">@suggestion.ProductName</div>
+                                    <div class="text-[11px] text-gray-600">SKU: @suggestion.Sku</div>
+                                </td>
+                                <td class="py-2 pr-3 text-gray-700">
+                                    @suggestion.CurrentStock
+                                    <span class="text-[11px] text-gray-500">(@suggestion.StockStatus)</span>
+                                </td>
+                                <td class="py-2 pr-3 font-semibold text-indigo-900">@suggestion.SuggestedOrderQuantity</td>
+                                <td class="py-2 pr-3 text-right text-gray-700">@suggestion.UnitCost.ToString("C", phpCulture)</td>
+                                <td class="py-2 text-right font-semibold text-gray-900">@suggestion.EstimatedLineCost.ToString("C", phpCulture)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <div class="bg-white dark:bg-card-dark rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex-1 flex flex-col">
+        <div class="border-b border-gray-100 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/40">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div class="text-xs text-gray-600 dark:text-gray-300">
+                    Visible ordered amount on this page:
+                    <span class="font-semibold text-gray-900 dark:text-white">@totalVisibleOrdered.ToString("C", phpCulture)</span>
+                </div>
+                <form asp-action="Procurement" method="get" id="procurement-filters-form" class="flex flex-wrap items-end justify-end gap-2">
+                    <input type="hidden" name="page" value="1" />
+                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                    <div>
+                        <label for="procurement-sort-by" class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">Sort</label>
+                        <select id="procurement-sort-by" name="sortBy" class="mt-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                            <option value="date_desc" selected="@(Model.SortBy == "date_desc" ? "selected" : null)">Newest first</option>
+                            <option value="date_asc" selected="@(Model.SortBy == "date_asc" ? "selected" : null)">Oldest first</option>
+                            <option value="total_desc" selected="@(Model.SortBy == "total_desc" ? "selected" : null)">Amount high-low</option>
+                            <option value="total_asc" selected="@(Model.SortBy == "total_asc" ? "selected" : null)">Amount low-high</option>
+                            <option value="status_asc" selected="@(Model.SortBy == "status_asc" ? "selected" : null)">Status</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="procurement-budget-filter" class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">Budget</label>
+                        <select id="procurement-budget-filter" name="budgetFilter" class="mt-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                            <option value="all" selected="@(Model.BudgetFilter == "all" ? "selected" : null)">All</option>
+                            <option value="linked" selected="@(Model.BudgetFilter == "linked" ? "selected" : null)">Linked</option>
+                            <option value="unlinked" selected="@(Model.BudgetFilter == "unlinked" ? "selected" : null)">No budget linked</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="procurement-status-filter" class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">Status</label>
+                        <select id="procurement-status-filter" name="statusFilter" class="mt-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
+                            <option value="all" selected="@(Model.StatusFilter == "all" ? "selected" : null)">All</option>
+                            <option value="draft" selected="@(Model.StatusFilter == "draft" ? "selected" : null)">Draft</option>
+                            <option value="approved" selected="@(Model.StatusFilter == "approved" ? "selected" : null)">Approved</option>
+                            <option value="partiallyreceived" selected="@(Model.StatusFilter == "partiallyreceived" ? "selected" : null)">Partially received</option>
+                            <option value="received" selected="@(Model.StatusFilter == "received" ? "selected" : null)">Received</option>
+                            <option value="cancelled" selected="@(Model.StatusFilter == "cancelled" ? "selected" : null)">Cancelled</option>
+                        </select>
+                    </div>
+                    <!-- Removed Apply button for auto-submit -->
+                </form>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr class="text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                        <th class="px-6 py-4">PO #</th>
+                        <th class="px-6 py-4">Date</th>
+                        <th class="px-6 py-4">Supplier</th>
+                        <th class="px-6 py-4">Budget</th>
+                        <th class="px-6 py-4">Items</th>
+                        <th class="px-6 py-4 text-right">Ordered</th>
+                        <th class="px-6 py-4 text-right">Reserved</th>
+                        <th class="px-6 py-4 text-right">Actual</th>
+                        <th class="px-6 py-4 text-center">Status</th>
+                        <th class="px-6 py-4 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    @if (Model.Procurements != null && Model.Procurements.Any())
+                    {
+                        foreach (var procurement in Model.Procurements)
+                        {
+                            var statusCss = procurement.Status switch
+                            {
+                                "Draft" => "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200",
+                                "Approved" => "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+                                "PartiallyReceived" => "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+                                "Received" => "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+                                _ => "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200"
+                            };
+                            var canApproveAction = canManageProcurementActions && procurement.CanApprove && procurement.PurchaseOrderId.HasValue;
+                            var canReceiveAction = canManageProcurementActions && procurement.CanReceive && procurement.PurchaseOrderId.HasValue;
+                            var canDeleteDraft = canManageProcurementActions &&
+                                                procurement.PurchaseOrderId.HasValue &&
+                                                string.Equals(procurement.Status, "Draft", StringComparison.OrdinalIgnoreCase);
+                            var hasWorkflowActions = canApproveAction || canReceiveAction || canDeleteDraft;
+                            var detailsModalId = $"procurement-details-{(procurement.PurchaseOrderId?.ToString() ?? Guid.NewGuid().ToString("N"))}";
+
+                            <tr class="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                                tabindex="0"
+                                onclick="onProcurementRowClick(event, '@detailsModalId')"
+                                onkeydown="onProcurementRowKeydown(event, '@detailsModalId')">
+                                <td class="px-6 py-4 font-semibold text-gray-900 dark:text-white">
+                                    @procurement.Id
+                                </td>
+                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">
+                                    @procurement.PurchaseDate.ToString("MMM dd, yyyy HH:mm")
+                                </td>
+                                <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">
+                                    @procurement.SupplierName
+                                </td>
+                                <td class="px-6 py-4 text-xs text-gray-600 dark:text-gray-400">
+                                    @if (procurement.BudgetId.HasValue)
+                                    {
+                                        <span class="font-medium text-gray-700 dark:text-gray-300">@procurement.BudgetLabel</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="font-medium text-gray-500 dark:text-gray-400">No budget linked</span>
+                                    }
+                                </td>
+                                <td class="px-6 py-4 text-gray-600 dark:text-gray-400">
+                                    @if (procurement.Items != null && procurement.Items.Any())
+                                    {
+                                        var totalOrderedUnits = procurement.Items.Sum(item => Math.Max(0, item.QuantityOrdered));
+                                        var totalReceivedUnits = procurement.Items.Sum(item => Math.Max(0, item.QuantityReceived));
+                                        var receivableLines = procurement.Items
+                                            .Where(item => item.PurchaseOrderLineId.HasValue && item.QuantityRemaining > 0)
+                                            .ToList();
+                                        <div class="text-xs">
+                                            <div class="font-semibold text-gray-800 dark:text-gray-100">@procurement.Items.Count item(s)</div>
+                                            <div class="mt-0.5 text-gray-500 dark:text-gray-400">Received @totalReceivedUnits / @totalOrderedUnits units</div>
+                                            <div class="mt-1 text-[11px] text-brand-primary">Click row to open details</div>
+                                        </div>
+
+                                        <div id="@detailsModalId" class="procurement-details-modal hidden fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-label="PO details">
+                                            <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" onclick="closeProcurementDetailsModal('@detailsModalId')"></div>
+                                            <div class="relative mx-auto my-6 w-[calc(100%-1.5rem)] max-w-4xl">
+                                                <div class="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl dark:border-gray-700 dark:bg-card-dark" onclick="event.stopPropagation();">
+                                                    <div class="flex items-start justify-between gap-3 border-b border-gray-100 bg-gray-50/80 px-5 py-4 dark:border-gray-700 dark:bg-gray-800/60">
+                                                        <div>
+                                                            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">Purchase Order</div>
+                                                            <div class="mt-1 text-lg font-bold text-gray-900 dark:text-white">@procurement.Id</div>
+                                                            <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                                @procurement.SupplierName &bull; @procurement.PurchaseDate.ToString("MMM dd, yyyy HH:mm")
+                                                            </div>
+                                                        </div>
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="px-2.5 py-1 rounded-full text-xs font-medium @statusCss">@procurement.Status</span>
+                                                            <button type="button" onclick="closeProcurementDetailsModal('@detailsModalId')" class="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                                                <span class="material-icons-outlined text-[18px]">close</span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="space-y-4 px-5 py-4">
+                                                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                                            <div class="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2">
+                                                                <div class="text-[11px] font-semibold uppercase tracking-wide text-sky-700">Ordered</div>
+                                                                <div class="mt-1 text-sm font-semibold text-sky-900">@procurement.TotalProcurementCost.ToString("C", phpCulture)</div>
+                                                            </div>
+                                                            <div class="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+                                                                <div class="text-[11px] font-semibold uppercase tracking-wide text-amber-700">Reserved</div>
+                                                                <div class="mt-1 text-sm font-semibold text-amber-900">@procurement.ReservedAmount.ToString("C", phpCulture)</div>
+                                                            </div>
+                                                            <div class="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+                                                                <div class="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Actual</div>
+                                                                <div class="mt-1 text-sm font-semibold text-emerald-900">@procurement.ActualExpenseAmount.ToString("C", phpCulture)</div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
+                                                            <table class="w-full text-xs">
+                                                                <thead class="bg-gray-50 text-gray-600 dark:bg-gray-800/50 dark:text-gray-300">
+                                                                    <tr>
+                                                                        <th class="px-3 py-2 text-left font-semibold">Product</th>
+                                                                        <th class="px-3 py-2 text-right font-semibold">Ordered</th>
+                                                                        <th class="px-3 py-2 text-right font-semibold">Received</th>
+                                                                        <th class="px-3 py-2 text-right font-semibold">Remaining</th>
+                                                                        <th class="px-3 py-2 text-right font-semibold">Unit Cost</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                                                                    @foreach (var item in procurement.Items)
+                                                                    {
+                                                                        <tr>
+                                                                            <td class="px-3 py-2 font-medium text-gray-800 dark:text-gray-100">@item.ProductName</td>
+                                                                            <td class="px-3 py-2 text-right text-gray-600 dark:text-gray-300">@item.QuantityOrdered</td>
+                                                                            <td class="px-3 py-2 text-right text-gray-600 dark:text-gray-300">@item.QuantityReceived</td>
+                                                                            <td class="px-3 py-2 text-right font-semibold text-gray-700 dark:text-gray-200">@item.QuantityRemaining</td>
+                                                                            <td class="px-3 py-2 text-right text-gray-600 dark:text-gray-300">@item.CostPerItem.ToString("C", phpCulture)</td>
+                                                                        </tr>
+                                                                    }
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+
+                                                        @if (canReceiveAction && receivableLines.Any() && procurement.PurchaseOrderId.HasValue)
+                                                        {
+                                                            <div class="rounded-xl border border-blue-100 bg-blue-50 px-3 py-3 dark:border-blue-900/40 dark:bg-blue-900/10">
+                                                                <div class="text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                                                                    Partial Receive
+                                                                </div>
+                                                                <p class="mt-1 text-[11px] text-blue-700 dark:text-blue-300">
+                                                                    To receive item-by-item, enter <span class="font-semibold">1</span> on the line you are receiving now and leave the others as <span class="font-semibold">0</span>.
+                                                                </p>
+
+                                                                <form asp-action="ReceiveProcurement" method="post" class="mt-3">
+                                                                    @Html.AntiForgeryToken()
+                                                                    <input type="hidden" name="purchaseOrderId" value="@procurement.PurchaseOrderId" />
+                                                                    <div class="space-y-2">
+                                                                        @for (var lineIndex = 0; lineIndex < receivableLines.Count; lineIndex++)
+                                                                        {
+                                                                            var receiveLine = receivableLines[lineIndex];
+                                                                            <div class="grid grid-cols-1 gap-2 rounded-lg border border-blue-100 bg-white px-2 py-2 md:grid-cols-12 md:items-end dark:border-blue-900/40 dark:bg-gray-900/30">
+                                                                                <div class="md:col-span-6">
+                                                                                    <div class="text-xs font-semibold text-gray-800 dark:text-gray-100">@receiveLine.ProductName</div>
+                                                                                    <div class="text-[10px] text-gray-500 dark:text-gray-400">Remaining: @receiveLine.QuantityRemaining</div>
+                                                                                </div>
+                                                                                <div class="md:col-span-3">
+                                                                                    <label class="mb-1 block text-[10px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Qty to receive</label>
+                                                                                    <input type="hidden" name="receiveLines[@lineIndex].PurchaseOrderLineId" value="@receiveLine.PurchaseOrderLineId" />
+                                                                                    <input type="number"
+                                                                                           name="receiveLines[@lineIndex].QuantityToReceive"
+                                                                                           min="0"
+                                                                                           max="@receiveLine.QuantityRemaining"
+                                                                                           value="0"
+                                                                                           class="w-full rounded-md border border-blue-200 bg-white px-2 py-1 text-xs text-gray-700 dark:border-blue-900/40 dark:bg-gray-800 dark:text-gray-200" />
+                                                                                </div>
+                                                                                <div class="md:col-span-3 text-[10px] text-gray-500 dark:text-gray-400">
+                                                                                    Unit Cost: @receiveLine.CostPerItem.ToString("C", phpCulture)
+                                                                                </div>
+                                                                            </div>
+                                                                        }
+                                                                    </div>
+                                                                    <div class="mt-3 flex justify-end">
+                                                                        <button type="submit" class="rounded-lg bg-brand-primary px-3 py-2 text-xs font-medium text-white hover:bg-brand-primary/90 transition-colors">
+                                                                            Receive Selected
+                                                                        </button>
+                                                                    </div>
+                                                                </form>
+                                                            </div>
+                                                        }
+                                                    </div>
+
+                                                    <div class="flex flex-row-reverse gap-2 border-t border-gray-100 bg-gray-50/80 px-5 py-3 dark:border-gray-700 dark:bg-gray-800/60">
+                                                        <button type="button" onclick="closeProcurementDetailsModal('@detailsModalId')" class="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+                                                            Close
+                                                        </button>
+                                                        @if (canReceiveAction && procurement.PurchaseOrderId.HasValue)
+                                                        {
+                                                            <form asp-action="ReceiveProcurement" method="post">
+                                                                @Html.AntiForgeryToken()
+                                                                <input type="hidden" name="purchaseOrderId" value="@procurement.PurchaseOrderId" />
+                                                                <button type="submit" class="rounded-lg border border-green-200 bg-white px-3 py-2 text-xs font-medium text-green-700 hover:bg-green-50 dark:border-green-800 dark:bg-gray-900/20 dark:text-green-300 dark:hover:bg-green-900/20">
+                                                                    Receive All
+                                                                </button>
+                                                            </form>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-gray-400 italic">No items</span>
+                                    }
+                                </td>
+                                <td class="px-6 py-4 text-right font-bold text-gray-900 dark:text-white">
+                                    @procurement.TotalProcurementCost.ToString("C", phpCulture)
+                                </td>
+                                <td class="px-6 py-4 text-right font-semibold text-gray-900 dark:text-white">
+                                    @procurement.ReservedAmount.ToString("C", phpCulture)
+                                </td>
+                                <td class="px-6 py-4 text-right font-semibold text-gray-900 dark:text-white">
+                                    @procurement.ActualExpenseAmount.ToString("C", phpCulture)
+                                </td>
+                                <td class="px-6 py-4 text-center">
+                                    <span class="px-2.5 py-1 rounded-full text-xs font-medium @statusCss">
+                                        @procurement.Status
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 text-right">
+                                    <div class="flex justify-end gap-2" onclick="event.stopPropagation();">
+                                        @if (canApproveAction && procurement.BudgetId.HasValue && budgetAvailabilityById.TryGetValue(procurement.BudgetId.Value, out var linkedBudgetOption))
+                                        {
+                                            var projectedAvailableAfterApproval = Math.Round(linkedBudgetOption.AvailableAmount - procurement.TotalProcurementCost, 2);
+                                            <div class="mr-2 rounded-lg border @(projectedAvailableAfterApproval < 0m ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50") px-2 py-1 text-left">
+                                                <div class="text-[10px] font-semibold uppercase tracking-wide @(projectedAvailableAfterApproval < 0m ? "text-red-700" : "text-emerald-700")">Budget Impact</div>
+                                                <div class="text-[11px] @(projectedAvailableAfterApproval < 0m ? "text-red-800" : "text-emerald-800")">
+                                                    After approval: @projectedAvailableAfterApproval.ToString("C", phpCulture)
+                                                </div>
+                                            </div>
+                                        }
+                                        @if (canDeleteDraft)
+                                        {
+                                            <form asp-action="DeleteDraftProcurement" method="post" onsubmit="return confirm('Delete this draft PO?');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="purchaseOrderId" value="@procurement.PurchaseOrderId" />
+                                                <button type="submit" class="px-2.5 py-1 rounded-lg border border-red-200 text-red-700 text-xs font-medium hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20">
+                                                    Delete
+                                                </button>
+                                            </form>
+                                        }
+                                        @if (canApproveAction)
+                                        {
+                                            <form asp-action="ApproveProcurement" method="post">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="purchaseOrderId" value="@procurement.PurchaseOrderId" />
+                                                <button type="submit" class="px-2.5 py-1 rounded-lg border border-amber-200 text-amber-700 text-xs font-medium hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-900/20">
+                                                    Approve
+                                                </button>
+                                            </form>
+                                        }
+                                        @if (canReceiveAction)
+                                        {
+                                            <button type="button" onclick="openProcurementDetailsModal('@detailsModalId')" class="px-2.5 py-1 rounded-lg border border-green-200 text-green-700 text-xs font-medium hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-900/20">
+                                                Receive
+                                            </button>
+                                        }
+                                        @if (!canManageProcurementActions)
+                                        {
+                                            <span class="text-xs text-gray-400">Owner only</span>
+                                        }
+                                        else if (!hasWorkflowActions)
+                                        {
+                                            <span class="text-xs text-gray-400">No actions</span>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="10" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                                <div class="flex flex-col items-center justify-center">
+                                    <span class="material-icons-outlined text-4xl mb-2 text-gray-300">shopping_bag</span>
+                                    <p>No procurement records found.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="p-4 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50/30 dark:bg-gray-800/20">
+            <div class="text-xs text-gray-500 text-[13px]">
+                Showing
+                <span class="font-bold text-gray-900 dark:text-white">@Model.StartItem</span>
+                to
+                <span class="font-bold text-gray-900 dark:text-white">@Model.EndItem</span>
+                of
+                <span class="font-bold text-gray-900 dark:text-white">@Model.TotalMatched</span>
+                procurement entries
+            </div>
+            @if (Model.TotalPages > 0)
+            {
+                <div class="flex items-center gap-2">
+                    @if (Model.HasPreviousPage)
+                    {
+                        <a asp-action="Procurement"
+                           asp-route-page="@(Model.Page - 1)"
+                           asp-route-pageSize="@Model.PageSize"
+                           asp-route-sortBy="@Model.SortBy"
+                           asp-route-budgetFilter="@Model.BudgetFilter"
+                           asp-route-statusFilter="@Model.StatusFilter"
+                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors no-underline">
+                            <span class="material-icons-outlined text-[18px]">chevron_left</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                            <span class="material-icons-outlined text-[18px]">chevron_left</span>
+                        </span>
+                    }
+
+                    @for (var pageNumber = paginationStartPage; pageNumber <= paginationEndPage; pageNumber++)
+                    {
+                        if (pageNumber == Model.Page)
+                        {
+                            <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-brand-primary bg-brand-primary text-white text-sm font-semibold">
+                                @pageNumber
+                            </span>
+                        }
+                        else
+                        {
+                            <a asp-action="Procurement"
+                               asp-route-page="@pageNumber"
+                               asp-route-pageSize="@Model.PageSize"
+                               asp-route-sortBy="@Model.SortBy"
+                               asp-route-budgetFilter="@Model.BudgetFilter"
+                               asp-route-statusFilter="@Model.StatusFilter"
+                               class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-semibold no-underline">
+                                @pageNumber
+                            </a>
+                        }
+                    }
+
+                    @if (Model.HasNextPage)
+                    {
+                        <a asp-action="Procurement"
+                           asp-route-page="@(Model.Page + 1)"
+                           asp-route-pageSize="@Model.PageSize"
+                           asp-route-sortBy="@Model.SortBy"
+                           asp-route-budgetFilter="@Model.BudgetFilter"
+                           asp-route-statusFilter="@Model.StatusFilter"
+                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors no-underline">
+                            <span class="material-icons-outlined text-[18px]">chevron_right</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                            <span class="material-icons-outlined text-[18px]">chevron_right</span>
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<partial name="_CreateProcurementModal" model="new kstech.Models.ProcurementViewModel()" />
+
+<script>
+    function openCreateProcurementModal() {
+        document.getElementById('createProcurementModal').classList.remove('hidden');
+        if (typeof updateProcurementSummary === 'function') {
+            updateProcurementSummary();
+        }
+    }
+
+    function isProcurementRowInteractiveTarget(eventTarget) {
+        return !!(eventTarget && eventTarget.closest(
+            'a, button, input, select, textarea, form, summary, [data-no-row-open], .procurement-details-modal'));
+    }
+
+    function onProcurementRowClick(event, modalId) {
+        if (isProcurementRowInteractiveTarget(event.target)) {
+            return;
+        }
+
+        openProcurementDetailsModal(modalId);
+    }
+
+    function onProcurementRowKeydown(event, modalId) {
+        if (isProcurementRowInteractiveTarget(event.target)) {
+            return;
+        }
+
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openProcurementDetailsModal(modalId);
+        }
+    }
+
+    function openProcurementDetailsModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (!modal) {
+            return;
+        }
+
+        modal.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+    }
+
+    function closeProcurementDetailsModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (!modal) {
+            return;
+        }
+
+        modal.classList.add('hidden');
+        if (!document.querySelector('[id^="procurement-details-"]:not(.hidden)')) {
+            document.body.classList.remove('overflow-hidden');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const filterForm = document.getElementById('procurement-filters-form');
+        if (!filterForm) {
+            return;
+        }
+
+        ['procurement-sort-by', 'procurement-budget-filter', 'procurement-status-filter'].forEach(function (id) {
+            const field = document.getElementById(id);
+            if (!field) {
+                return;
+            }
+
+            field.addEventListener('change', function () {
+                filterForm.submit();
+            });
+        });
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape') {
+            return;
+        }
+
+        document.querySelectorAll('[id^="procurement-details-"]').forEach(function (modal) {
+            modal.classList.add('hidden');
+        });
+        document.body.classList.remove('overflow-hidden');
+    });
+</script>

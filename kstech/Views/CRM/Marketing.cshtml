@@ -1,0 +1,748 @@
+@model kstech.Models.MarketingAutomationViewModel
+@using kstech.Utilities
+
+@{
+    ViewData["Title"] = "Marketing";
+    var minimumScheduleLocal = BusinessTime.ConvertUtcToBusinessTime(DateTime.UtcNow).AddMinutes(1).ToString("yyyy-MM-ddTHH:mm");
+}
+
+<div class="space-y-6">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Marketing Campaigns</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Plan email campaigns using live customer segments and loyalty tiers.</p>
+        </div>
+        <button id="openCreateCampaignModal"
+                type="button"
+                class="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:brightness-95">
+            <span class="material-icons-outlined text-[18px]">add</span>
+            New Campaign
+        </button>
+    </div>
+
+    @if (TempData["CampaignMessage"] != null)
+    {
+        <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            @TempData["CampaignMessage"]
+        </div>
+    }
+
+    @if (TempData["CampaignError"] != null)
+    {
+        <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            @TempData["CampaignError"]
+        </div>
+    }
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div class="rounded-xl border border-gray-200 bg-white p-4">
+            <p class="text-xs uppercase text-gray-500">Visible Campaigns</p>
+            <p class="mt-1 text-2xl font-bold text-gray-900">@Model.TotalCampaigns</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4">
+            <p class="text-xs uppercase text-gray-500">Completed</p>
+            <p class="mt-1 text-2xl font-bold text-gray-900">@Model.CompletedCampaigns</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4">
+            <p class="text-xs uppercase text-gray-500">Failed Emails</p>
+            <p class="mt-1 text-2xl font-bold text-red-600">@Model.FailedEmails</p>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-gray-200 bg-white p-4">
+        <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <h2 class="text-sm font-semibold text-gray-800">Audience Segments</h2>
+                <span class="text-xs text-gray-500">Eligible customers with email enabled</span>
+            </div>
+            <button id="toggleAudienceSegments"
+                    type="button"
+                    class="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                    aria-expanded="true"
+                    aria-controls="audienceSegmentsBody">
+                <span id="toggleAudienceSegmentsLabel">Hide</span>
+                <span id="toggleAudienceSegmentsIcon" class="material-icons-outlined text-[16px]">expand_less</span>
+            </button>
+        </div>
+        <div id="audienceSegmentsBody" class="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            @foreach (var insight in Model.AudienceInsights)
+            {
+                <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                    <div class="flex items-center justify-between gap-2">
+                        <p class="font-semibold text-gray-900">@insight.Audience</p>
+                        <span class="text-xs font-semibold text-brand-primary">@insight.EligibleCustomers</span>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">@insight.Description</p>
+                </div>
+            }
+        </div>
+    </div>
+
+    <form id="marketingCampaignFiltersForm" method="get" class="rounded-xl border border-gray-200 bg-white p-4">
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <div class="md:col-span-2 relative">
+                <span class="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+                <input id="marketingCampaignSearchFilter" type="search" name="search" value="@Model.SearchTerm" placeholder="Search campaign name or message..." class="w-full rounded-lg border border-gray-200 pl-10 pr-3 py-2 text-sm text-gray-700" />
+            </div>
+            <select id="marketingCampaignStatusFilter" name="status" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                @foreach (var status in Model.AvailableStatuses)
+                {
+                    var statusOptionLabel = status;
+                    if (string.Equals(status, "CompletedWithErrors", StringComparison.OrdinalIgnoreCase))
+                    {
+                        statusOptionLabel = "Completed (Some Failed)";
+                    }
+                    else if (string.Equals(status, "Processing", StringComparison.OrdinalIgnoreCase))
+                    {
+                        statusOptionLabel = "Processing";
+                    }
+                    else if (string.Equals(status, "NoAudience", StringComparison.OrdinalIgnoreCase))
+                    {
+                        statusOptionLabel = "No Matching Customers";
+                    }
+
+                    if (string.Equals(status, Model.SelectedStatus, StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="@status" selected>@statusOptionLabel</option>
+                    }
+                    else
+                    {
+                        <option value="@status">@statusOptionLabel</option>
+                    }
+                }
+            </select>
+            <select id="marketingCampaignAudienceFilter" name="audience" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                @foreach (var audience in Model.AvailableAudiences)
+                {
+                    if (string.Equals(audience, Model.SelectedAudience, StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="@audience" selected>@audience</option>
+                    }
+                    else
+                    {
+                        <option value="@audience">@audience</option>
+                    }
+                }
+            </select>
+            <div class="flex gap-2">
+                <a href="@Url.Action("Marketing", "CRM")" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-center text-sm font-semibold text-gray-700 hover:bg-gray-50">Reset</a>
+            </div>
+        </div>
+    </form>
+
+    <div class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Campaign</th>
+                        <th class="px-4 py-3 text-left">Audience</th>
+                        <th class="px-4 py-3 text-left">Status</th>
+                        <th class="px-4 py-3 text-left">Delivery</th>
+                        <th class="px-4 py-3 text-left">Schedule / Activity</th>
+                        <th class="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @if (Model.Campaigns.Any())
+                    {
+                        foreach (var campaign in Model.Campaigns)
+                        {
+                            var statusClass = "bg-gray-100 text-gray-700";
+                            var statusLabel = campaign.Status;
+                            if (string.Equals(campaign.Status, "Scheduled", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(campaign.Status, "Draft", StringComparison.OrdinalIgnoreCase))
+                            {
+                                statusClass = "bg-blue-100 text-blue-700";
+                            }
+                            else if (string.Equals(campaign.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+                            {
+                                statusClass = "bg-emerald-100 text-emerald-700";
+                            }
+                            else if (string.Equals(campaign.Status, "Processing", StringComparison.OrdinalIgnoreCase))
+                            {
+                                statusClass = "bg-indigo-100 text-indigo-700";
+                                statusLabel = "Processing";
+                            }
+                            else if (string.Equals(campaign.Status, "CompletedWithErrors", StringComparison.OrdinalIgnoreCase))
+                            {
+                                statusClass = "bg-yellow-100 text-yellow-700";
+                                statusLabel = "Completed (Some Failed)";
+                            }
+                            else if (string.Equals(campaign.Status, "NoAudience", StringComparison.OrdinalIgnoreCase))
+                            {
+                                statusClass = "bg-gray-200 text-gray-700";
+                                statusLabel = "No Matching Customers";
+                            }
+                            else if (string.Equals(campaign.Status, "Cancelled", StringComparison.OrdinalIgnoreCase))
+                            {
+                                statusClass = "bg-rose-100 text-rose-700";
+                            }
+
+                            <tr class="align-top hover:bg-gray-50/70">
+                                <td class="px-4 py-4">
+                                    <div class="min-w-[220px]">
+                                        <div class="font-semibold text-gray-900">@campaign.Name</div>
+                                        @if (!string.IsNullOrWhiteSpace(campaign.Description))
+                                        {
+                                            <div class="mt-1 text-xs leading-5 text-gray-500 max-w-md break-words">
+                                                @campaign.Description
+                                            </div>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="px-4 py-4">
+                                    <div class="font-semibold text-gray-800">@campaign.TargetAudience</div>
+                                    <div class="mt-1 text-xs text-gray-500">Eligible now: @campaign.EstimatedAudienceSize</div>
+                                </td>
+                                <td class="px-4 py-4">
+                                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold @statusClass">
+                                        @statusLabel
+                                    </span>
+                                </td>
+                                <td class="px-4 py-4">
+                                    <dl class="space-y-1 text-xs min-w-[180px]">
+                                        <div class="flex items-center justify-between gap-4">
+                                            <dt class="text-gray-500">Queued</dt>
+                                            <dd class="font-semibold text-gray-700">@campaign.QueuedCount</dd>
+                                        </div>
+                                        <div class="flex items-center justify-between gap-4">
+                                            <dt class="text-gray-500" title="Email provider accepted the send request">Sent</dt>
+                                            <dd class="font-semibold text-blue-700">@campaign.AcceptedCount</dd>
+                                        </div>
+                                        <div class="flex items-center justify-between gap-4">
+                                            <dt class="text-gray-500">Delivered</dt>
+                                            <dd class="font-semibold text-emerald-700">@campaign.DeliveredCount</dd>
+                                        </div>
+                                        <div class="flex items-center justify-between gap-4">
+                                            <dt class="text-gray-500">Failed</dt>
+                                            <dd class="font-semibold text-red-600">@campaign.FailedCount</dd>
+                                        </div>
+                                    </dl>
+                                </td>
+                                <td class="px-4 py-4">
+                                    <div class="min-w-[190px] space-y-1 text-xs text-gray-600">
+                                        @if (campaign.ScheduledForUtc.HasValue)
+                                        {
+                                            <div>
+                                                <span class="font-medium text-gray-500">Scheduled:</span>
+                                                <span>@BusinessTime.ConvertUtcToBusinessTime(campaign.ScheduledForUtc.Value).ToString("MMM dd, yyyy HH:mm")</span>
+                                            </div>
+                                        }
+                                        <div>
+                                            <span class="font-medium text-gray-500">@((campaign.ScheduledForUtc.HasValue ? "Last Activity:" : "Activity:"))</span>
+                                            <span>
+                                                @(campaign.StartDate == default
+                                                    ? "Not run"
+                                                    : BusinessTime.ConvertUtcToBusinessTime(campaign.StartDate).ToString("MMM dd, yyyy HH:mm"))
+                                            </span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-4">
+                                    <div class="flex flex-col items-end gap-2 min-w-[120px]">
+                                        <form asp-action="ExecuteCampaign" method="post" class="inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@campaign.CampaignID" />
+                                            <input type="hidden" name="search" value="@Model.SearchTerm" />
+                                            <input type="hidden" name="status" value="@Model.SelectedStatus" />
+                                            <input type="hidden" name="audience" value="@Model.SelectedAudience" />
+                                            <input type="hidden" name="page" value="@Model.Page" />
+                                            <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                            <button type="submit"
+                                                    class="w-24 rounded-md border px-3 py-1.5 text-xs font-semibold @(campaign.CanExecute ? "border-gray-300 text-brand-primary hover:bg-gray-50" : "border-gray-200 text-gray-400 cursor-not-allowed")"
+                                                    disabled="@(!campaign.CanExecute)"
+                                                    title="@(campaign.CanExecute ? "Run campaign now" : "Status must be Draft, Scheduled, Completed (Some Failed), or No Matching Customers.")">
+                                                Execute
+                                            </button>
+                                        </form>
+
+                                        @if (campaign.CanCancel)
+                                        {
+                                            <form asp-action="CancelCampaign" method="post" class="inline">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@campaign.CampaignID" />
+                                                <input type="hidden" name="search" value="@Model.SearchTerm" />
+                                                <input type="hidden" name="status" value="@Model.SelectedStatus" />
+                                                <input type="hidden" name="audience" value="@Model.SelectedAudience" />
+                                                <input type="hidden" name="page" value="@Model.Page" />
+                                                <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                                                <button type="submit"
+                                                        class="w-24 rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                                                        title="Cancel this draft/scheduled campaign">
+                                                    Cancel
+                                                </button>
+                                            </form>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                                No campaigns match the current filters.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="border-t border-gray-100 bg-gray-50/50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="text-xs text-gray-500">
+                Showing
+                <span class="font-semibold text-gray-900">@Model.StartItem</span>
+                to
+                <span class="font-semibold text-gray-900">@Model.EndItem</span>
+                of
+                <span class="font-semibold text-gray-900">@Model.TotalMatched</span>
+                campaigns
+            </div>
+
+            @if (Model.TotalPages > 0)
+            {
+                var startPage = Math.Max(1, Model.Page - 1);
+                var endPage = Math.Min(Model.TotalPages, startPage + 2);
+                startPage = Math.Max(1, endPage - 2);
+
+                <div class="flex items-center gap-2">
+                    @if (Model.HasPreviousPage)
+                    {
+                        <a asp-action="Marketing"
+                           asp-route-search="@Model.SearchTerm"
+                           asp-route-status="@Model.SelectedStatus"
+                           asp-route-audience="@Model.SelectedAudience"
+                           asp-route-page="@(Model.Page - 1)"
+                           asp-route-pageSize="@Model.PageSize"
+                           class="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 no-underline">
+                            <span class="material-icons-outlined text-[18px]">chevron_left</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-300 cursor-not-allowed">
+                            <span class="material-icons-outlined text-[18px]">chevron_left</span>
+                        </span>
+                    }
+
+                    @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                    {
+                        if (pageNumber == Model.Page)
+                        {
+                            <span class="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-brand-primary bg-brand-primary text-white text-sm font-semibold">
+                                @pageNumber
+                            </span>
+                        }
+                        else
+                        {
+                            <a asp-action="Marketing"
+                               asp-route-search="@Model.SearchTerm"
+                               asp-route-status="@Model.SelectedStatus"
+                               asp-route-audience="@Model.SelectedAudience"
+                               asp-route-page="@pageNumber"
+                               asp-route-pageSize="@Model.PageSize"
+                               class="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 text-sm font-semibold no-underline">
+                                @pageNumber
+                            </a>
+                        }
+                    }
+
+                    @if (Model.HasNextPage)
+                    {
+                        <a asp-action="Marketing"
+                           asp-route-search="@Model.SearchTerm"
+                           asp-route-status="@Model.SelectedStatus"
+                           asp-route-audience="@Model.SelectedAudience"
+                           asp-route-page="@(Model.Page + 1)"
+                           asp-route-pageSize="@Model.PageSize"
+                           class="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 no-underline">
+                            <span class="material-icons-outlined text-[18px]">chevron_right</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-300 cursor-not-allowed">
+                            <span class="material-icons-outlined text-[18px]">chevron_right</span>
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<div id="createCampaignModal" class="fixed inset-0 z-50 @(Model.OpenCreateCampaignModal ? string.Empty : "hidden")">
+    <div class="absolute inset-0 bg-black/50" data-close-create-campaign-modal></div>
+    <div class="relative z-10 flex h-full w-full items-start justify-center overflow-y-auto p-4 sm:p-6">
+        <div class="my-2 flex w-full max-w-4xl max-h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-2xl bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 shadow-2xl">
+            <div class="flex items-start justify-between gap-4 border-b border-gray-200 dark:border-gray-700 px-6 pt-5 pb-3">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Create New Campaign</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Target customer groups like Gold Tier, New Customers, or GPU Owners.</p>
+                </div>
+                <button type="button" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" data-close-create-campaign-modal>
+                    <span class="material-icons-outlined">close</span>
+                </button>
+            </div>
+
+            <form asp-action="CreateCampaign" method="post" class="flex-1 overflow-y-auto px-6 pt-3 pb-5 space-y-4">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="search" value="@Model.SearchTerm" />
+                <input type="hidden" name="status" value="@Model.SelectedStatus" />
+                <input type="hidden" name="audience" value="@Model.SelectedAudience" />
+                <input type="hidden" name="page" value="@Model.Page" />
+                <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                @if (Model.CreateCampaignErrors.Any())
+                {
+                    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        <ul class="space-y-1 list-disc pl-5">
+                            @foreach (var error in Model.CreateCampaignErrors)
+                            {
+                                <li>@error</li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (Model.SlowMoverSuggestions.Any())
+                {
+                    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p class="text-sm font-semibold text-amber-900">Suggested Campaign Ideas (Slow Movers)</p>
+                                <p class="mt-1 text-xs text-amber-800">Optional: tap a suggestion to prefill the campaign below.</p>
+                            </div>
+                            <span class="inline-flex items-center rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-amber-700">
+                                @Model.SlowMoverSuggestions.Count suggestion(s)
+                            </span>
+                        </div>
+
+                        <div class="mt-3 space-y-2 max-h-48 overflow-y-auto pr-1">
+                            @foreach (var slowMover in Model.SlowMoverSuggestions)
+                            {
+                                var suggestedAudience = string.Equals(slowMover.Category, "GPU", StringComparison.OrdinalIgnoreCase)
+                                    ? "GPU Owners"
+                                    : "Lapsed Customers";
+                                var suggestionNameBase = $"{slowMover.ProductName} Reactivation Campaign";
+                                var suggestionName = suggestionNameBase.Length > 100
+                                    ? suggestionNameBase[..100]
+                                    : suggestionNameBase;
+                                var suggestionMessageBase = $"We're featuring {slowMover.ProductName} from current inventory. Limited stock is available now. Reply if you want us to reserve a unit for you.";
+                                var suggestionMessage = suggestionMessageBase.Length > 255
+                                    ? suggestionMessageBase[..255]
+                                    : suggestionMessageBase;
+
+                                <div class="rounded-md border border-amber-100 bg-white px-3 py-2">
+                                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <div class="min-w-0">
+                                            <div class="text-xs font-semibold text-gray-900 truncate">@slowMover.ProductName</div>
+                                            <div class="text-[11px] text-gray-600">SKU: @slowMover.Sku | Stock: @slowMover.StockQuantity | Audience: @suggestedAudience</div>
+                                        </div>
+                                        <button type="button"
+                                                class="js-use-campaign-suggestion inline-flex items-center justify-center rounded-md border border-brand-primary bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-brand-primary/40"
+                                                data-suggestion-name="@suggestionName"
+                                                data-suggestion-message="@suggestionMessage"
+                                                data-suggestion-audience="@suggestedAudience">
+                                            Use Suggestion
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <div>
+                    <label for="createCampaignName" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Campaign Name</label>
+                    <input id="createCampaignName"
+                           name="Name"
+                           maxlength="100"
+                           value="@Model.CreateCampaignForm.Name"
+                           placeholder="e.g. Gold Tier Weekend Promo"
+                           class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-primary outline-none" />
+                </div>
+
+                <div>
+                    <label for="createCampaignDescription" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Message</label>
+                    <textarea id="createCampaignDescription"
+                              name="Description"
+                              rows="4"
+                              maxlength="255"
+                              placeholder="Write the email message your selected customers will receive..."
+                              class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-primary outline-none">@Model.CreateCampaignForm.Description</textarea>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label for="createCampaignAudience" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Audience</label>
+                        <select id="createCampaignAudience"
+                                name="TargetAudience"
+                                class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-primary outline-none">
+                            @foreach (var insight in Model.AudienceInsights)
+                            {
+                                if (string.Equals(insight.Audience, Model.CreateCampaignForm.TargetAudience, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <option value="@insight.Audience" selected>@insight.Audience</option>
+                                }
+                                else
+                                {
+                                    <option value="@insight.Audience">@insight.Audience</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3">
+                        <p id="createCampaignAudienceCount" class="text-sm font-semibold text-brand-primary">Eligible: 0</p>
+                        <p id="createCampaignAudienceHint" class="mt-1 text-xs text-gray-500">Audience details will show here.</p>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="createCampaignScheduledExecutionLocal" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Schedule Execution (Optional)</label>
+                    <input id="createCampaignScheduledExecutionLocal"
+                           name="ScheduledExecutionLocal"
+                           type="datetime-local"
+                           step="60"
+                           min="@minimumScheduleLocal"
+                           value="@Model.CreateCampaignForm.ScheduledExecutionLocal"
+                           class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-primary outline-none" />
+                    <p class="mt-1 text-xs text-gray-500">
+                        Leave blank to keep this campaign as Draft. If a date/time is set, it will auto-execute then, but you can still click Execute manually anytime.
+                    </p>
+                </div>
+
+                <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600">
+                    Send rules:
+                    1. Duplicate draft/scheduled campaigns with the same name and audience are blocked for 24 hours.
+                    2. Execution runs only for Draft, Scheduled, Completed (Some Failed), or No Matching Customers statuses.
+                    3. Scheduled campaigns auto-execute at the selected date/time if the worker is running.
+                    4. Recipients are customers with email enabled and valid addresses.
+                </div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" data-close-create-campaign-modal class="px-5 py-2.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 font-medium transition-colors">Cancel</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-lg bg-brand-primary text-white font-bold hover:bg-brand-primary/90 transition-colors shadow-lg">Create Campaign</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const modal = document.getElementById('createCampaignModal');
+            const openButton = document.getElementById('openCreateCampaignModal');
+            const closeButtons = document.querySelectorAll('[data-close-create-campaign-modal]');
+            const suggestionButtons = document.querySelectorAll('.js-use-campaign-suggestion');
+            const campaignNameInput = document.getElementById('createCampaignName');
+            const campaignDescriptionInput = document.getElementById('createCampaignDescription');
+            const audienceSelect = document.getElementById('createCampaignAudience');
+            const audienceCountLabel = document.getElementById('createCampaignAudienceCount');
+            const audienceHintLabel = document.getElementById('createCampaignAudienceHint');
+            const audienceSegmentsToggle = document.getElementById('toggleAudienceSegments');
+            const audienceSegmentsToggleLabel = document.getElementById('toggleAudienceSegmentsLabel');
+            const audienceSegmentsToggleIcon = document.getElementById('toggleAudienceSegmentsIcon');
+            const audienceSegmentsBody = document.getElementById('audienceSegmentsBody');
+            const filterForm = document.getElementById('marketingCampaignFiltersForm');
+            const searchFilterInput = document.getElementById('marketingCampaignSearchFilter');
+            const statusFilterSelect = document.getElementById('marketingCampaignStatusFilter');
+            const audienceFilterSelect = document.getElementById('marketingCampaignAudienceFilter');
+            const audienceInsights = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AudienceInsights));
+            const audienceSegmentsStorageKey = 'crm-marketing-audience-segments-hidden';
+            let marketingSearchTimer = null;
+
+            const insightLookup = {};
+            (Array.isArray(audienceInsights) ? audienceInsights : []).forEach(entry => {
+                const audienceName = (entry.audience || entry.Audience || '').toLowerCase();
+                if (!audienceName) {
+                    return;
+                }
+
+                insightLookup[audienceName] = {
+                    count: entry.eligibleCustomers ?? entry.EligibleCustomers ?? 0,
+                    description: entry.description || entry.Description || 'Customers eligible for campaign email.'
+                };
+            });
+
+            function syncAudiencePreview() {
+                if (!audienceSelect || !audienceCountLabel || !audienceHintLabel) {
+                    return;
+                }
+
+                const selectedAudience = (audienceSelect.value || '').toLowerCase();
+                const insight = insightLookup[selectedAudience];
+                if (!insight) {
+                    audienceCountLabel.textContent = 'Eligible: 0';
+                    audienceHintLabel.textContent = 'Audience details will show here.';
+                    return;
+                }
+
+                audienceCountLabel.textContent = `Eligible: ${insight.count}`;
+                audienceHintLabel.textContent = insight.description;
+            }
+
+            function openModal() {
+                if (!modal) {
+                    return;
+                }
+
+                modal.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+                syncAudiencePreview();
+            }
+
+            function closeModal() {
+                if (!modal) {
+                    return;
+                }
+
+                modal.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            }
+
+            function applyCampaignSuggestion(button) {
+                if (!button) {
+                    return;
+                }
+
+                const suggestedName = button.getAttribute('data-suggestion-name') || '';
+                const suggestedMessage = button.getAttribute('data-suggestion-message') || '';
+                const suggestedAudience = button.getAttribute('data-suggestion-audience') || '';
+
+                if (campaignNameInput) {
+                    campaignNameInput.value = suggestedName;
+                }
+
+                if (campaignDescriptionInput) {
+                    campaignDescriptionInput.value = suggestedMessage;
+                }
+
+                if (audienceSelect && suggestedAudience) {
+                    audienceSelect.value = suggestedAudience;
+                }
+
+                openModal();
+                syncAudiencePreview();
+            }
+
+            function setAudienceSegmentsHidden(isHidden) {
+                if (!audienceSegmentsBody) {
+                    return;
+                }
+
+                audienceSegmentsBody.classList.toggle('hidden', isHidden);
+
+                if (audienceSegmentsToggle) {
+                    audienceSegmentsToggle.setAttribute('aria-expanded', String(!isHidden));
+                }
+
+                if (audienceSegmentsToggleLabel) {
+                    audienceSegmentsToggleLabel.textContent = isHidden ? 'Show' : 'Hide';
+                }
+
+                if (audienceSegmentsToggleIcon) {
+                    audienceSegmentsToggleIcon.textContent = isHidden ? 'expand_more' : 'expand_less';
+                }
+            }
+
+            function submitMarketingFilters() {
+                if (!filterForm) {
+                    return;
+                }
+
+                if (typeof filterForm.requestSubmit === 'function') {
+                    filterForm.requestSubmit();
+                    return;
+                }
+
+                filterForm.submit();
+            }
+
+            if (openButton) {
+                openButton.addEventListener('click', openModal);
+            }
+
+            closeButtons.forEach(button => {
+                button.addEventListener('click', closeModal);
+            });
+
+            if (audienceSelect) {
+                audienceSelect.addEventListener('change', syncAudiencePreview);
+            }
+
+            suggestionButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    applyCampaignSuggestion(button);
+                });
+            });
+
+            if (audienceSegmentsToggle) {
+                audienceSegmentsToggle.addEventListener('click', function () {
+                    const isCurrentlyHidden = audienceSegmentsBody ? audienceSegmentsBody.classList.contains('hidden') : false;
+                    const nextHidden = !isCurrentlyHidden;
+                    setAudienceSegmentsHidden(nextHidden);
+
+                    try {
+                        window.localStorage.setItem(audienceSegmentsStorageKey, nextHidden ? '1' : '0');
+                    } catch {
+                    }
+                });
+            }
+
+            [statusFilterSelect, audienceFilterSelect].forEach(function (select) {
+                if (!select || !filterForm) {
+                    return;
+                }
+
+                select.addEventListener('change', function () {
+                    submitMarketingFilters();
+                });
+            });
+
+            if (searchFilterInput) {
+                searchFilterInput.addEventListener('keydown', function (event) {
+                    if (event.key !== 'Enter') {
+                        return;
+                    }
+
+                    event.preventDefault();
+
+                    if (marketingSearchTimer) {
+                        window.clearTimeout(marketingSearchTimer);
+                        marketingSearchTimer = null;
+                    }
+
+                    submitMarketingFilters();
+                });
+
+                searchFilterInput.addEventListener('input', function () {
+                    if (marketingSearchTimer) {
+                        window.clearTimeout(marketingSearchTimer);
+                    }
+
+                    marketingSearchTimer = window.setTimeout(function () {
+                        submitMarketingFilters();
+                    }, 450);
+                });
+            }
+
+            try {
+                const storedValue = window.localStorage.getItem(audienceSegmentsStorageKey);
+                setAudienceSegmentsHidden(storedValue === '1');
+            } catch {
+                setAudienceSegmentsHidden(false);
+            }
+
+            syncAudiencePreview();
+            if (modal && !modal.classList.contains('hidden')) {
+                document.body.classList.add('overflow-hidden');
+            }
+        });
+    </script>
+}

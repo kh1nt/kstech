@@ -1,0 +1,227 @@
+@model kstech.Models.ViewModels.StoreGamesViewModel
+@{
+    ViewData["Title"] = "Shop by Game";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+
+<div class="container mx-auto px-4 py-6">
+    <div class="mb-6">
+        <div class="flex items-center gap-2 text-xs text-store-muted mb-3">
+            <a href="@Url.Action("Index", "Store")" class="text-store-muted no-underline hover:text-store-accent">Home</a>
+            <span>/</span>
+            <span class="text-store-ink font-semibold">Shop by Game</span>
+        </div>
+        <h1 class="font-display text-2xl text-store-ink mb-1">Shop by Game</h1>
+        <p class="text-sm text-store-muted mb-0">Pick the game you want to play — we'll show you the hardware that can run it.</p>
+    </div>
+
+    @if (!Model.IsSteamConnected)
+    {
+        <div class="store-plain-card rounded-xl p-10 text-center mb-8">
+            <span class="material-icons-outlined text-slate-300 text-5xl block mb-3">account_circle</span>
+            <h2 class="font-display text-xl text-store-ink mb-1">Connect your Steam Profile</h2>
+            <p class="text-sm text-store-muted mb-4">Link your Steam account to automatically see hardware recommendations for the games you already own and play.</p>
+            <a href="@Url.Action("Profile", "Store")" class="inline-block px-4 py-2 rounded-lg bg-store-accent text-white text-sm font-semibold no-underline hover:bg-store-ink">Connect Steam</a>
+        </div>
+    }
+    else if (Model.PersonalGames.Any())
+    {
+        <div class="mb-8">
+            <h2 class="font-display text-xl text-store-ink mb-1">Recently Played Games</h2>
+            <p class="text-sm text-store-muted mb-4">Hardware recommendations for the Steam games you've been playing.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                @foreach (var game in Model.PersonalGames)
+                {
+                    <article class="store-plain-card rounded-xl overflow-hidden flex flex-col hover:-translate-y-1 hover:shadow-lg transition-all">
+                        @if (!string.IsNullOrWhiteSpace(game.BannerUrl))
+                        {
+                            <img src="@game.BannerUrl" alt="@game.Name" class="w-full aspect-video object-cover bg-slate-900" />
+                        }
+                        else
+                        {
+                            <div class="w-full aspect-video bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+                                <span class="material-icons-outlined text-slate-600 text-5xl">videogame_asset</span>
+                            </div>
+                        }
+
+                        <div class="p-4 flex flex-col flex-1">
+                            <h3 class="font-display text-base text-store-ink mb-1 leading-snug">@game.Name</h3>
+
+                            @if (game.Genres.Any())
+                            {
+                                <div class="flex flex-wrap gap-1 mb-2">
+                                    @foreach (var genre in game.Genres.Take(3))
+                                    {
+                                        <span class="inline-flex items-center rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-semibold px-2 py-0.5">@genre</span>
+                                    }
+                                </div>
+                            }
+
+                            <div class="flex items-center gap-1.5 text-xs text-store-muted mb-2 mt-auto">
+                                <span class="inline-block w-2 h-2 rounded-full @(game.PlayerCount > 0 ? "bg-emerald-400" : "bg-slate-300")"></span>
+                                <span class="font-semibold @(game.PlayerCount > 0 ? "text-emerald-600" : "text-slate-500")">@game.PlayerCount.ToString("N0")</span> playing right now
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(game.PcRequirementsMinHtml) || !string.IsNullOrWhiteSpace(game.PcRequirementsRecHtml))
+                            {
+                                <div class="mb-4 text-[11px] text-store-muted bg-slate-50 p-3 rounded-lg border border-slate-100 max-h-32 overflow-y-auto prose prose-sm prose-slate leading-snug steam-requirements-box">
+                                    @Html.Raw(game.PcRequirementsMinHtml)
+                                    @if (!string.IsNullOrWhiteSpace(game.PcRequirementsRecHtml))
+                                    {
+                                        <div class="mt-2 border-t border-slate-200 pt-2">
+                                            @Html.Raw(game.PcRequirementsRecHtml)
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            <div class="mt-auto">
+                                @if (!string.IsNullOrWhiteSpace(game.PcRequirementsMinHtml) || !string.IsNullOrWhiteSpace(game.PcRequirementsRecHtml))
+                                {
+                                    <div class="mb-2 flex flex-wrap gap-2">
+                                        @if (!string.IsNullOrWhiteSpace(game.PcRequirementsMinHtml))
+                                        {
+                                            <button type="button"
+                                                    class="js-pin-steam-spec inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-store-ink hover:border-store-accent"
+                                                    data-game-title="@game.Name"
+                                                    data-steam-app-id="@game.SteamAppId"
+                                                    data-spec-tier="Minimum"
+                                                    data-spec-html="@game.PcRequirementsMinHtml">
+                                                <span class="material-icons-outlined text-sm">push_pin</span>
+                                                Pin min
+                                            </button>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(game.PcRequirementsRecHtml))
+                                        {
+                                            <button type="button"
+                                                    class="js-pin-steam-spec inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-store-ink hover:border-store-accent"
+                                                    data-game-title="@game.Name"
+                                                    data-steam-app-id="@game.SteamAppId"
+                                                    data-spec-tier="Recommended"
+                                                    data-spec-html="@game.PcRequirementsRecHtml">
+                                                <span class="material-icons-outlined text-sm">push_pin</span>
+                                                Pin rec
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                                <a href="@Url.Action("Products", "Store", new { steamAppId = game.SteamAppId })"
+                                   class="block w-full text-center rounded-lg bg-store-accent text-white text-sm font-semibold px-4 py-2 no-underline hover:bg-store-ink store-action-btn">
+                                    🎮 Shop compatible hardware
+                                </a>
+                            </div>
+                        </div>
+                    </article>
+                }
+            </div>
+            
+
+        </div>
+    }
+
+    <div class="mb-4">
+        <h2 class="font-display text-xl text-store-ink mb-1">Trending on Steam</h2>
+        <p class="text-sm text-store-muted">Discover top-played games on Steam, refreshed daily.</p>
+    </div>
+
+    @if (!Model.Games.Any())
+    {
+        <div class="store-plain-card rounded-xl p-10 text-center">
+            <span class="material-icons-outlined text-slate-300 text-5xl block mb-3">videogame_asset</span>
+            <h3 class="font-display text-xl text-store-ink mb-1">No games listed yet</h3>
+            <p class="text-sm text-store-muted mb-4">Game data will appear here once games are added to the catalog.</p>
+            <a href="@Url.Action("Products", "Store")" class="inline-block px-4 py-2 rounded-lg bg-store-accent text-white text-sm font-semibold no-underline hover:bg-store-ink">Browse all products</a>
+        </div>
+    }
+    else
+    {
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            @foreach (var game in Model.Games)
+            {
+                <article class="store-plain-card rounded-xl overflow-hidden flex flex-col hover:-translate-y-1 hover:shadow-lg transition-all">
+                    @if (!string.IsNullOrWhiteSpace(game.BannerUrl))
+                    {
+                        <img src="@game.BannerUrl" alt="@game.Name" class="w-full aspect-video object-cover bg-slate-900" />
+                    }
+                    else
+                    {
+                        <div class="w-full aspect-video bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+                            <span class="material-icons-outlined text-slate-600 text-5xl">videogame_asset</span>
+                        </div>
+                    }
+
+                    <div class="p-4 flex flex-col flex-1">
+                        <h2 class="font-display text-base text-store-ink mb-1 leading-snug">@game.Name</h2>
+
+                        @if (game.Genres.Any())
+                        {
+                            <div class="flex flex-wrap gap-1 mb-2">
+                                @foreach (var genre in game.Genres.Take(3))
+                                {
+                                    <span class="inline-flex items-center rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-semibold px-2 py-0.5">@genre</span>
+                                }
+                            </div>
+                        }
+
+                        <div class="flex items-center gap-1.5 text-xs text-store-muted mb-2 mt-auto">
+                            <span class="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+                            <span class="font-semibold text-emerald-600">@game.PlayerCount.ToString("N0")</span> peak concurrent players
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(game.PcRequirementsMinHtml) || !string.IsNullOrWhiteSpace(game.PcRequirementsRecHtml))
+                        {
+                            <div class="mb-4 text-[11px] text-store-muted bg-slate-50 p-3 rounded-lg border border-slate-100 max-h-32 overflow-y-auto prose prose-sm prose-slate leading-snug steam-requirements-box">
+                                @Html.Raw(game.PcRequirementsMinHtml)
+                                @if (!string.IsNullOrWhiteSpace(game.PcRequirementsRecHtml))
+                                {
+                                    <div class="mt-2 border-t border-slate-200 pt-2">
+                                        @Html.Raw(game.PcRequirementsRecHtml)
+                                    </div>
+                                }
+                            </div>
+                        }
+                        <div class="mt-auto">
+                            @if (!string.IsNullOrWhiteSpace(game.PcRequirementsMinHtml) || !string.IsNullOrWhiteSpace(game.PcRequirementsRecHtml))
+                            {
+                                <div class="mb-2 flex flex-wrap gap-2">
+                                    @if (!string.IsNullOrWhiteSpace(game.PcRequirementsMinHtml))
+                                    {
+                                        <button type="button"
+                                                class="js-pin-steam-spec inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-store-ink hover:border-store-accent"
+                                                data-game-title="@game.Name"
+                                                data-steam-app-id="@game.SteamAppId"
+                                                data-spec-tier="Minimum"
+                                                data-spec-html="@game.PcRequirementsMinHtml">
+                                            <span class="material-icons-outlined text-sm">push_pin</span>
+                                            Pin min
+                                        </button>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(game.PcRequirementsRecHtml))
+                                    {
+                                        <button type="button"
+                                                class="js-pin-steam-spec inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-store-ink hover:border-store-accent"
+                                                data-game-title="@game.Name"
+                                                data-steam-app-id="@game.SteamAppId"
+                                                data-spec-tier="Recommended"
+                                                data-spec-html="@game.PcRequirementsRecHtml">
+                                            <span class="material-icons-outlined text-sm">push_pin</span>
+                                            Pin rec
+                                        </button>
+                                    }
+                                </div>
+                            }
+                            <a href="@Url.Action("Products", "Store", new { steamAppId = game.SteamAppId })"
+                               class="block w-full text-center rounded-lg bg-store-accent text-white text-sm font-semibold px-4 py-2 no-underline hover:bg-store-ink store-action-btn">
+                                🎮 Shop compatible hardware
+                            </a>
+                            <a href="https://store.steampowered.com/app/@game.SteamAppId"
+                               target="_blank" rel="noopener"
+                               class="block w-full text-center rounded-lg border border-slate-200 text-store-muted text-xs font-semibold px-4 py-1.5 no-underline hover:border-store-accent hover:text-store-ink mt-2">
+                                View on Steam ↗
+                            </a>
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</div>

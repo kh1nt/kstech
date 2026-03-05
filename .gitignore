@@ -1,0 +1,51 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+[Pp]ublish/
+artifacts/
+TestResults/
+BenchmarkDotNet.Artifacts/
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+*.csproj.user
+*.vcxproj.user
+*.dbmdl
+
+# JetBrains
+.idea/
+*.sln.iml
+_ReSharper*/
+*.DotSettings.user
+
+# NuGet packages
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+
+# Publish profiles (machine/user-specific)
+*.pubxml.user
+
+# Local secrets / environment files
+.env
+.env.*
+!.env.example
+!.env.template
+
+# OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Generated logs and traces
+*.log
+*.trace

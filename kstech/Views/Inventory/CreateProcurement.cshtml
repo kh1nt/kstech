@@ -1,0 +1,70 @@
+@model kstech.Models.ProcurementViewModel
+
+@{
+    ViewData["Title"] = "New Purchase Order";
+    var products = ViewBag.Products as List<kstech.Models.ProductViewModel> ?? new List<kstech.Models.ProductViewModel>();
+    var budgetOptions = ViewBag.ProcurementBudgetOptions as List<kstech.Models.ViewModels.ProcurementBudgetOptionViewModel> ?? new List<kstech.Models.ViewModels.ProcurementBudgetOptionViewModel>();
+}
+
+<div class="max-w-3xl mx-auto">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">New Purchase Order</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Create a draft PO before approval and receiving.</p>
+        </div>
+        <a asp-action="Procurement" class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            &larr; Back to Procurement List
+        </a>
+    </div>
+
+    <div class="bg-white dark:bg-card-dark rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+        <form asp-action="CreateProcurement" method="post" class="space-y-6">
+            <div>
+                <label asp-for="SupplierName" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Supplier Name</label>
+                <input asp-for="SupplierName" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary" required />
+            </div>
+
+            <div>
+                <label asp-for="BudgetId" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Budget (Optional)</label>
+                <select asp-for="BudgetId" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary">
+                    <option value="">No budget (approve without budget)</option>
+                    @foreach (var budget in budgetOptions)
+                    {
+                        <option value="@budget.BudgetId">@budget.Label | Available @budget.AvailableAmount.ToString("C")</option>
+                    }
+                </select>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Budget linkage is optional.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                <div class="md:col-span-6">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product</label>
+                    <select name="Items[0].ProductId" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary" required>
+                        <option value="">Select Product...</option>
+                        @foreach (var product in products)
+                        {
+                            <option value="@product.Id">@product.Name (Stock: @product.StockQuantity)</option>
+                        }
+                    </select>
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ordered Quantity</label>
+                    <input type="number" name="Items[0].QuantityOrdered" min="1" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary" required />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cost Per Item (PHP)</label>
+                    <input type="number" name="Items[0].CostPerItem" step="0.01" min="0" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary" required />
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 border-t border-gray-100 dark:border-gray-700 pt-6">
+                <a asp-action="Procurement" class="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium transition-colors">
+                    Cancel
+                </a>
+                <button type="submit" class="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 font-medium transition-colors">
+                    Save Draft PO
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

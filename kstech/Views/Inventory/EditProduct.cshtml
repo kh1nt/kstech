@@ -1,0 +1,114 @@
+@model kstech.Models.ProductViewModel
+
+@{
+    ViewData["Title"] = "Edit Product";
+}
+
+<div class="max-w-3xl mx-auto">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Edit Product</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Update inventory and pricing details.</p>
+        </div>
+        <a asp-action="Products" class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            &larr; Back to Products
+        </a>
+    </div>
+
+    <div class="bg-white dark:bg-card-dark rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+        <form asp-action="EditProduct" method="post" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input asp-for="Id" type="hidden" />
+            <div>
+                <label asp-for="Name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name</label>
+                <input asp-for="Name" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary" required />
+            </div>
+            <div>
+                <label asp-for="Sku" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SKU</label>
+                <input asp-for="Sku" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary" required />
+            </div>
+            <div>
+                <label asp-for="Category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                <input asp-for="Category" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary" />
+            </div>
+            <div>
+                <label asp-for="Brand" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Brand</label>
+                <input asp-for="Brand" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary" />
+            </div>
+            <div class="md:col-span-2">
+                <label asp-for="Description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                <textarea asp-for="Description" rows="3" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary"></textarea>
+            </div>
+            <div>
+                <label asp-for="StockQuantity" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stock Quantity</label>
+                <input asp-for="StockQuantity" type="number" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary" />
+            </div>
+            <div>
+                <label asp-for="UnitCost" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Unit Cost</label>
+                <input asp-for="UnitCost" type="number" step="0.01" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary" />
+            </div>
+            <div>
+                <label asp-for="RetailPrice" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Retail Price</label>
+                <input asp-for="RetailPrice" type="number" step="0.01" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary" />
+            </div>
+            <div>
+                <label asp-for="EbayLivePrice" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Manual eBay Reference (PHP)</label>
+                <div class="flex gap-2">
+                    <input asp-for="EbayLivePrice" type="number" step="0.01" class="flex-1 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-brand-primary focus:border-brand-primary" />
+                    <button type="button" id="fetchPriceBtn" class="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 text-sm font-medium transition-colors border border-indigo-200">
+                        Fetch Suggested Price
+                    </button>
+                </div>
+            </div>
+
+            <div class="md:col-span-2 mt-4 flex justify-end gap-3">
+                <a asp-action="Products" class="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium transition-colors">
+                    Cancel
+                </a>
+                <button type="submit" class="px-4 py-2 rounded-lg bg-brand-primary text-white hover:bg-brand-primary/90 font-medium transition-colors">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const fetchPriceBtn = document.getElementById('fetchPriceBtn');
+            const nameInput = document.getElementById('Name');
+            const skuInput = document.getElementById('Sku');
+            const retailPriceInput = document.getElementById('RetailPrice');
+            const ebayPriceInput = document.getElementById('EbayLivePrice');
+
+            if (fetchPriceBtn) {
+                fetchPriceBtn.addEventListener('click', async function () {
+                    const query = nameInput.value.trim() || skuInput.value.trim();
+                    if (!query) {
+                        alert("Please enter a Product Name or SKU first.");
+                        return;
+                    }
+
+                    fetchPriceBtn.disabled = true;
+                    fetchPriceBtn.innerText = "Fetching...";
+
+                    try {
+                        const response = await fetch(`/Inventory/FetchSuggestedPrice?query=${encodeURIComponent(query)}`);
+                        if (!response.ok) {
+                            throw new Error("Could not fetch price.");
+                        }
+                        const data = await response.json();
+                        retailPriceInput.value = data.price;
+                        ebayPriceInput.value = data.price;
+                        alert(`Suggested price found: ${data.currency} ${data.price}`);
+                    } catch (error) {
+                        alert("Failed to fetch suggested price or price not found.");
+                    } finally {
+                        fetchPriceBtn.disabled = false;
+                        fetchPriceBtn.innerText = "Fetch Suggested Price";
+                    }
+                });
+            }
+        });
+    </script>
+}

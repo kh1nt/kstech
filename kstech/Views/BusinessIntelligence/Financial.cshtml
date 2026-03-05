@@ -1,0 +1,500 @@
+@model kstech.Models.ViewModels.FinancialPerformanceViewModel
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Financial Analytics";
+    var selectedRange = string.IsNullOrWhiteSpace(Model.SelectedDateRange) ? "this_month" : Model.SelectedDateRange;
+    var selectedRangeLabel = selectedRange switch
+    {
+        "today" => "Today",
+        "yesterday" => "Yesterday",
+        "last_7_days" => "Last 7 Days",
+        "this_year" => "This Year",
+        "custom" => "Custom Range",
+        _ => "Monthly"
+    };
+}
+
+<div class="bi-dashboard-container">
+    <div class="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-bold text-text-light dark:text-text-dark">Financial Analytics</h1>
+            <p class="text-muted-light dark:text-muted-dark text-sm mt-1">
+                Profitability and cost visibility for @Model.FilterStartDate.ToString("MMM dd, yyyy") - @Model.FilterEndDate.ToString("MMM dd, yyyy").
+            </p>
+        </div>
+        <form asp-action="Financial" method="get" id="financialFilterForm" class="flex flex-wrap items-end gap-2 md:justify-end">
+            <input type="hidden" id="rangePreset" name="range" value="@selectedRange" />
+            <input type="hidden" name="pageSize" value="@Model.RecentTransactionsPageSize" />
+            <div class="relative">
+                <button type="button"
+                        id="rangePresetToggle"
+                        class="min-w-40 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2.5 flex items-center justify-between gap-2 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-primary/30">
+                    <span class="flex items-center gap-2">
+                        <span class="material-icons-outlined text-[18px] text-gray-500 dark:text-gray-300">calendar_today</span>
+                        <span id="rangePresetLabel" class="text-sm font-medium text-gray-700 dark:text-gray-200">@selectedRangeLabel</span>
+                    </span>
+                    <span class="material-icons-outlined text-[18px] text-gray-500 dark:text-gray-300">expand_more</span>
+                </button>
+                <div id="rangePresetMenu" class="hidden absolute left-0 z-20 mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark shadow-lg">
+                    <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="today">Today</button>
+                    <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="yesterday">Yesterday</button>
+                    <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="last_7_days">Last 7 Days</button>
+                    <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="this_month">This Month</button>
+                    <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="this_year">This Year</button>
+                    <div class="border-t border-gray-200 dark:border-gray-700"></div>
+                    <button type="button" class="range-preset-option block w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700" data-range="custom">Custom Range</button>
+                </div>
+            </div>
+
+            <div id="customRangeFields" class="flex flex-wrap items-end gap-2 @(selectedRange == "custom" ? string.Empty : "hidden")">
+                <div>
+                    <label for="startDate" class="block text-xs text-gray-500 mb-1">From</label>
+                    <input id="startDate" name="startDate" type="date" value="@Model.FilterStartDate.ToString("yyyy-MM-dd")" class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm" />
+                </div>
+                <div>
+                    <label for="endDate" class="block text-xs text-gray-500 mb-1">To</label>
+                    <input id="endDate" name="endDate" type="date" value="@Model.FilterEndDate.ToString("yyyy-MM-dd")" class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm" />
+                </div>
+            </div>
+
+            <div>
+                <label for="paymentScope" class="block text-xs text-gray-500 mb-1">Payment scope</label>
+                <select id="paymentScope" name="paymentScope" class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm">
+                    <option value="paid_only" selected="@(Model.SelectedPaymentScope == "paid_only" ? "selected" : null)">Paid only</option>
+                    <option value="all" selected="@(Model.SelectedPaymentScope == "all" ? "selected" : null)">All</option>
+                    <option value="pending_only" selected="@(Model.SelectedPaymentScope == "pending_only" ? "selected" : null)">Pending only</option>
+                    <option value="refunded_only" selected="@(Model.SelectedPaymentScope == "refunded_only" ? "selected" : null)">Refunded only</option>
+                </select>
+            </div>
+
+            <button type="submit" class="hidden">Apply</button>
+            <a asp-action="Financial" asp-route-range="this_month" class="rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 no-underline">Reset</a>
+            <a asp-action="ExportFinancialReportPdf"
+               asp-route-range="@Model.SelectedDateRange"
+               asp-route-startDate="@Model.FilterStartDate.ToString("yyyy-MM-dd")"
+               asp-route-endDate="@Model.FilterEndDate.ToString("yyyy-MM-dd")"
+               asp-route-paymentScope="@Model.SelectedPaymentScope"
+               class="rounded-lg bg-brand-primary px-3 py-2 text-sm font-medium text-white hover:bg-brand-primary/90 no-underline">
+                Export PDF
+            </a>
+        </form>
+</div>
+
+<div class="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="h-full bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Revenue</p>
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1">@Model.Revenue.ToString("C")</h3>
+            <p class="text-xs mt-2 @(Model.RevenueChangePercentage >= 0 ? "text-green-600" : "text-red-600")">
+                @(Model.RevenueChangePercentage >= 0 ? "+" : "")@Model.RevenueChangePercentage.ToString("0.##")% vs previous period
+            </p>
+        </div>
+
+        <div class="h-full bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">COGS</p>
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1">@Model.CostOfGoodsSold.ToString("C")</h3>
+            <p class="text-xs mt-2 text-gray-500 dark:text-gray-400">Calculated from product cost price at sale quantity.</p>
+        </div>
+
+        <div class="h-full bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Gross Profit</p>
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1">@Model.GrossProfit.ToString("C")</h3>
+            <p class="text-xs mt-2 @(Model.GrossProfitChangePercentage >= 0 ? "text-green-600" : "text-red-600")">
+                @(Model.GrossProfitChangePercentage >= 0 ? "+" : "")@Model.GrossProfitChangePercentage.ToString("0.##")% vs previous period
+            </p>
+        </div>
+
+        <div class="h-full bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Net Profit Margin</p>
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1">@Model.NetProfitMargin.ToString("0.##")%</h3>
+            <p class="text-xs mt-2 @(Model.MarginChangePercentage >= 0 ? "text-green-600" : "text-red-600")">
+                @(Model.MarginChangePercentage >= 0 ? "+" : "")@Model.MarginChangePercentage.ToString("0.##")% vs previous period
+            </p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div class="lg:col-span-2 bg-card-light dark:bg-card-dark p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-bold text-text-light dark:text-text-dark">Gross Profit Trend</h2>
+            </div>
+            <div class="relative h-64 w-full">
+                <canvas id="profitBarChart"></canvas>
+            </div>
+        </div>
+
+        <div class="bg-card-light dark:bg-card-dark p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-bold text-text-light dark:text-text-dark">Profit by Category</h2>
+                <span class="text-xs text-muted-light dark:text-muted-dark">@selectedRangeLabel</span>
+            </div>
+            <div class="relative h-48 w-full flex justify-center mb-4">
+                <canvas id="categoryProfitChart"></canvas>
+            </div>
+            <div class="space-y-3 mt-4">
+                @if (Model.ProfitByCategory.Any())
+                {
+                    foreach (var item in Model.ProfitByCategory)
+                    {
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-muted-light dark:text-muted-dark">@item.Category</span>
+                            <span class="font-semibold text-text-light dark:text-text-dark">@item.Percentage.ToString("0.##")%</span>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p class="text-sm text-muted-light dark:text-muted-dark">No category profitability data yet.</p>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-card-light dark:bg-card-dark rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div class="p-6 border-b border-gray-100 dark:border-gray-700">
+            <h2 class="text-lg font-bold text-text-light dark:text-text-dark">Recent Transactions & Profit</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-50/50 dark:bg-gray-800/50 text-xs uppercase tracking-wider text-muted-light dark:text-muted-dark font-semibold">
+                        <th class="px-6 py-4">Transaction ID</th>
+                        <th class="px-6 py-4">Product Name</th>
+                        <th class="px-6 py-4">Category</th>
+                        <th class="px-6 py-4">Sale Price</th>
+                        <th class="px-6 py-4">Cost</th>
+                        <th class="px-6 py-4">Profit</th>
+                        <th class="px-6 py-4 text-right">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700 text-sm">
+                    @if (Model.RecentTransactions.Any())
+                    {
+                        foreach (var transaction in Model.RecentTransactions)
+                        {
+                            var statusCss = transaction.Status switch
+                            {
+                                "Paid" => "bg-green-100 text-green-800",
+                                "Refunded" => "bg-red-100 text-red-800",
+                                _ => "bg-yellow-100 text-yellow-800"
+                            };
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                <td class="px-6 py-4 font-medium text-text-light dark:text-text-dark">@transaction.TransactionId</td>
+                                <td class="px-6 py-4 text-text-light dark:text-text-dark">@transaction.ProductName</td>
+                                <td class="px-6 py-4 text-muted-light dark:text-muted-dark">@transaction.Category</td>
+                                <td class="px-6 py-4 text-text-light dark:text-text-dark font-medium">@transaction.SalePrice.ToString("C")</td>
+                                <td class="px-6 py-4 text-muted-light dark:text-muted-dark">@transaction.Cost.ToString("C")</td>
+                                <td class="px-6 py-4 @(transaction.Profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400") font-bold">
+                                    @(transaction.Profit >= 0 ? "+" : "")@transaction.Profit.ToString("C")
+                                </td>
+                                <td class="px-6 py-4 text-right">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium @statusCss">
+                                        @transaction.Status
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="7" class="px-6 py-8 text-center text-muted-light dark:text-muted-dark">
+                                No transactions available for this period.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="p-4 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50/30 dark:bg-gray-800/20">
+            <div class="text-xs text-gray-500 text-[13px]">
+                Showing
+                <span class="font-bold text-gray-900 dark:text-white">@Model.RecentTransactionsStartItem</span>
+                to
+                <span class="font-bold text-gray-900 dark:text-white">@Model.RecentTransactionsEndItem</span>
+                of
+                <span class="font-bold text-gray-900 dark:text-white">@Model.RecentTransactionsTotalCount</span>
+                recent transactions
+            </div>
+            @if (Model.RecentTransactionsTotalPages > 0)
+            {
+                var startPage = Math.Max(1, Model.RecentTransactionsPage - 1);
+                var endPage = Math.Min(Model.RecentTransactionsTotalPages, startPage + 2);
+                startPage = Math.Max(1, endPage - 2);
+
+                <div class="flex items-center gap-2">
+                    @if (Model.HasPreviousRecentTransactionsPage)
+                    {
+                        <a asp-action="Financial"
+                           asp-route-range="@Model.SelectedDateRange"
+                           asp-route-startDate="@Model.FilterStartDate.ToString("yyyy-MM-dd")"
+                           asp-route-endDate="@Model.FilterEndDate.ToString("yyyy-MM-dd")"
+                           asp-route-paymentScope="@Model.SelectedPaymentScope"
+                           asp-route-page="@(Model.RecentTransactionsPage - 1)"
+                           asp-route-pageSize="@Model.RecentTransactionsPageSize"
+                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors no-underline">
+                            <span class="material-icons-outlined text-[18px]">chevron_left</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                            <span class="material-icons-outlined text-[18px]">chevron_left</span>
+                        </span>
+                    }
+
+                    @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                    {
+                        if (pageNumber == Model.RecentTransactionsPage)
+                        {
+                            <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-brand-primary bg-brand-primary text-white text-sm font-semibold">
+                                @pageNumber
+                            </span>
+                        }
+                        else
+                        {
+                            <a asp-action="Financial"
+                               asp-route-range="@Model.SelectedDateRange"
+                               asp-route-startDate="@Model.FilterStartDate.ToString("yyyy-MM-dd")"
+                               asp-route-endDate="@Model.FilterEndDate.ToString("yyyy-MM-dd")"
+                               asp-route-paymentScope="@Model.SelectedPaymentScope"
+                               asp-route-page="@pageNumber"
+                               asp-route-pageSize="@Model.RecentTransactionsPageSize"
+                               class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-semibold no-underline">
+                                @pageNumber
+                            </a>
+                        }
+                    }
+
+                    @if (Model.HasNextRecentTransactionsPage)
+                    {
+                        <a asp-action="Financial"
+                           asp-route-range="@Model.SelectedDateRange"
+                           asp-route-startDate="@Model.FilterStartDate.ToString("yyyy-MM-dd")"
+                           asp-route-endDate="@Model.FilterEndDate.ToString("yyyy-MM-dd")"
+                           asp-route-paymentScope="@Model.SelectedPaymentScope"
+                           asp-route-page="@(Model.RecentTransactionsPage + 1)"
+                           asp-route-pageSize="@Model.RecentTransactionsPageSize"
+                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors no-underline">
+                            <span class="material-icons-outlined text-[18px]">chevron_right</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                            <span class="material-icons-outlined text-[18px]">chevron_right</span>
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const dateFilterForm = document.getElementById('financialFilterForm');
+        const rangePresetInput = document.getElementById('rangePreset');
+        const rangePresetToggle = document.getElementById('rangePresetToggle');
+        const rangePresetLabel = document.getElementById('rangePresetLabel');
+        const rangePresetMenu = document.getElementById('rangePresetMenu');
+        const customRangeFields = document.getElementById('customRangeFields');
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+
+        const rangeLabels = {
+            today: 'Today',
+            yesterday: 'Yesterday',
+            last_7_days: 'Last 7 Days',
+            this_month: 'Monthly',
+            this_year: 'This Year',
+            custom: 'Custom Range'
+        };
+
+        function toLocalDateInputValue(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function getLocalToday() {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return today;
+        }
+
+        function resolvePresetDates(range) {
+            const end = getLocalToday();
+            const start = new Date(end);
+
+            switch (range) {
+                case 'today':
+                    break;
+                case 'yesterday':
+                    start.setDate(start.getDate() - 1);
+                    end.setDate(end.getDate() - 1);
+                    break;
+                case 'last_7_days':
+                    start.setDate(start.getDate() - 6);
+                    break;
+                case 'this_year':
+                    start.setMonth(0, 1);
+                    break;
+                case 'this_month':
+                default:
+                    start.setDate(1);
+                    break;
+            }
+
+            return { start, end };
+        }
+
+        function syncDateBounds() {
+            if (!startDateInput || !endDateInput) {
+                return;
+            }
+
+            startDateInput.max = endDateInput.value || '';
+            endDateInput.min = startDateInput.value || '';
+        }
+
+        function setRangeLabel(range) {
+            if (!rangePresetLabel) {
+                return;
+            }
+
+            rangePresetLabel.textContent = rangeLabels[range] || rangeLabels.this_month;
+        }
+
+        function setCustomRangeVisibility(showCustom) {
+            if (!customRangeFields) {
+                return;
+            }
+
+            customRangeFields.classList.toggle('hidden', !showCustom);
+        }
+
+        function closePresetMenu() {
+            rangePresetMenu?.classList.add('hidden');
+        }
+
+        function selectPreset(range, shouldSubmit) {
+            if (!rangePresetInput) {
+                return;
+            }
+
+            rangePresetInput.value = range;
+            setRangeLabel(range);
+
+            const isCustomRange = range === 'custom';
+            setCustomRangeVisibility(isCustomRange);
+
+            if (!isCustomRange) {
+                const { start, end } = resolvePresetDates(range);
+                if (startDateInput && endDateInput) {
+                    startDateInput.value = toLocalDateInputValue(start);
+                    endDateInput.value = toLocalDateInputValue(end);
+                    syncDateBounds();
+                }
+
+                if (shouldSubmit) {
+                    dateFilterForm?.submit();
+                }
+            }
+        }
+
+        rangePresetToggle?.addEventListener('click', () => {
+            rangePresetMenu?.classList.toggle('hidden');
+        });
+
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof Node)) {
+                return;
+            }
+
+            if (!rangePresetMenu?.contains(target) && !rangePresetToggle?.contains(target)) {
+                closePresetMenu();
+            }
+        });
+
+        document.querySelectorAll('.range-preset-option').forEach((option) => {
+            option.addEventListener('click', () => {
+                const selectedRange = option.dataset.range || 'this_month';
+                closePresetMenu();
+                selectPreset(selectedRange, selectedRange !== 'custom');
+            });
+        });
+
+        startDateInput?.addEventListener('change', syncDateBounds);
+        endDateInput?.addEventListener('change', syncDateBounds);
+
+        setRangeLabel(rangePresetInput?.value || 'this_month');
+        setCustomRangeVisibility((rangePresetInput?.value || 'this_month') === 'custom');
+        syncDateBounds();
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const dailyLabels = @Html.Raw(JsonSerializer.Serialize(Model.DailyProfitLabels));
+            const dailyValues = @Html.Raw(JsonSerializer.Serialize(Model.DailyProfitValues));
+            const categoryData = @Html.Raw(JsonSerializer.Serialize(Model.ProfitByCategory));
+
+            const barCanvas = document.getElementById("profitBarChart");
+            const pieCanvas = document.getElementById("categoryProfitChart");
+            if (!barCanvas || !pieCanvas) {
+                return;
+            }
+
+            new Chart(barCanvas.getContext("2d"), {
+                type: "bar",
+                data: {
+                    labels: dailyLabels,
+                    datasets: [{
+                        label: "Gross Profit",
+                        data: dailyValues,
+                        backgroundColor: "#236460",
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: "#9ca3af", maxTicksLimit: 12 }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: "rgba(0,0,0,0.05)" },
+                            ticks: {
+                                color: "#9ca3af",
+                                callback: value => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(value)
+                            }
+                        }
+                    }
+                }
+            });
+
+            new Chart(pieCanvas.getContext("2d"), {
+                type: "doughnut",
+                data: {
+                    labels: categoryData.map(item => item.Category),
+                    datasets: [{
+                        data: categoryData.map(item => item.Percentage),
+                        backgroundColor: ["#236460", "#a9f090", "#4fd1c5", "#6AD2FF", "#fcd34d", "#fca5a5"],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: "72%",
+                    plugins: { legend: { display: false } }
+                }
+            });
+        });
+    </script>
+}

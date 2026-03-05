@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - KSTech</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/kstech.styles.css" asp-append-version="true" />
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+        }
+        .auth-wrapper {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .auth-card {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            width: 100%;
+            max-width: 1000px;
+            display: flex;
+            flex-direction: row;
+        }
+        .auth-sidebar {
+            background-color: #1a5c58; /* Matching the example screenshot color */
+            color: white;
+            padding: 3rem;
+            width: 45%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+        }
+        .auth-content {
+            padding: 3rem;
+            width: 55%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .brand-logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .brand-logo img {
+            height: 40px;
+        }
+        .btn-primary {
+            background-color: #98f5a4; /* Light green action button */
+            border-color: #98f5a4;
+            color: #0f3936;
+            font-weight: 600;
+            padding: 0.75rem;
+        }
+        .btn-primary:hover {
+            background-color: #8bed98;
+            border-color: #8bed98;
+            color: #0f3936;
+        }
+        .form-control {
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #e2e8f0;
+        }
+        .form-control:focus {
+            box-shadow: 0 0 0 3px rgba(152, 245, 164, 0.25);
+            border-color: #98f5a4;
+        }
+        .input-group-text {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-right: none;
+        }
+        .input-group .form-control {
+            border-left: none;
+        }
+        
+        
+        @@media (max-width: 768px) {
+            .auth-card {
+                flex-direction: column;
+                max-width: 400px; /* Limit width on mobile */
+            }
+            .auth-sidebar {
+                width: 100%;
+                padding: 2rem;
+                text-align: center;
+            }
+            .auth-content {
+                width: 100%;
+                padding: 2rem;
+            }
+            .brand-logo {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-wrapper">
+        @RenderBody()
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

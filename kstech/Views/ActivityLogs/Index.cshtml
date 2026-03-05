@@ -1,0 +1,238 @@
+@model kstech.Models.ViewModels.ActivityLogIndexViewModel
+@using kstech.Utilities
+@{
+    ViewData["Title"] = "Security & Activity Logs";
+}
+
+<div class="flex flex-col min-h-0 space-y-6">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Security & Activity Logs</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Track account events and operational actions with searchable filters.</p>
+        </div>
+        <a asp-action="ExportCsv"
+           asp-route-search="@Model.Search"
+           asp-route-role="@Model.Role"
+           asp-route-days="@Model.Days"
+           class="inline-flex items-center gap-2 px-4 py-2 bg-brand-secondary text-brand-primary rounded-lg hover:brightness-95 transition-colors shadow-sm text-sm font-bold no-underline">
+            <span class="material-icons-outlined text-[18px]">download</span>
+            Export CSV
+        </a>
+    </div>
+
+    <div class="bg-white dark:bg-card-dark rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col">
+        <form method="get" class="p-5 border-b border-gray-100 dark:border-gray-700 grid grid-cols-1 md:grid-cols-12 gap-3 bg-gray-50/50 dark:bg-gray-800/30">
+            <input type="hidden" name="pageSize" value="@Model.PageSize" />
+            <div class="md:col-span-5">
+                <label for="search" class="sr-only">Search</label>
+                <div class="relative">
+                    <span class="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[20px]">search</span>
+                    <input id="search"
+                           type="search"
+                           name="search"
+                           value="@Model.Search"
+                           placeholder="Search action, user name, or role"
+                           class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary outline-none transition-all shadow-sm text-sm" />
+                </div>
+            </div>
+            <div class="md:col-span-3">
+                <label for="role" class="sr-only">Role</label>
+                <select id="role"
+                        name="role"
+                        class="w-full py-2.5 px-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-sm">
+                    @foreach (var option in Model.Roles)
+                    {
+                        if (option == Model.Role)
+                        {
+                            <option value="@option" selected>@option</option>
+                        }
+                        else
+                        {
+                            <option value="@option">@option</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="md:col-span-2">
+                <label for="days" class="sr-only">Time Range</label>
+                <select id="days"
+                        name="days"
+                        class="w-full py-2.5 px-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-sm">
+                    @if (Model.Days == 1)
+                    {
+                        <option value="1" selected>Last 24h</option>
+                    }
+                    else
+                    {
+                        <option value="1">Last 24h</option>
+                    }
+                    @if (Model.Days == 7)
+                    {
+                        <option value="7" selected>Last 7d</option>
+                    }
+                    else
+                    {
+                        <option value="7">Last 7d</option>
+                    }
+                    @if (Model.Days == 30)
+                    {
+                        <option value="30" selected>Last 30d</option>
+                    }
+                    else
+                    {
+                        <option value="30">Last 30d</option>
+                    }
+                    @if (Model.Days == 90)
+                    {
+                        <option value="90" selected>Last 90d</option>
+                    }
+                    else
+                    {
+                        <option value="90">Last 90d</option>
+                    }
+                </select>
+            </div>
+            <div class="md:col-span-2 flex items-center gap-2 md:justify-end">
+                <button type="submit"
+                        class="hidden flex-1 md:flex-none px-4 py-2.5 rounded-xl bg-brand-primary text-white text-sm font-semibold hover:brightness-95 transition inline-flex items-center justify-center gap-2">
+                    <span class="material-icons-outlined text-[18px]">check_circle</span>
+                    Apply
+                </button>
+                <a asp-action="Index"
+                   class="inline-flex items-center justify-center h-10 w-10 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                   title="Clear filters"
+                   aria-label="Clear filters">
+                    <span class="material-icons-outlined text-[18px]">filter_alt_off</span>
+                </a>
+            </div>
+        </form>
+
+        <div class="overflow-x-auto overflow-y-auto max-h-[65vh] md:max-h-[70vh]">
+            <table class="min-w-[760px] w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-50/50 dark:bg-gray-800/50 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
+                        <th class="px-6 py-4">Timestamp</th>
+                        <th class="px-6 py-4">When</th>
+                        <th class="px-6 py-4">Role</th>
+                        <th class="px-6 py-4">User</th>
+                        <th class="px-6 py-4">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700 text-sm">
+                    @if (Model.Logs.Any())
+                    {
+                        foreach (var log in Model.Logs)
+                        {
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                <td class="px-6 py-4 text-gray-500 font-mono text-xs">@BusinessTime.ConvertUtcToBusinessTime(log.Timestamp).ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td class="px-6 py-4 text-gray-500 text-xs">@log.RelativeTime</td>
+                                <td class="px-6 py-4">
+                                    <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border border-slate-200 text-slate-700 bg-slate-50">
+                                        @log.UserRole
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center gap-3">
+                                        <div class="h-8 w-8 rounded-full bg-brand-primary flex items-center justify-center text-white text-xs font-bold">
+                                            @(log.UserDisplay.Substring(0, 1).ToUpperInvariant())
+                                        </div>
+                                        <span class="font-semibold text-gray-900 dark:text-white">@log.UserDisplay</span>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="font-medium text-gray-900 dark:text-white">@log.Action</div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="5" class="px-6 py-8 text-center text-gray-500">No activity logs found for the current filters.</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="p-4 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50/30 dark:bg-gray-800/20">
+            <div class="text-xs text-gray-500 text-[13px]">
+                Showing
+                <span class="font-bold text-gray-900 dark:text-white">@Model.StartItem</span>
+                to
+                <span class="font-bold text-gray-900 dark:text-white">@Model.EndItem</span>
+                of
+                <span class="font-bold text-gray-900 dark:text-white">@Model.TotalMatched</span>
+                matching entries
+            </div>
+            @if (Model.TotalPages > 0)
+            {
+                var startPage = Math.Max(1, Model.Page - 1);
+                var endPage = Math.Min(Model.TotalPages, startPage + 2);
+                startPage = Math.Max(1, endPage - 2);
+
+                <div class="flex items-center gap-2">
+                    @if (Model.HasPreviousPage)
+                    {
+                        <a asp-action="Index"
+                           asp-route-search="@Model.Search"
+                           asp-route-role="@Model.Role"
+                           asp-route-days="@Model.Days"
+                           asp-route-page="@(Model.Page - 1)"
+                           asp-route-pageSize="@Model.PageSize"
+                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800/70 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors no-underline">
+                            <span class="material-icons-outlined text-[18px]">chevron_left</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                            <span class="material-icons-outlined text-[18px]">chevron_left</span>
+                        </span>
+                    }
+
+                    @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                    {
+                        if (pageNumber == Model.Page)
+                        {
+                            <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-brand-primary bg-brand-primary text-white text-sm font-semibold">
+                                @pageNumber
+                            </span>
+                        }
+                        else
+                        {
+                            <a asp-action="Index"
+                               asp-route-search="@Model.Search"
+                               asp-route-role="@Model.Role"
+                               asp-route-days="@Model.Days"
+                               asp-route-page="@pageNumber"
+                               asp-route-pageSize="@Model.PageSize"
+                               class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800/70 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm font-semibold no-underline">
+                                @pageNumber
+                            </a>
+                        }
+                    }
+
+                    @if (Model.HasNextPage)
+                    {
+                        <a asp-action="Index"
+                           asp-route-search="@Model.Search"
+                           asp-route-role="@Model.Role"
+                           asp-route-days="@Model.Days"
+                           asp-route-page="@(Model.Page + 1)"
+                           asp-route-pageSize="@Model.PageSize"
+                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800/70 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors no-underline">
+                            <span class="material-icons-outlined text-[18px]">chevron_right</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                            <span class="material-icons-outlined text-[18px]">chevron_right</span>
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>

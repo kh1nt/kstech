@@ -1,0 +1,202 @@
+@model kstech.Models.ViewModels.StoreCustomerProfileViewModel
+@using kstech.Utilities
+@{
+    ViewData["Title"] = "My Profile";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+
+<div class="container mx-auto px-4 py-6">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h1 class="font-display text-2xl text-store-ink mb-1">My profile</h1>
+            <p class="text-sm text-store-muted mb-0">Update your account details and contact information.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="@Url.Action("Orders", "Store")" class="text-sm font-semibold text-store-accent no-underline hover:text-store-ink">Order history</a>
+            <a href="@Url.Action("Products", "Store")" class="text-sm font-semibold text-store-accent no-underline hover:text-store-ink">Back to catalog</a>
+        </div>
+    </div>
+
+    @if (TempData["ProfileMessage"] != null)
+    {
+        <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            @TempData["ProfileMessage"]
+        </div>
+    }
+    @if (TempData["PasswordMessage"] != null)
+    {
+        <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            @TempData["PasswordMessage"]
+        </div>
+    }
+    @if (TempData["PasswordError"] != null)
+    {
+        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            @TempData["PasswordError"]
+        </div>
+    }
+
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
+        <div class="space-y-4">
+            <section class="store-plain-card p-5">
+                <form asp-action="Profile" method="post" class="space-y-4">
+                    <div asp-validation-summary="ModelOnly" class="text-sm text-red-600"></div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label asp-for="FullName" class="mb-1 block text-xs font-semibold text-store-ink"></label>
+                            <input asp-for="FullName" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+                            <span asp-validation-for="FullName" class="text-xs text-red-600"></span>
+                        </div>
+                        <div>
+                            <label asp-for="Email" class="mb-1 block text-xs font-semibold text-store-ink"></label>
+                            <input asp-for="Email" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+                            <span asp-validation-for="Email" class="text-xs text-red-600"></span>
+                        </div>
+                        <div>
+                            <label asp-for="Phone" class="mb-1 block text-xs font-semibold text-store-ink"></label>
+                            <input asp-for="Phone" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+                            <span asp-validation-for="Phone" class="text-xs text-red-600"></span>
+                        </div>
+                        <div>
+                            <label asp-for="City" class="mb-1 block text-xs font-semibold text-store-ink"></label>
+                            <input asp-for="City" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+                            <span asp-validation-for="City" class="text-xs text-red-600"></span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label asp-for="Address" class="mb-1 block text-xs font-semibold text-store-ink"></label>
+                        <input asp-for="Address" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+                        <span asp-validation-for="Address" class="text-xs text-red-600"></span>
+                    </div>
+
+                    <div>
+                        <label asp-for="SteamId" class="mb-1 flex items-center gap-1 text-xs font-semibold text-store-ink">
+                            <span class="material-icons-outlined text-[14px] text-indigo-500">videogame_asset</span>
+                            Steam ID (Optional)
+                        </label>
+                        <input asp-for="SteamId" placeholder="e.g., 76561198000000000" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+                        <span asp-validation-for="SteamId" class="text-xs text-red-600"></span>
+                        <p class="mt-1 text-xs text-store-muted mb-0">Link your public Steam profile to get personalized PC part recommendations based on the games you play.</p>
+                    </div>
+
+                    <label class="inline-flex items-center gap-2 text-sm text-store-muted">
+                        <input asp-for="MarketingOptIn" class="rounded border-slate-300 text-store-accent focus:ring-store-accent/30" />
+                        Receive marketing emails and deals
+                    </label>
+
+                    <div class="flex flex-col sm:flex-row gap-2 pt-1">
+                        <button type="submit" class="rounded-lg bg-store-accent px-4 py-2 text-sm font-semibold text-white hover:bg-store-ink store-action-btn">
+                            Save changes
+                        </button>
+                        <a href="@Url.Action("Products", "Store")" class="rounded-lg border border-slate-200 px-4 py-2 text-center text-sm font-semibold text-store-ink no-underline hover:border-store-accent">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </section>
+
+            <section class="store-plain-card p-5">
+                <h2 class="font-display text-lg text-store-ink mb-1">Change password</h2>
+                <p class="text-xs text-store-muted mb-3">Use at least 8 characters for your new password.</p>
+                <form asp-action="ChangePassword" method="post" class="space-y-3">
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold text-store-ink" for="currentPassword">Current password</label>
+                        <input id="currentPassword" name="currentPassword" type="password" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold text-store-ink" for="newPassword">New password</label>
+                        <input id="newPassword" name="newPassword" type="password" minlength="8" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold text-store-ink" for="confirmNewPassword">Confirm new password</label>
+                        <input id="confirmNewPassword" name="confirmNewPassword" type="password" minlength="8" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+                    </div>
+                    <button type="submit" class="rounded-lg bg-store-ink px-4 py-2 text-sm font-semibold text-white hover:bg-store-accent store-action-btn">
+                        Update password
+                    </button>
+                </form>
+            </section>
+        </div>
+
+        <aside class="space-y-4">
+            <div class="store-plain-card p-5">
+                <h2 class="font-display text-lg text-store-ink mb-3">Account summary</h2>
+                <dl class="space-y-2 text-sm">
+                    <div class="flex justify-between gap-2">
+                        <dt class="text-store-muted">Orders</dt>
+                        <dd class="font-semibold text-store-ink mb-0">@Model.OrderCount</dd>
+                    </div>
+                    <div class="flex justify-between gap-2">
+                        <dt class="text-store-muted">Lifetime spend</dt>
+                        <dd class="font-semibold text-store-ink mb-0">@Model.LifetimeSpend.ToString("C")</dd>
+                    </div>
+                    <div class="flex justify-between gap-2">
+                        <dt class="text-store-muted">Loyalty points</dt>
+                        <dd class="font-semibold text-store-ink mb-0">@Model.LoyaltyPoints</dd>
+                    </div>
+                    <div class="flex justify-between gap-2">
+                        <dt class="text-store-muted">Points earned</dt>
+                        <dd class="font-semibold text-store-ink mb-0">@Model.LifetimePointsEarned</dd>
+                    </div>
+                    <div class="flex justify-between gap-2">
+                        <dt class="text-store-muted">Points redeemed</dt>
+                        <dd class="font-semibold text-store-ink mb-0">@Model.LifetimePointsRedeemed</dd>
+                    </div>
+                    <div class="flex justify-between gap-2 pt-2 border-t border-slate-200">
+                        <dt class="text-store-muted">Customer since</dt>
+                        <dd class="font-semibold text-store-ink mb-0">@BusinessTime.ConvertUtcToBusinessTime(Model.RegistrationDate).ToString("MMM dd, yyyy")</dd>
+                    </div>
+                </dl>
+                <div class="pt-3 mt-3 border-t border-slate-200">
+                    <a href="@Url.Action("Orders", "Store")" class="inline-block rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-store-ink no-underline hover:border-store-accent">
+                        View full order history
+                    </a>
+                </div>
+            </div>
+
+            <div class="store-plain-card p-5 border-t-4 border-indigo-400">
+                <h2 class="font-display text-lg text-store-ink mb-3 flex items-center gap-2">
+                    <span class="material-icons-outlined text-indigo-500">sports_esports</span>
+                    Steam Profile
+                </h2>
+                
+                @if (!string.IsNullOrWhiteSpace(Model.SteamId) && !string.IsNullOrWhiteSpace(Model.SteamPersonaName))
+                {
+                    <div class="flex items-center gap-3">
+                        <img src="@Model.SteamAvatarUrl" alt="Avatar" class="w-12 h-12 rounded-lg object-cover" />
+                        <div>
+                            <p class="font-semibold text-store-ink mb-0">@Model.SteamPersonaName</p>
+                            <p class="text-[11px] text-store-muted mb-0 font-mono">ID: @Model.SteamId</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-slate-100 pb-1">
+                        <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-semibold px-2 py-0.5">
+                            ✓ Linked to Store
+                        </span>
+                        <p class="text-[11px] text-store-muted mt-2 mb-0">Your Steam library helps us personalize your PC part recommendations.</p>
+                        <form asp-action="UnlinkSteam" method="post" class="mt-3">
+                            <button type="submit"
+                                    class="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                                    onclick="return confirm('Unlink your Steam account from your store profile?');">
+                                Unlink Steam account
+                            </button>
+                        </form>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-sm text-store-muted">
+                        <p class="mb-0">Not linked.</p>
+                        <p class="text-[11px] mt-2 mb-0">Enter your public Steam ID in the profile form to get customized PC part recommendations.</p>
+                    </div>
+                }
+            </div>
+        </aside>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
