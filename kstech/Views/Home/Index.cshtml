@@ -23,13 +23,12 @@
     var selectedDateRange = $"{Model.StartDate:MMM dd, yyyy} - {Model.EndDate:MMM dd, yyyy}";
 }
 
+<div class="bi-dashboard-container">
 <div class="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-    <div class="dashboard-header">
-        <div>
-            <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-            <p class="text-gray-500 dark:text-gray-400 mt-1">Overview of inventory and retail performance.</p>
-            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Period: @selectedDateRange</p>
-        </div>
+    <div>
+        <h1 class="text-2xl font-bold text-text-light dark:text-text-dark">Dashboard</h1>
+        <p class="text-muted-light dark:text-muted-dark text-sm mt-1">Overview of inventory and retail performance.</p>
+        <p class="text-xs text-muted-light/80 dark:text-muted-dark/80 mt-1">Period: @selectedDateRange</p>
     </div>
     <form asp-action="Index" method="get" id="homeFilterForm" class="flex flex-wrap items-end gap-2 md:justify-end">
         <input type="hidden" id="rangePreset" name="range" value="@selectedRange" />
@@ -83,104 +82,86 @@
     </form>
 </div>
 
-<div class="row mb-4">
-    <div class="col-12">
-        @if (Model.LowStockCount > 0)
-        {
-            <div class="alert alert-warning flex flex-col md:flex-row justify-between items-center gap-4 bg-orange-50 border-orange-100 text-orange-800 rounded-xl p-4" role="alert">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 shrink-0">
-                        <i class="fa-solid fa-triangle-exclamation text-lg"></i>
-                    </div>
-                    <div>
-                        <h5 class="font-bold text-lg mb-0.5">Low Stock Alert</h5>
-                        <p class="mb-0 text-sm">
-                            <strong>@Model.LowStockCount</strong> items are running low.
-                            @if (lowStockPreview.Any())
-                            {
-                                <span class="text-xs text-orange-600/70 ml-1">SKUs: @string.Join(", ", lowStockPreview)@(hasMoreLowStockSkus ? "..." : string.Empty)</span>
-                            }
-                        </p>
-                    </div>
+@if (Model.LowStockCount > 0)
+{
+    <div class="mb-8 rounded-2xl border border-orange-200/80 bg-orange-50/80 px-4 py-4 text-orange-900 shadow-sm">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 shrink-0">
+                    <i class="fa-solid fa-triangle-exclamation text-lg"></i>
                 </div>
-                <a href="@Url.Action("Products", "Inventory")" class="px-4 py-2 bg-white text-orange-600 border border-orange-200 rounded-lg text-sm font-bold hover:bg-orange-50 transition-colors whitespace-nowrap">Restock Now</a>
+                <div>
+                    <h5 class="font-bold text-lg mb-0.5">Low Stock Alert</h5>
+                    <p class="mb-0 text-sm">
+                        <strong>@Model.LowStockCount</strong> items are running low.
+                        @if (lowStockPreview.Any())
+                        {
+                            <span class="text-xs text-orange-700/80 ml-1">SKUs: @string.Join(", ", lowStockPreview)@(hasMoreLowStockSkus ? "..." : string.Empty)</span>
+                        }
+                    </p>
+                </div>
             </div>
-        }
+            <a href="@Url.Action("Products", "Inventory")" class="px-4 py-2 bg-white text-orange-700 border border-orange-200 rounded-lg text-sm font-bold hover:bg-orange-100 transition-colors whitespace-nowrap no-underline hover:no-underline">Restock Now</a>
+        </div>
+    </div>
+}
+
+<div class="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div class="h-full bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Revenue</p>
+        <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1">@Model.TotalSales.ToString("C0")</h3>
+        <p class="text-xs mt-2">
+            <span class="@GetChangeTextClass(Model.SalesChangePercentage)">
+                @FormatChangePercentage(Model.SalesChangePercentage)
+            </span>
+            <span class="text-gray-500 dark:text-gray-400">@Model.PeriodComparisonLabel</span>
+        </p>
+    </div>
+
+    <div class="h-full bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Profits</p>
+        <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1">@Model.TotalProfits.ToString("C0")</h3>
+        <p class="text-xs mt-2">
+            <span class="@GetChangeTextClass(Model.ProfitChangePercentage)">
+                @FormatChangePercentage(Model.ProfitChangePercentage)
+            </span>
+            <span class="text-gray-500 dark:text-gray-400">@Model.PeriodComparisonLabel</span>
+        </p>
+    </div>
+
+    <div class="h-full bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Stock Health</p>
+        <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1">@Model.StockHealthPercentage.ToString("0.##")%</h3>
+        <p class="text-xs mt-2 text-gray-500 dark:text-gray-400">
+            @Model.AtRiskSkuCount.ToString("N0") of @Model.ActiveSkuCount.ToString("N0") SKUs at risk (@Model.StockAtRiskPercentage.ToString("0.##")%)
+        </p>
+    </div>
+
+    <div class="h-full bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Active Customers</p>
+        <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1">@Model.ActiveCustomers.ToString("N0")</h3>
+        <p class="text-xs mt-2">
+            <span class="@GetChangeTextClass(Model.CustomerChangeCount)">
+                @FormatCustomerChangeCount(Model.CustomerChangeCount)
+            </span>
+            <span class="text-gray-500 dark:text-gray-400">@Model.PeriodComparisonLabel</span>
+        </p>
     </div>
 </div>
 
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center text-center aspect-square md:aspect-auto md:flex-row md:items-center md:text-left md:justify-start gap-4">
-        <div class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-orange-50 dark:bg-orange-900/20 text-orange-500 flex items-center justify-center text-xl md:text-2xl shrink-0">
-            <i class="fa-solid fa-bag-shopping"></i>
-        </div>
-        <div class="flex flex-col items-center md:items-start w-full">
-            <span class="text-xs md:text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">Total Sales</span>
-            <div class="flex items-center gap-2 mb-0.5">
-                <span class="text-lg md:text-2xl font-bold text-gray-900 dark:text-white">@Model.TotalSales.ToString("C0")</span>
-                <span class="text-xs font-bold px-1.5 py-0.5 rounded @GetChangeBadgeClass(Model.SalesChangePercentage) hidden md:inline-block">@FormatChangePercentage(Model.SalesChangePercentage)</span>
-            </div>
-            <div class="text-xs text-gray-400 hidden md:block">vs prior same-length period</div>
-        </div>
-    </div>
-
-    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center text-center aspect-square md:aspect-auto md:flex-row md:items-center md:text-left md:justify-start gap-4">
-        <div class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center text-xl md:text-2xl shrink-0">
-            <i class="fa-solid fa-peso-sign"></i>
-        </div>
-        <div class="flex flex-col items-center md:items-start w-full">
-            <span class="text-xs md:text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">Total Profits</span>
-            <div class="flex items-center gap-2 mb-0.5">
-                <span class="text-lg md:text-2xl font-bold text-gray-900 dark:text-white">@Model.TotalProfits.ToString("C0")</span>
-                <span class="text-xs font-bold px-1.5 py-0.5 rounded @GetChangeBadgeClass(Model.ProfitChangePercentage) hidden md:inline-block">@FormatChangePercentage(Model.ProfitChangePercentage)</span>
-            </div>
-            <div class="text-xs text-gray-400 hidden md:block">vs prior same-length period</div>
-        </div>
-    </div>
-
-    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center text-center aspect-square md:aspect-auto md:flex-row md:items-center md:text-left md:justify-start gap-4">
-        <div class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-500 flex items-center justify-center text-xl md:text-2xl shrink-0">
-            <i class="fa-solid fa-clipboard-check"></i>
-        </div>
-        <div class="flex flex-col items-center md:items-start w-full">
-            <span class="text-xs md:text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">Stock Health</span>
-            <div class="flex items-center gap-2 mb-0.5">
-                <span class="text-lg md:text-2xl font-bold text-gray-900 dark:text-white">@Model.StockHealthPercentage.ToString("0.##")%</span>
-                <span class="text-xs font-bold px-1.5 py-0.5 rounded @GetChangeBadgeClass(Model.StockHealthChangePercentage) hidden md:inline-block">@FormatChangePercentage(Model.StockHealthChangePercentage)</span>
-            </div>
-            <div class="text-xs text-gray-400 hidden md:block">@Model.AtRiskSkuCount.ToString("N0") of @Model.ActiveSkuCount.ToString("N0") SKUs at risk (@Model.StockAtRiskPercentage.ToString("0.##")%)</div>
-            <div class="text-xs text-gray-400 hidden md:block">vs period start</div>
-        </div>
-    </div>
-
-    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center text-center aspect-square md:aspect-auto md:flex-row md:items-center md:text-left md:justify-start gap-4">
-        <div class="w-10 h-10 md:w-14 md:h-14 rounded-full bg-purple-50 dark:bg-purple-900/20 text-purple-600 flex items-center justify-center text-xl md:text-2xl shrink-0">
-            <i class="fa-solid fa-user-check"></i>
-        </div>
-        <div class="flex flex-col items-center md:items-start w-full">
-            <span class="text-xs md:text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">Active Customers</span>
-            <div class="flex items-center gap-2 mb-0.5">
-                <span class="text-lg md:text-2xl font-bold text-gray-900 dark:text-white">@Model.ActiveCustomers.ToString("N0")</span>
-                <span class="text-xs font-bold px-1.5 py-0.5 rounded @GetChangeBadgeClass(Model.CustomerChangePercentage) hidden md:inline-block">@FormatChangePercentage(Model.CustomerChangePercentage)</span>
-            </div>
-            <div class="text-xs text-gray-400 hidden md:block">vs prior same-length period</div>
-        </div>
-    </div>
-</div>
-
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 lg:col-span-2">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="bg-card-light dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 lg:col-span-2">
         <div class="flex justify-between items-center mb-6">
-            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Sales Trend</h3>
+            <h3 class="text-lg font-bold text-text-light dark:text-text-dark">Sales Trend</h3>
         </div>
         <div style="height: 300px; position: relative;">
             <canvas id="salesChart"></canvas>
         </div>
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+    <div class="bg-card-light dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
         <div class="flex justify-between items-center mb-6">
-            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Sales Share by Category</h3>
+            <h3 class="text-lg font-bold text-text-light dark:text-text-dark">Sales Share by Category</h3>
         </div>
         <div style="height: 250px; display: flex; justify-content: center;">
             <canvas id="pieChart"></canvas>
@@ -205,9 +186,9 @@
     </div>
 </div>
 
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 mb-6 overflow-hidden">
+<div class="bg-card-light dark:bg-card-dark rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 mb-8 overflow-hidden">
     <div class="p-6 flex justify-between items-center border-b border-gray-100 dark:border-gray-700">
-        <h3 class="text-lg font-bold text-gray-900 dark:text-white">Recent Orders</h3>
+        <h3 class="text-lg font-bold text-text-light dark:text-text-dark">Recent Orders</h3>
         <a href="@Url.Action("Sales", "BusinessIntelligence")" class="px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">View All</a>
     </div>
 
@@ -260,9 +241,9 @@
     </div>
 </div>
 
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+<div class="bg-card-light dark:bg-card-dark rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
     <div class="p-6 flex justify-between items-center border-b border-gray-100 dark:border-gray-700">
-        <h3 class="text-lg font-bold text-gray-900 dark:text-white">Top Selling Products</h3>
+        <h3 class="text-lg font-bold text-text-light dark:text-text-dark">Top Selling Products</h3>
         <a href="@Url.Action("Products", "Inventory")" class="px-4 py-2 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">View All</a>
     </div>
 
@@ -300,6 +281,7 @@
             </tbody>
         </table>
     </div>
+</div>
 </div>
 
 @section Scripts {
@@ -401,6 +383,22 @@
             rangePresetMenu?.classList.add('hidden');
         }
 
+        function submitFilters() {
+            dateFilterForm?.submit();
+        }
+
+        function maybeSubmitCustomRange() {
+            if ((rangePresetInput?.value || 'this_month') !== 'custom') {
+                return;
+            }
+
+            if (!startDateInput?.value || !endDateInput?.value) {
+                return;
+            }
+
+            submitFilters();
+        }
+
         function selectPreset(range, shouldSubmit) {
             if (!rangePresetInput) {
                 return;
@@ -421,7 +419,7 @@
                 }
 
                 if (shouldSubmit) {
-                    dateFilterForm?.submit();
+                    submitFilters();
                 }
             }
         }
@@ -449,8 +447,15 @@
             });
         });
 
-        startDateInput?.addEventListener('change', syncDateBounds);
-        endDateInput?.addEventListener('change', syncDateBounds);
+        startDateInput?.addEventListener('change', () => {
+            syncDateBounds();
+            maybeSubmitCustomRange();
+        });
+
+        endDateInput?.addEventListener('change', () => {
+            syncDateBounds();
+            maybeSubmitCustomRange();
+        });
 
         setRangeLabel(rangePresetInput?.value || 'this_month');
         setCustomRangeVisibility((rangePresetInput?.value || 'this_month') === 'custom');
@@ -476,6 +481,26 @@
         return $"{rounded:0.##}%";
     }
 
+    string GetChangeTextClass(double value)
+    {
+        if (value > 0)
+        {
+            return "text-green-600";
+        }
+
+        if (value < 0)
+        {
+            return "text-red-600";
+        }
+
+        return "text-gray-500 dark:text-gray-400";
+    }
+
+    string GetChangeTextClass(int value)
+    {
+        return GetChangeTextClass((double)value);
+    }
+
     string GetChangeBadgeClass(double value)
     {
         if (value > 0)
@@ -489,5 +514,23 @@
         }
 
         return "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300";
+    }
+
+    string FormatCustomerChangeCount(int value)
+    {
+        var absoluteCount = Math.Abs(value);
+        var suffix = absoluteCount == 1 ? "customer" : "customers";
+
+        if (value > 0)
+        {
+            return $"+{absoluteCount} {suffix}";
+        }
+
+        if (value < 0)
+        {
+            return $"-{absoluteCount} {suffix}";
+        }
+
+        return $"0 {suffix}";
     }
 }

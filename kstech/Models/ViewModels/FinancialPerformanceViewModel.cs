@@ -5,6 +5,7 @@ namespace kstech.Models.ViewModels
         public string SelectedDateRange { get; set; } = "this_month";
         public DateTime FilterStartDate { get; set; }
         public DateTime FilterEndDate { get; set; }
+        public string ComparisonPeriodLabel { get; set; } = string.Empty;
         public string SelectedPaymentScope { get; set; } = "paid_only";
 
         public decimal Revenue { get; set; }

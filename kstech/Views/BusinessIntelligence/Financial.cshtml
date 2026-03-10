@@ -84,8 +84,11 @@
         <div class="h-full bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
             <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Revenue</p>
             <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1">@Model.Revenue.ToString("C")</h3>
-            <p class="text-xs mt-2 @(Model.RevenueChangePercentage >= 0 ? "text-green-600" : "text-red-600")">
-                @(Model.RevenueChangePercentage >= 0 ? "+" : "")@Model.RevenueChangePercentage.ToString("0.##")% vs previous period
+            <p class="text-xs mt-2">
+                <span class="@(Model.RevenueChangePercentage >= 0 ? "text-green-600" : "text-red-600")">
+                    @(Model.RevenueChangePercentage >= 0 ? "+" : "")@Model.RevenueChangePercentage.ToString("0.##")%
+                </span>
+                <span class="text-gray-500 dark:text-gray-400">@Model.ComparisonPeriodLabel</span>
             </p>
         </div>
 
@@ -98,16 +101,22 @@
         <div class="h-full bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
             <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Gross Profit</p>
             <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1">@Model.GrossProfit.ToString("C")</h3>
-            <p class="text-xs mt-2 @(Model.GrossProfitChangePercentage >= 0 ? "text-green-600" : "text-red-600")">
-                @(Model.GrossProfitChangePercentage >= 0 ? "+" : "")@Model.GrossProfitChangePercentage.ToString("0.##")% vs previous period
+            <p class="text-xs mt-2">
+                <span class="@(Model.GrossProfitChangePercentage >= 0 ? "text-green-600" : "text-red-600")">
+                    @(Model.GrossProfitChangePercentage >= 0 ? "+" : "")@Model.GrossProfitChangePercentage.ToString("0.##")%
+                </span>
+                <span class="text-gray-500 dark:text-gray-400">@Model.ComparisonPeriodLabel</span>
             </p>
         </div>
 
         <div class="h-full bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
             <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Net Profit Margin</p>
             <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1">@Model.NetProfitMargin.ToString("0.##")%</h3>
-            <p class="text-xs mt-2 @(Model.MarginChangePercentage >= 0 ? "text-green-600" : "text-red-600")">
-                @(Model.MarginChangePercentage >= 0 ? "+" : "")@Model.MarginChangePercentage.ToString("0.##")% vs previous period
+            <p class="text-xs mt-2">
+                <span class="@(Model.MarginChangePercentage >= 0 ? "text-green-600" : "text-red-600")">
+                    @(Model.MarginChangePercentage >= 0 ? "+" : "")@Model.MarginChangePercentage.ToString("0.##")%
+                </span>
+                <span class="text-gray-500 dark:text-gray-400">@Model.ComparisonPeriodLabel</span>
             </p>
         </div>
     </div>

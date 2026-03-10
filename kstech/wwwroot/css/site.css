@@ -829,3 +829,8 @@ button[aria-expanded="true"] .rotate-icon {
 .store-compact .store-product-card {
   border-radius: 0.85rem;
 }
+
+/* Cart quantity is auto-applied; hide any legacy manual update button. */
+.js-cart-qty-submit {
+  display: none !important;
+}

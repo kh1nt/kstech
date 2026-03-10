@@ -13,6 +13,7 @@ namespace kstech.Services
         SalesAnalyticsViewModel GetSalesAnalytics(
             DateTime startDateUtc,
             DateTime endDateUtc,
+            string selectedDateRange = "this_month",
             string paymentFilter = "all",
             string orderStatusFilter = "all",
             int recentSalesPage = 1,
@@ -21,6 +22,7 @@ namespace kstech.Services
         FinancialPerformanceViewModel GetFinancialPerformance(
             DateTime startDateUtc,
             DateTime endDateUtc,
+            string selectedDateRange = "this_month",
             string paymentScope = "paid_only",
             int recentTransactionsPage = 1,
             int recentTransactionsPageSize = 10);
@@ -107,6 +109,7 @@ namespace kstech.Services
         public SalesAnalyticsViewModel GetSalesAnalytics(
             DateTime startDateUtc,
             DateTime endDateUtc,
+            string selectedDateRange = "this_month",
             string paymentFilter = "all",
             string orderStatusFilter = "all",
             int recentSalesPage = 1,
@@ -115,9 +118,16 @@ namespace kstech.Services
             var normalizedPaymentFilter = NormalizePaymentFilter(paymentFilter);
             var normalizedOrderStatusFilter = NormalizeOrderStatusFilter(orderStatusFilter);
             var normalizedRecentSalesPageSize = NormalizePageSize(recentSalesPageSize);
+            var normalizedSelectedDateRange = NormalizeSelectedDateRange(selectedDateRange);
             var (rangeStartLocalDate, rangeEndLocalDate) = NormalizeLocalDateRange(startDateUtc, endDateUtc);
             var (rangeStartUtc, rangeEndUtcInclusive) = NormalizeRange(startDateUtc, endDateUtc);
-            var (previousStartUtc, previousEndUtcInclusive) = BuildPreviousRange(rangeStartUtc, rangeEndUtcInclusive);
+            var (comparisonStartLocalDate, comparisonEndLocalDate) = ResolveComparisonLocalDateRange(
+                normalizedSelectedDateRange,
+                rangeStartLocalDate,
+                rangeEndLocalDate);
+            var comparisonPeriodLabel = BuildComparisonPeriodLabel(comparisonStartLocalDate, comparisonEndLocalDate);
+            var comparisonStartUtc = ConvertLocalDateStartToUtc(comparisonStartLocalDate);
+            var comparisonEndUtcInclusive = ConvertLocalDateEndToUtc(comparisonEndLocalDate);
             var (applyOwnerFilter, ownerUserId) = ResolveOwnerFilterContext();
 
             var thisPeriodOrders = ApplyOwnerFilter(_context.Orders.AsNoTracking(), applyOwnerFilter, ownerUserId)
@@ -128,7 +138,7 @@ namespace kstech.Services
                 .ToList();
 
             var previousPeriodOrders = ApplyOwnerFilter(_context.Orders.AsNoTracking(), applyOwnerFilter, ownerUserId)
-                .Where(order => order.OrderDate >= previousStartUtc && order.OrderDate <= previousEndUtcInclusive)
+                .Where(order => order.OrderDate >= comparisonStartUtc && order.OrderDate <= comparisonEndUtcInclusive)
                 .ToList();
 
             // CALC-KPI: Build normalized current/previous filtered datasets so all metrics use the same scope.
@@ -253,10 +263,12 @@ namespace kstech.Services
             // CALC-KPI: Assemble final sales analytics KPIs and period-over-period deltas for the UI.
             return new SalesAnalyticsViewModel
             {
+                SelectedDateRange = normalizedSelectedDateRange,
                 SelectedPaymentFilter = normalizedPaymentFilter,
                 SelectedOrderStatusFilter = normalizedOrderStatusFilter,
                 FilterStartDate = rangeStartLocalDate,
                 FilterEndDate = rangeEndLocalDate,
+                ComparisonPeriodLabel = comparisonPeriodLabel,
                 TotalRevenue = totalRevenue,
                 TotalOrders = totalOrders,
                 AverageOrderValue = totalOrders > 0 ? Math.Round(totalRevenue / totalOrders, 2) : 0m,
@@ -284,15 +296,23 @@ namespace kstech.Services
         public FinancialPerformanceViewModel GetFinancialPerformance(
             DateTime startDateUtc,
             DateTime endDateUtc,
+            string selectedDateRange = "this_month",
             string paymentScope = "paid_only",
             int recentTransactionsPage = 1,
             int recentTransactionsPageSize = 10)
         {
             var normalizedPaymentScope = NormalizeFinancialPaymentScope(paymentScope);
             var normalizedRecentTransactionsPageSize = NormalizePageSize(recentTransactionsPageSize);
+            var normalizedSelectedDateRange = NormalizeSelectedDateRange(selectedDateRange);
             var (rangeStartLocalDate, rangeEndLocalDate) = NormalizeLocalDateRange(startDateUtc, endDateUtc);
             var (rangeStartUtc, rangeEndUtcInclusive) = NormalizeRange(startDateUtc, endDateUtc);
-            var (previousStartUtc, previousEndUtcInclusive) = BuildPreviousRange(rangeStartUtc, rangeEndUtcInclusive);
+            var (comparisonStartLocalDate, comparisonEndLocalDate) = ResolveComparisonLocalDateRange(
+                normalizedSelectedDateRange,
+                rangeStartLocalDate,
+                rangeEndLocalDate);
+            var comparisonPeriodLabel = BuildComparisonPeriodLabel(comparisonStartLocalDate, comparisonEndLocalDate);
+            var comparisonStartUtc = ConvertLocalDateStartToUtc(comparisonStartLocalDate);
+            var comparisonEndUtcInclusive = ConvertLocalDateEndToUtc(comparisonEndLocalDate);
             var (applyOwnerFilter, ownerUserId) = ResolveOwnerFilterContext();
 
             var thisPeriodOrders = ApplyOwnerFilter(_context.Orders.AsNoTracking(), applyOwnerFilter, ownerUserId)
@@ -304,7 +324,7 @@ namespace kstech.Services
             var previousPeriodOrders = ApplyOwnerFilter(_context.Orders.AsNoTracking(), applyOwnerFilter, ownerUserId)
                 .Include(order => order.OrderDetails)
                 .ThenInclude(detail => detail.Product)
-                .Where(order => order.OrderDate >= previousStartUtc && order.OrderDate <= previousEndUtcInclusive)
+                .Where(order => order.OrderDate >= comparisonStartUtc && order.OrderDate <= comparisonEndUtcInclusive)
                 .ToList();
 
             var filteredOrders = thisPeriodOrders
@@ -421,16 +441,18 @@ namespace kstech.Services
 
             return new FinancialPerformanceViewModel
             {
+                SelectedDateRange = normalizedSelectedDateRange,
                 SelectedPaymentScope = normalizedPaymentScope,
                 FilterStartDate = rangeStartLocalDate,
                 FilterEndDate = rangeEndLocalDate,
+                ComparisonPeriodLabel = comparisonPeriodLabel,
                 Revenue = thisPeriodSummary.Revenue,
                 CostOfGoodsSold = thisPeriodSummary.CostOfGoodsSold,
                 GrossProfit = thisPeriodSummary.GrossProfit,
                 NetProfitMargin = thisPeriodSummary.Margin,
                 RevenueChangePercentage = CalculateChangePercentage(thisPeriodSummary.Revenue, previousPeriodSummary.Revenue),
-                GrossProfitChangePercentage = CalculateChangePercentage(thisPeriodSummary.GrossProfit, previousPeriodSummary.GrossProfit),
-                MarginChangePercentage = CalculateChangePercentage(thisPeriodSummary.Margin, previousPeriodSummary.Margin),
+                GrossProfitChangePercentage = CalculateChangePercentageUsingAbsoluteBaseline(thisPeriodSummary.GrossProfit, previousPeriodSummary.GrossProfit),
+                MarginChangePercentage = CalculateChangePercentageUsingAbsoluteBaseline(thisPeriodSummary.Margin, previousPeriodSummary.Margin),
                 DailyProfitLabels = dailyProfitLabels,
                 DailyCogsValues = dailyCogsValues,
                 DailyRevenueValues = dailyRevenueValues,
@@ -2177,14 +2199,70 @@ WHERE TABLE_NAME IN ('PurchaseOrders', 'PurchaseOrderLines')";
             return (ConvertLocalDateStartToUtc(rangeStartLocalDate), ConvertLocalDateEndToUtc(rangeEndLocalDate));
         }
 
-        private static (DateTime PreviousStartUtc, DateTime PreviousEndUtcInclusive) BuildPreviousRange(
-            DateTime rangeStartUtc,
-            DateTime rangeEndUtcInclusive)
+        private static string NormalizeSelectedDateRange(string? selectedDateRange)
         {
-            var duration = rangeEndUtcInclusive - rangeStartUtc;
-            var previousEnd = rangeStartUtc.AddTicks(-1);
-            var previousStart = previousEnd - duration;
-            return (previousStart, previousEnd);
+            if (string.IsNullOrWhiteSpace(selectedDateRange))
+            {
+                return "this_month";
+            }
+
+            return selectedDateRange.Trim().ToLowerInvariant() switch
+            {
+                "today" => "today",
+                "yesterday" => "yesterday",
+                "last_7_days" => "last_7_days",
+                "this_month" => "this_month",
+                "this_year" => "this_year",
+                "custom" => "custom",
+                _ => "this_month"
+            };
+        }
+
+        private static (DateTime StartDate, DateTime EndDate) ResolveComparisonLocalDateRange(
+            string normalizedSelectedDateRange,
+            DateTime rangeStartLocalDate,
+            DateTime rangeEndLocalDate)
+        {
+            var (normalizedStartDate, normalizedEndDate) = NormalizeLocalDateRange(rangeStartLocalDate, rangeEndLocalDate);
+            var spanDays = Math.Max(1, (normalizedEndDate - normalizedStartDate).Days + 1);
+
+            return normalizedSelectedDateRange switch
+            {
+                "today" => (normalizedStartDate.AddDays(-1), normalizedStartDate.AddDays(-1)),
+                "yesterday" => (normalizedStartDate.AddDays(-1), normalizedStartDate.AddDays(-1)),
+                "this_month" => ResolvePreviousMonthToDate(normalizedEndDate, spanDays),
+                "this_year" => ResolvePreviousYearToDate(normalizedEndDate, spanDays),
+                _ => (normalizedStartDate.AddDays(-spanDays), normalizedStartDate.AddDays(-1))
+            };
+        }
+
+        private static (DateTime StartDate, DateTime EndDate) ResolvePreviousMonthToDate(DateTime currentEndDate, int spanDays)
+        {
+            var referenceMonth = currentEndDate.Date.AddMonths(-1);
+            var previousMonthStart = new DateTime(referenceMonth.Year, referenceMonth.Month, 1);
+            var previousMonthDayCount = DateTime.DaysInMonth(referenceMonth.Year, referenceMonth.Month);
+            var cappedSpanDays = Math.Clamp(spanDays, 1, previousMonthDayCount);
+            return (previousMonthStart, previousMonthStart.AddDays(cappedSpanDays - 1));
+        }
+
+        private static (DateTime StartDate, DateTime EndDate) ResolvePreviousYearToDate(DateTime currentEndDate, int spanDays)
+        {
+            var previousYearStart = new DateTime(currentEndDate.Year - 1, 1, 1);
+            var previousYearDayCount = DateTime.IsLeapYear(previousYearStart.Year) ? 366 : 365;
+            var cappedSpanDays = Math.Clamp(spanDays, 1, previousYearDayCount);
+            return (previousYearStart, previousYearStart.AddDays(cappedSpanDays - 1));
+        }
+
+        private static string BuildComparisonPeriodLabel(DateTime comparisonStartDate, DateTime comparisonEndDate)
+        {
+            var (normalizedStartDate, normalizedEndDate) = NormalizeLocalDateRange(comparisonStartDate, comparisonEndDate);
+
+            if (normalizedStartDate == normalizedEndDate)
+            {
+                return $"Compared with {normalizedStartDate:MMM dd, yyyy}";
+            }
+
+            return $"Compared with {normalizedStartDate:MMM dd, yyyy} - {normalizedEndDate:MMM dd, yyyy}";
         }
 
         private static DateTime ConvertUtcToLocal(DateTime utcDateTime)
@@ -2529,6 +2607,17 @@ WHERE TABLE_NAME IN ('PurchaseOrders', 'PurchaseOrderLines')";
             }
 
             return Math.Round(((current - previous) / previous) * 100m, 2);
+        }
+
+        private static decimal CalculateChangePercentageUsingAbsoluteBaseline(decimal current, decimal previous)
+        {
+            // CALC-HELPER: Financial trend math uses absolute baseline for intuitive gain/loss direction from negatives.
+            if (previous == 0m)
+            {
+                return current == 0m ? 0m : 100m;
+            }
+
+            return Math.Round(((current - previous) / Math.Abs(previous)) * 100m, 2);
         }
 
         private static decimal CalculateChangePercentage(int current, int previous)

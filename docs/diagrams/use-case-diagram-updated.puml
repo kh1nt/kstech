@@ -1,0 +1,97 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+actor SuperAdmin as SA
+actor Owner as OW
+actor "Inventory Manager" as IM
+actor "Sales Staff" as SS
+actor Customer as CU
+
+rectangle "KSTech E-commerce, CRM, and BI System" {
+  usecase "Manage Owner Workspace Scope" as UC1
+  usecase "Manage User Accounts and Roles" as UC2
+  usecase "Monitor Activity Logs" as UC3
+  usecase "Manage Account Settings and Security" as UC4
+
+  usecase "View BI Dashboard" as UC5
+  usecase "View Sales Analytics" as UC6
+  usecase "View Financial and Profit Reports" as UC7
+  usecase "Manage Budget Planning" as UC8
+
+  usecase "Manage Products" as UC9
+  usecase "Track Stock Levels and Product Condition" as UC10
+  usecase "Manage Purchase Orders (Procurement)" as UC11
+  usecase "Update Order Status (Cancel/Refund)" as UC12
+
+  usecase "Manage Customer Records (CRM)" as UC13
+  usecase "Manage Marketing Campaigns" as UC14
+  usecase "Manage Technical Inquiries" as UC15
+
+  usecase "Browse Hardware Catalog" as UC16
+  usecase "Manage Cart and Checkout" as UC17
+  usecase "Process Local Payments\n(Card, GCash, Bank Transfer)" as UC18
+  usecase "View Order History and Status" as UC19
+  usecase "Submit Technical Inquiry" as UC20
+}
+
+SA --> UC1
+SA --> UC2
+SA --> UC3
+SA --> UC4
+SA --> UC5
+SA --> UC6
+SA --> UC7
+SA --> UC8
+SA --> UC9
+SA --> UC10
+SA --> UC11
+SA --> UC12
+SA --> UC13
+SA --> UC14
+SA --> UC15
+
+OW --> UC2
+OW --> UC3
+OW --> UC4
+OW --> UC5
+OW --> UC6
+OW --> UC7
+OW --> UC8
+OW --> UC9
+OW --> UC10
+OW --> UC11
+OW --> UC12
+OW --> UC13
+OW --> UC14
+OW --> UC15
+
+IM --> UC4
+IM --> UC9
+IM --> UC10
+IM --> UC11
+
+SS --> UC4
+SS --> UC6
+SS --> UC12
+SS --> UC13
+SS --> UC14
+SS --> UC15
+
+CU --> UC16
+CU --> UC17
+CU --> UC18
+CU --> UC19
+CU --> UC20
+
+UC17 .> UC18 : <<include>>
+UC20 .> UC15 : <<triggers>>
+
+note bottom
+  Updated to match system scope:
+  - POS use case removed
+  - Customer automated email-alert use case removed
+end note
+
+@enduml

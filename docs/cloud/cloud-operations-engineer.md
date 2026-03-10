@@ -186,3 +186,4 @@ Restore backup or apply reverse migration SQL script.
 - Keep secrets out of source control.
 - Rotate API keys and credentials periodically.
 - Keep database backup/snapshot before importing schema+data script and before each publish.
+- Current gap to close: app-wide inbound request throttling is not yet enabled; add ASP.NET Core rate limiting (`AddRateLimiter`/`UseRateLimiter`) for login and write-heavy endpoints.

@@ -98,16 +98,22 @@
     <div class="bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
         <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Revenue</p>
         <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1">@Model.TotalRevenue.ToString("C")</h3>
-        <p class="text-xs mt-2 @(Model.RevenueChangePercentage >= 0 ? "text-green-600" : "text-red-600")">
-            @(Model.RevenueChangePercentage >= 0 ? "+" : "")@Model.RevenueChangePercentage.ToString("0.##")% vs previous period
+        <p class="text-xs mt-2">
+            <span class="@(Model.RevenueChangePercentage >= 0 ? "text-green-600" : "text-red-600")">
+                @(Model.RevenueChangePercentage >= 0 ? "+" : "")@Model.RevenueChangePercentage.ToString("0.##")%
+            </span>
+            <span class="text-gray-500 dark:text-gray-400">@Model.ComparisonPeriodLabel</span>
         </p>
     </div>
 
     <div class="bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
         <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Orders</p>
         <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1">@Model.TotalOrders</h3>
-        <p class="text-xs mt-2 @(Model.OrderChangePercentage >= 0 ? "text-green-600" : "text-red-600")">
-            @(Model.OrderChangePercentage >= 0 ? "+" : "")@Model.OrderChangePercentage.ToString("0.##")% vs previous period
+        <p class="text-xs mt-2">
+            <span class="@(Model.OrderChangePercentage >= 0 ? "text-green-600" : "text-red-600")">
+                @(Model.OrderChangePercentage >= 0 ? "+" : "")@Model.OrderChangePercentage.ToString("0.##")%
+            </span>
+            <span class="text-gray-500 dark:text-gray-400">@Model.ComparisonPeriodLabel</span>
         </p>
     </div>
 

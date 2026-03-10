@@ -51,24 +51,42 @@ document.addEventListener("DOMContentLoaded", () => {
   const safeSalesLabels = salesLabels.length > 0 ? salesLabels : ["No Data"];
   const safeSalesData = salesData.length > 0 ? salesData : [0];
 
-  new Chart(salesCanvas.getContext("2d"), {
-    type: "bar",
+  const salesContext = salesCanvas.getContext("2d");
+  if (!salesContext) {
+    return;
+  }
+
+  const salesFillGradient = salesContext.createLinearGradient(0, 0, 0, 260);
+  salesFillGradient.addColorStop(0, "rgba(35, 100, 96, 0.28)");
+  salesFillGradient.addColorStop(1, "rgba(35, 100, 96, 0.03)");
+
+  new Chart(salesContext, {
+    type: "line",
     data: {
       labels: safeSalesLabels,
       datasets: [
         {
           label: "Sales",
           data: safeSalesData,
-          backgroundColor: colors.primary,
-          borderRadius: 6,
-          borderSkipped: false,
-          maxBarThickness: 34,
+          borderColor: colors.primary,
+          backgroundColor: salesFillGradient,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 3,
+          pointHoverRadius: 4,
+          pointBackgroundColor: "#ffffff",
+          pointBorderColor: colors.primary,
+          pointBorderWidth: 2,
         },
       ],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        mode: "index",
+        intersect: false,
+      },
       plugins: {
         legend: { display: false },
         tooltip: {

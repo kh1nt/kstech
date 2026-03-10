@@ -77,6 +77,7 @@ namespace kstech.Controllers
             var model = _biService.GetSalesAnalytics(
                 resolvedStartDate,
                 resolvedEndDate,
+                normalizedRange,
                 normalizedPayment,
                 normalizedOrderStatus,
                 page,
@@ -102,6 +103,7 @@ namespace kstech.Controllers
             var model = _biService.GetSalesAnalytics(
                 resolvedStartDate,
                 resolvedEndDate,
+                normalizedRange,
                 normalizedPayment,
                 normalizedOrderStatus,
                 recentSalesPage: 1,
@@ -217,6 +219,7 @@ namespace kstech.Controllers
             var model = _biService.GetFinancialPerformance(
                 resolvedStartDate,
                 resolvedEndDate,
+                normalizedRange,
                 normalizedPaymentScope,
                 page,
                 pageSize);
@@ -239,6 +242,7 @@ namespace kstech.Controllers
             var model = _biService.GetFinancialPerformance(
                 resolvedStartDate,
                 resolvedEndDate,
+                normalizedRange,
                 normalizedPaymentScope,
                 recentTransactionsPage: 1,
                 recentTransactionsPageSize: 50);

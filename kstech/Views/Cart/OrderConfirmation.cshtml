@@ -36,6 +36,10 @@
                 <span class="text-store-muted">Payment method</span>
                 <span class="font-semibold text-store-ink">@Model.PaymentMethod</span>
             </div>
+            <div class="flex justify-between items-start gap-3 py-1">
+                <span class="text-store-muted">Customer address</span>
+                <span class="max-w-[70%] text-right font-semibold text-store-ink break-words">@Model.CustomerAddress</span>
+            </div>
         </div>
 
         @if (TempData["OrderPaymentMessage"] != null)

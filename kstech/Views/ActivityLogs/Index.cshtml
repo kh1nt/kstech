@@ -4,15 +4,16 @@
     ViewData["Title"] = "Security & Activity Logs";
 }
 
+<div class="bi-dashboard-container">
 <div class="flex flex-col min-h-0 space-y-6">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Security & Activity Logs</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Track account events and operational actions with searchable filters.</p>
+            <h1 class="text-2xl font-bold text-text-light dark:text-text-dark">Security & Activity Logs</h1>
+            <p class="text-sm text-muted-light dark:text-muted-dark mt-1">Track account events and operational actions with searchable filters.</p>
         </div>
     </div>
 
-    <div class="bg-white dark:bg-card-dark rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col">
+    <div class="bg-card-light dark:bg-card-dark rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col">
         <form method="get" class="p-5 border-b border-gray-100 dark:border-gray-700 grid grid-cols-1 md:grid-cols-12 gap-3 bg-gray-50/50 dark:bg-gray-800/30">
             <input type="hidden" name="pageSize" value="@Model.PageSize" />
             <div class="md:col-span-5">
@@ -102,7 +103,7 @@
         <div class="overflow-x-auto overflow-y-auto max-h-[65vh] md:max-h-[70vh]">
             <table class="min-w-[760px] w-full text-left border-collapse">
                 <thead>
-                    <tr class="bg-gray-50/50 dark:bg-gray-800/50 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
+                    <tr class="bg-gray-50/50 dark:bg-gray-800/50 text-xs uppercase tracking-wider text-muted-light dark:text-muted-dark font-semibold border-b border-gray-100 dark:border-gray-700">
                         <th class="px-6 py-4">Timestamp</th>
                         <th class="px-6 py-4">When</th>
                         <th class="px-6 py-4">Role</th>
@@ -119,7 +120,7 @@
                                 <td class="px-6 py-4 text-gray-500 font-mono text-xs">@BusinessTime.ConvertUtcToBusinessTime(log.Timestamp).ToString("yyyy-MM-dd HH:mm:ss")</td>
                                 <td class="px-6 py-4 text-gray-500 text-xs">@log.RelativeTime</td>
                                 <td class="px-6 py-4">
-                                    <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border border-slate-200 text-slate-700 bg-slate-50">
+                                    <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border border-slate-200 text-slate-700 bg-slate-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200">
                                         @log.UserRole
                                     </span>
                                 </td>
@@ -172,7 +173,7 @@
                            asp-route-days="@Model.Days"
                            asp-route-page="@(Model.Page - 1)"
                            asp-route-pageSize="@Model.PageSize"
-                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800/70 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors no-underline">
+                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors no-underline">
                             <span class="material-icons-outlined text-[18px]">chevron_left</span>
                         </a>
                     }
@@ -199,7 +200,7 @@
                                asp-route-days="@Model.Days"
                                asp-route-page="@pageNumber"
                                asp-route-pageSize="@Model.PageSize"
-                               class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800/70 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm font-semibold no-underline">
+                               class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-semibold no-underline">
                                 @pageNumber
                             </a>
                         }
@@ -213,7 +214,7 @@
                            asp-route-days="@Model.Days"
                            asp-route-page="@(Model.Page + 1)"
                            asp-route-pageSize="@Model.PageSize"
-                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800/70 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors no-underline">
+                           class="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors no-underline">
                             <span class="material-icons-outlined text-[18px]">chevron_right</span>
                         </a>
                     }
@@ -227,4 +228,5 @@
             }
         </div>
     </div>
+</div>
 </div>

@@ -8,6 +8,7 @@ namespace kstech.Models
         public string FilterPeriod { get; set; } = "Monthly";
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
+        public string PeriodComparisonLabel { get; set; } = string.Empty;
 
         // Top Cards
         public decimal TotalSales { get; set; }
@@ -23,7 +24,7 @@ namespace kstech.Models
         public double StockHealthChangePercentage { get; set; }
 
         public int ActiveCustomers { get; set; }
-        public double CustomerChangePercentage { get; set; }
+        public int CustomerChangeCount { get; set; }
 
         // Charts
         public List<decimal> SalesChartData { get; set; } = new List<decimal>();

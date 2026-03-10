@@ -589,12 +589,25 @@ namespace kstech.Controllers
             var latestPayment = order.Payments
                 .OrderByDescending(payment => payment.PaymentDateUtc)
                 .FirstOrDefault();
+            var addressParts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(order.Customer?.Address) &&
+                !string.Equals(order.Customer.Address, "Update in Profile", StringComparison.OrdinalIgnoreCase))
+            {
+                addressParts.Add(order.Customer.Address.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(order.Customer?.City) &&
+                !string.Equals(order.Customer.City, "Update in Profile", StringComparison.OrdinalIgnoreCase))
+            {
+                addressParts.Add(order.Customer.City.Trim());
+            }
 
             var model = new OrderConfirmationViewModel
             {
                 OrderId = order.OrderID,
                 OrderDateUtc = order.OrderDate,
                 TotalAmount = order.TotalAmount,
+                CustomerAddress = addressParts.Any() ? string.Join(", ", addressParts) : "Not provided",
                 OrderStatus = string.IsNullOrWhiteSpace(order.OrderStatus) ? "Unknown" : order.OrderStatus,
                 PaymentStatus = string.IsNullOrWhiteSpace(order.PaymentStatus) ? "Unknown" : order.PaymentStatus,
                 PaymentMethod = latestPayment?.PaymentMethod ?? "Card",
