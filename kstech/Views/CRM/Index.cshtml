@@ -1,6 +1,9 @@
 @model kstech.Models.CustomerManagementViewModel
 @{
     ViewData["Title"] = "Customer Relationship Management";
+    var spendPerBasePoint = Model.LoyaltyProgramRules.BasePointsPerCurrency > 0m
+        ? 1m / Model.LoyaltyProgramRules.BasePointsPerCurrency
+        : 0m;
 }
 
 <div class="space-y-6">
@@ -235,6 +238,56 @@
                     <span class="material-icons-outlined text-yellow-500">workspace_premium</span>
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white">Tier Rules & Benefits</h3>
                 </div>
+                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 p-3 mb-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                        <p class="text-gray-700 dark:text-gray-300">
+                            <span class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Points Conversion</span><br />
+                            <span class="font-semibold text-gray-900 dark:text-white">1 point = @Model.LoyaltyProgramRules.PointRedemptionValue.ToString("C")</span>
+                        </p>
+                        <p class="text-gray-700 dark:text-gray-300">
+                            <span class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Base Earning</span><br />
+                            @if (spendPerBasePoint > 0m)
+                            {
+                                <span class="font-semibold text-gray-900 dark:text-white">Earn 1 point for every @spendPerBasePoint.ToString("C2") spent</span>
+                            }
+                            else
+                            {
+                                <span class="font-semibold text-gray-900 dark:text-white">Base accrual disabled</span>
+                            }
+                        </p>
+                        <p class="text-gray-700 dark:text-gray-300">
+                            <span class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Redemption Guardrails</span><br />
+                            <span class="font-semibold text-gray-900 dark:text-white">@((Model.LoyaltyProgramRules.MaxRedemptionRate * 100m).ToString("0.#"))% max discount</span>
+                            <span class="text-[11px] text-gray-500 dark:text-gray-400 block">Minimum order: @Model.LoyaltyProgramRules.MinimumOrderAmountForRedemption.ToString("C")</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 p-3 mb-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="material-icons-outlined text-brand-primary text-base">functions</span>
+                        <h4 class="text-sm font-bold text-gray-900 dark:text-white">Points Calculation Flow</h4>
+                    </div>
+                    @if (spendPerBasePoint > 0m)
+                    {
+                        <p class="text-sm text-gray-700 dark:text-gray-300">
+                            <span class="font-semibold text-gray-900 dark:text-white">Order subtotal</span>
+                            <span class="mx-1 text-gray-400">-></span>
+                            <span class="font-semibold text-gray-900 dark:text-white">subtract redeemed discount</span>
+                            <span class="mx-1 text-gray-400">-></span>
+                            <span class="font-semibold text-gray-900 dark:text-white">net subtotal divided by @spendPerBasePoint.ToString("C2")</span>
+                            <span class="mx-1 text-gray-400">-></span>
+                            <span class="font-semibold text-gray-900 dark:text-white">x tier multiplier</span>
+                            <span class="mx-1 text-gray-400">-></span>
+                            <span class="font-semibold text-gray-900 dark:text-white">floor(result) points</span>
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="text-sm text-gray-700 dark:text-gray-300">Base earning is disabled in loyalty settings.</p>
+                    }
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     @foreach (var tier in Model.LoyaltyTierDetails)
                     {
@@ -248,15 +301,12 @@
                                 </div>
                                 <span class="rounded-md bg-white/60 px-2 py-1 text-xs font-semibold text-gray-700">@tier.Members members</span>
                             </div>
-                            <ul class="mt-2 space-y-1 text-[11px]">
+                            <div class="mt-2 space-y-1 text-[11px]">
                                 @foreach (var benefit in tier.Benefits)
                                 {
-                                    <li class="flex items-start gap-2">
-                                        <span class="material-icons-outlined text-sm">check_circle</span>
-                                        <span>@benefit</span>
-                                    </li>
+                                    <p>@benefit</p>
                                 }
-                            </ul>
+                            </div>
                         </div>
                     }
                 </div>
@@ -278,7 +328,7 @@
                             <th class="px-4 py-3 rounded-l-lg">Customer</th>
                             <th class="px-4 py-3">Tier</th>
                             <th class="px-4 py-3 text-right">Current Points</th>
-                            <th class="px-4 py-3 text-right">Lifetime Rewards</th>
+                            <th class="px-4 py-3 text-right">Lifetime Rewards Redeemed</th>
                             <th class="px-4 py-3 rounded-r-lg text-right">Orders</th>
                         </tr>
                     </thead>
@@ -1014,6 +1064,9 @@
                     });
                 });
             }
+
+            const initialCrmTab = '@((ViewData["InitialCrmTab"] as string) ?? "customers")';
+            switchTab(initialCrmTab === 'loyalty' ? 'loyalty' : 'customers');
         });
 
         function switchTab(tabName) {
@@ -1046,3 +1099,4 @@
         }
     </script>
 }
+

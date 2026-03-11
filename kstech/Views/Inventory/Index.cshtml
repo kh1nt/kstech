@@ -91,7 +91,7 @@
     </div>
 
     <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <!-- Total Inventory Value -->
         <div class="bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 relative transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
             <div class="flex justify-between items-start mb-4">
@@ -162,22 +162,6 @@
             </div>
         </div>
 
-        <!-- Avg Market Markup -->
-        <div class="bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 relative transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-            <div class="flex justify-between items-start mb-4">
-                <div class="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
-                    <span class="material-icons-outlined">timeline</span>
-                </div>
-                <span class="flex items-center text-xs font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded">
-                    eBay
-                </span>
-            </div>
-            <div>
-                <p class="text-xs font-semibold text-gray-400 mb-1">Avg Market Markup</p>
-                <h3 class="text-2xl font-bold text-gray-900 dark:text-white">@Model.AvgMarketMarkup.ToString("0.##")%</h3>
-                <p class="text-[10px] text-gray-400 mt-1">Based on current eBay market comparison data.</p>
-            </div>
-        </div>
     </div>
 
     <!-- Charts Section -->

@@ -41,6 +41,33 @@
     </div>
 }
 
+<div class="mb-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Budget</p>
+        <h3 class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">@Model.BudgetAmount.ToString("C")</h3>
+        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            @Model.FilterStartDate.ToString("MMM dd") - @Model.FilterEndDate.ToString("MMM dd, yyyy")
+        </p>
+    </div>
+    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Actual Revenue</p>
+        <h3 class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">@Model.ActualRevenue.ToString("C")</h3>
+        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Realized sales in selected month.</p>
+    </div>
+    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Committed Spend</p>
+        <h3 class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">@committedAmount.ToString("C")</h3>
+        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Reserved + spent based on budget events.</p>
+    </div>
+    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Budget Headroom</p>
+        <h3 class="mt-1 text-2xl font-bold @(Model.BudgetVariance >= 0 ? "text-emerald-600" : "text-red-600")">
+            @(Model.BudgetVariance >= 0 ? "+" : "")@Model.BudgetVariance.ToString("C")
+        </h3>
+        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Remaining room before full commitment.</p>
+    </div>
+</div>
+
 <div class="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
     <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
         <div>
@@ -402,94 +429,6 @@
     </div>
 </div>
 
-<div class="mb-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
-    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
-        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Budget</p>
-        <h3 class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">@Model.BudgetAmount.ToString("C")</h3>
-        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            @Model.FilterStartDate.ToString("MMM dd") - @Model.FilterEndDate.ToString("MMM dd, yyyy")
-        </p>
-    </div>
-    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
-        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Actual Revenue</p>
-        <h3 class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">@Model.ActualRevenue.ToString("C")</h3>
-        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Realized sales in selected month.</p>
-    </div>
-    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
-        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Committed Spend</p>
-        <h3 class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">@committedAmount.ToString("C")</h3>
-        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Reserved + spent based on budget events.</p>
-    </div>
-    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
-        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Budget Headroom</p>
-        <h3 class="mt-1 text-2xl font-bold @(Model.BudgetVariance >= 0 ? "text-emerald-600" : "text-red-600")">
-            @(Model.BudgetVariance >= 0 ? "+" : "")@Model.BudgetVariance.ToString("C")
-        </h3>
-        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Remaining room before full commitment.</p>
-    </div>
-    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
-        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Integrated Gap</p>
-        <h3 class="mt-1 text-2xl font-bold @(Model.BudgetGapToIntegratedTarget > 0 ? "text-amber-600" : "text-emerald-600")">
-            @(Model.BudgetGapToIntegratedTarget >= 0 ? "+" : "")@Model.BudgetGapToIntegratedTarget.ToString("C")
-        </h3>
-        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            Utilization: @Model.BudgetUtilizationPercentage.ToString("0.##")% | Positive gap means extra budget needed.
-        </p>
-    </div>
-</div>
-
-<div class="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <div class="bg-white dark:bg-card-dark rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex h-full flex-col">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Actual Revenue vs Entered Budget</h3>
-            <span class="text-xs text-gray-500 dark:text-gray-400">@Model.FilterStartDate.ToString("MMM dd") - @Model.FilterEndDate.ToString("MMM dd, yyyy")</span>
-        </div>
-        <div class="relative flex-1 min-h-[22rem]">
-            <canvas id="budgetTrackingChart"></canvas>
-        </div>
-    </div>
-
-    <div class="bg-white dark:bg-card-dark rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden h-full">
-        <div class="p-6 border-b border-gray-100 dark:border-gray-700">
-            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Suggested Budget Allocation by Category</h3>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-gray-50/50 dark:bg-gray-800/50 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
-                        <th class="px-6 py-4">Category</th>
-                        <th class="px-6 py-4">Units Sold</th>
-                        <th class="px-6 py-4">Allocation Share</th>
-                        <th class="px-6 py-4">Budget</th>
-                        <th class="px-6 py-4">Restock</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100 dark:divide-gray-700 text-sm">
-                    @if (Model.SuggestedAllocations.Any())
-                    {
-                        foreach (var allocation in Model.SuggestedAllocations)
-                        {
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                                <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">@allocation.Category</td>
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">@allocation.UnitsSold.ToString("N0")</td>
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">@allocation.RevenueSharePercentage.ToString("0.##")%</td>
-                                <td class="px-6 py-4 font-semibold text-gray-900 dark:text-white">@allocation.SuggestedBudgetAmount.ToString("C")</td>
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">@allocation.SuggestedRestockSpend.ToString("C")</td>
-                            </tr>
-                        }
-                    }
-                    else
-                    {
-                        <tr>
-                            <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No category allocation suggestions yet.</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
 <div id="budgetActionModal"
      data-archive-action-url="@Url.Action("ArchiveFinancialBudget", "BusinessIntelligence")"
      data-restore-action-url="@Url.Action("RestoreFinancialBudget", "BusinessIntelligence")"
@@ -554,13 +493,8 @@
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const labels = @Html.Raw(JsonSerializer.Serialize(Model.TrendLabels));
-            const actualValues = @Html.Raw(JsonSerializer.Serialize(Model.ActualRevenueTrendValues));
-            const targetValues = @Html.Raw(JsonSerializer.Serialize(Model.BudgetTargetTrendValues));
-            const chartCanvas = document.getElementById('budgetTrackingChart');
             const viewBudgetMonthForm = document.getElementById('viewBudgetMonthForm');
             const viewBudgetMonthInput = document.getElementById('viewBudgetMonth');
             const budgetSaveForm = document.getElementById('budgetSaveForm');
@@ -589,83 +523,6 @@
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
             });
-
-            if (chartCanvas) {
-                const chartContext = chartCanvas.getContext('2d');
-                if (chartContext) {
-                    const actualFillGradient = chartContext.createLinearGradient(0, 0, 0, 280);
-                    actualFillGradient.addColorStop(0, 'rgba(35, 100, 96, 0.28)');
-                    actualFillGradient.addColorStop(1, 'rgba(35, 100, 96, 0.03)');
-
-                    new Chart(chartContext, {
-                        type: 'line',
-                        data: {
-                            labels: labels.length ? labels : ['No Data'],
-                            datasets: [
-                                {
-                                    label: 'Actual Revenue',
-                                    data: actualValues.length ? actualValues : [0],
-                                    borderColor: '#236460',
-                                    backgroundColor: actualFillGradient,
-                                    fill: true,
-                                    tension: 0.35,
-                                    pointRadius: 2,
-                                    pointHoverRadius: 4
-                                },
-                                {
-                                    label: 'Budget Target',
-                                    data: targetValues.length ? targetValues : [0],
-                                    borderColor: '#d97706',
-                                    backgroundColor: 'rgba(217, 119, 6, 0.08)',
-                                    fill: false,
-                                    borderDash: [6, 6],
-                                    tension: 0.3,
-                                    pointRadius: 2,
-                                    pointHoverRadius: 4
-                                }
-                            ]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            interaction: {
-                                mode: 'index',
-                                intersect: false
-                            },
-                            plugins: {
-                                legend: {
-                                    position: 'top',
-                                    align: 'end',
-                                    labels: { usePointStyle: true, boxWidth: 8 }
-                                },
-                                tooltip: {
-                                    callbacks: {
-                                        label: (context) => `${context.dataset.label}: ${currencyFormatter.format(Number(context.parsed.y || 0))}`
-                                    }
-                                }
-                            },
-                            scales: {
-                                x: {
-                                    grid: { display: false },
-                                    ticks: {
-                                        color: '#9ca3af',
-                                        maxRotation: 0,
-                                        autoSkipPadding: 12
-                                    }
-                                },
-                                y: {
-                                    beginAtZero: true,
-                                    grid: { color: 'rgba(107, 114, 128, 0.15)' },
-                                    ticks: {
-                                        color: '#9ca3af',
-                                        callback: (value) => currencyFormatter.format(Number(value || 0))
-                                    }
-                                }
-                            }
-                        }
-                    });
-                }
-            }
 
             const archiveBudgetActionUrl = budgetActionModal?.dataset.archiveActionUrl ?? '';
             const restoreBudgetActionUrl = budgetActionModal?.dataset.restoreActionUrl ?? '';

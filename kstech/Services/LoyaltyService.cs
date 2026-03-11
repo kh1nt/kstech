@@ -8,6 +8,7 @@ namespace kstech.Services
     {
         LoyaltyTierSnapshot ResolveTier(decimal lifetimeSpend);
         IReadOnlyList<LoyaltyTierSnapshot> GetProgramTiers();
+        LoyaltyProgramRulesSnapshot GetProgramRules();
         LoyaltyCheckoutComputation CalculateCheckout(
             Customer customer,
             decimal lifetimeSpendBeforeOrder,
@@ -22,6 +23,13 @@ namespace kstech.Services
         string Name,
         decimal SpendThreshold,
         decimal EarnMultiplier);
+
+    public sealed record LoyaltyProgramRulesSnapshot(
+        bool Enabled,
+        decimal BasePointsPerCurrency,
+        decimal PointRedemptionValue,
+        decimal MaxRedemptionRate,
+        decimal MinimumOrderAmountForRedemption);
 
     public sealed record LoyaltyCheckoutComputation(
         int PointsRedeemed,
@@ -44,6 +52,16 @@ namespace kstech.Services
         public IReadOnlyList<LoyaltyTierSnapshot> GetProgramTiers()
         {
             return GetTierTable();
+        }
+
+        public LoyaltyProgramRulesSnapshot GetProgramRules()
+        {
+            return new LoyaltyProgramRulesSnapshot(
+                Enabled: _options.Enabled,
+                BasePointsPerCurrency: Math.Max(0m, _options.BasePointsPerCurrency),
+                PointRedemptionValue: Math.Max(0m, _options.PointRedemptionValue),
+                MaxRedemptionRate: Math.Clamp(_options.MaxRedemptionRate, 0m, 1m),
+                MinimumOrderAmountForRedemption: Math.Max(0m, _options.MinimumOrderAmountForRedemption));
         }
 
         public LoyaltyTierSnapshot ResolveTier(decimal lifetimeSpend)

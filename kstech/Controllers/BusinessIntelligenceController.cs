@@ -135,26 +135,48 @@ namespace kstech.Controllers
                 return RedirectToAction(nameof(Sales));
             }
 
+            var ownerUserId = ResolveWritableOwnerUserId();
+            if (!ownerUserId.HasValue)
+            {
+                TempData["SalesMessage"] = "Select an owner workspace with edit permission before making changes.";
+                return RedirectToAction(nameof(Sales));
+            }
+
             var order = await _context.Orders
                 .Include(o => o.OrderDetails)
-                .FirstOrDefaultAsync(o => o.OrderID == orderId && (!o.OwnerUserID.HasValue || _tenantContext.OwnerUserId == null || o.OwnerUserID == _tenantContext.OwnerUserId));
+                .FirstOrDefaultAsync(o => o.OrderID == orderId && o.OwnerUserID == ownerUserId.Value);
 
-            if (order == null || (order.OrderStatus != "Pending" && order.OrderStatus != "Processing"))
+            if (order == null ||
+                (!string.Equals(order.OrderStatus, "Pending", StringComparison.OrdinalIgnoreCase) &&
+                 !string.Equals(order.OrderStatus, "Processing", StringComparison.OrdinalIgnoreCase)))
             {
                 TempData["SalesMessage"] = "Order not found or cannot be cancelled.";
                 return RedirectToAction(nameof(Sales));
             }
 
             order.OrderStatus = "Cancelled";
-            var originalPaymentStatus = order.PaymentStatus ?? "";
-            order.PaymentStatus = originalPaymentStatus == "Paid" ? "Refunded" : originalPaymentStatus;
+            var originalPaymentStatus = order.PaymentStatus ?? string.Empty;
+            order.PaymentStatus = string.Equals(
+                originalPaymentStatus,
+                RevenueRecognitionPolicy.PaidPaymentStatus,
+                StringComparison.OrdinalIgnoreCase)
+                ? RevenueRecognitionPolicy.RefundedPaymentStatus
+                : originalPaymentStatus;
 
-            var actorUserId = 1; 
+            var actorUserId = _tenantContext.CurrentUserId ?? ownerUserId.Value;
+            var productIds = order.OrderDetails
+                .Select(detail => detail.ProductID)
+                .Distinct()
+                .ToList();
+            var productsById = await _context.Products
+                .Where(product =>
+                    product.OwnerUserID == ownerUserId.Value &&
+                    productIds.Contains(product.ProductID))
+                .ToDictionaryAsync(product => product.ProductID);
 
             foreach (var detail in order.OrderDetails)
             {
-                var product = await _context.Products.FindAsync(detail.ProductID);
-                if (product != null)
+                if (productsById.TryGetValue(detail.ProductID, out var product))
                 {
                     _inventoryControlService.ApplyStockIn(
                         product,
@@ -186,16 +208,25 @@ namespace kstech.Controllers
                 return RedirectToAction(nameof(Sales));
             }
 
-            var order = await _context.Orders
-                .FirstOrDefaultAsync(o => o.OrderID == orderId && (!o.OwnerUserID.HasValue || _tenantContext.OwnerUserId == null || o.OwnerUserID == _tenantContext.OwnerUserId));
-
-            if (order == null || order.PaymentStatus == "Refunded")
+            var ownerUserId = ResolveWritableOwnerUserId();
+            if (!ownerUserId.HasValue)
             {
-                TempData["SalesMessage"] = "Order not found or already refunded.";
+                TempData["SalesMessage"] = "Select an owner workspace with edit permission before making changes.";
                 return RedirectToAction(nameof(Sales));
             }
 
-            order.PaymentStatus = "Refunded";
+            var order = await _context.Orders
+                .FirstOrDefaultAsync(o => o.OrderID == orderId && o.OwnerUserID == ownerUserId.Value);
+
+            if (order == null ||
+                !string.Equals(order.PaymentStatus, RevenueRecognitionPolicy.PaidPaymentStatus, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(order.OrderStatus, RevenueRecognitionPolicy.CancelledOrderStatus, StringComparison.OrdinalIgnoreCase))
+            {
+                TempData["SalesMessage"] = "Order not found or not eligible for refund.";
+                return RedirectToAction(nameof(Sales));
+            }
+
+            order.PaymentStatus = RevenueRecognitionPolicy.RefundedPaymentStatus;
 
             await _context.SaveChangesAsync();
             TempData["SalesMessage"] = $"Order #{orderId} payment has been marked as refunded.";
@@ -548,6 +579,20 @@ namespace kstech.Controllers
             return _tenantContext.IsSuperAdmin &&
                    (!_tenantContext.HasOwnerScope || !_tenantContext.CanEditOwnerWorkspace);
         }
+
+        private int? ResolveWritableOwnerUserId()
+        {
+            if (_tenantContext.OwnerUserId.HasValue)
+            {
+                return _tenantContext.OwnerUserId.Value;
+            }
+
+            if (_tenantContext.IsSuperAdmin)
+            {
+                return null;
+            }
+
+            return _tenantContext.CurrentUserId;
+        }
     }
 }
-

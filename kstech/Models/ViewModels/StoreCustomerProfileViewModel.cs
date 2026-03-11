@@ -36,6 +36,7 @@ namespace kstech.Models.ViewModels
         public int LifetimePointsRedeemed { get; set; }
         public int OrderCount { get; set; }
         public decimal LifetimeSpend { get; set; }
+        public string CurrentTier { get; set; } = "Bronze";
         public DateTime RegistrationDate { get; set; }
 
         [StringLength(100, ErrorMessage = "The {0} must be at most {1} characters long.")]

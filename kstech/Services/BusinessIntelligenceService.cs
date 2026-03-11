@@ -153,15 +153,16 @@ namespace kstech.Services
                     MatchesPaymentFilter(order, normalizedPaymentFilter) &&
                     MatchesOrderStatusFilter(order, normalizedOrderStatusFilter))
                 .ToList();
+            var recognizedRevenueOrders = filteredOrders
+                .Where(RevenueRecognitionPolicy.IsRecognizedRevenueOrder)
+                .ToList();
+            var previousRecognizedRevenueOrders = previousFilteredOrders
+                .Where(RevenueRecognitionPolicy.IsRecognizedRevenueOrder)
+                .ToList();
 
             // CALC-KPI: Core sales KPIs (revenue, orders, order states) are derived from the filtered order set.
-            var totalRevenue = filteredOrders
-                .Where(order => !string.Equals(order.PaymentStatus, "Refunded", StringComparison.OrdinalIgnoreCase))
-                .Sum(order => order.TotalAmount);
-
-            var previousRevenue = previousFilteredOrders
-                .Where(order => !string.Equals(order.PaymentStatus, "Refunded", StringComparison.OrdinalIgnoreCase))
-                .Sum(order => order.TotalAmount);
+            var totalRevenue = recognizedRevenueOrders.Sum(order => order.TotalAmount);
+            var previousRevenue = previousRecognizedRevenueOrders.Sum(order => order.TotalAmount);
 
             var totalOrders = filteredOrders.Count;
             var previousTotalOrders = previousFilteredOrders.Count;
@@ -196,10 +197,7 @@ namespace kstech.Services
                 .OrderByDescending(item => item.Count)
                 .ToList();
 
-            var fastMovingItems = filteredOrders
-                .Where(order =>
-                    !IsCancelledStatus(order.OrderStatus) &&
-                    !IsRefundedStatus(order.PaymentStatus))
+            var fastMovingItems = recognizedRevenueOrders
                 .SelectMany(order => order.OrderDetails
                     .Where(detail => detail.Product != null)
                     .Select(detail => new
@@ -231,22 +229,53 @@ namespace kstech.Services
                 .Take(6)
                 .ToList();
 
+            var loyaltyRules = _loyaltyService.GetProgramRules();
             var recentOrderSnapshots = filteredOrders
                 .OrderByDescending(order => order.OrderDate)
                 .Select(order => new SalesOrderSnapshotViewModel
                 {
+                    LineItems = order.OrderDetails
+                        .Select(detail => new SalesOrderLineItemViewModel
+                        {
+                            ProductName = string.IsNullOrWhiteSpace(detail.Product?.ProductName)
+                                ? $"Product #{detail.ProductID}"
+                                : detail.Product!.ProductName,
+                            Quantity = detail.Quantity,
+                            UnitPrice = detail.UnitPriceAtSale,
+                            Subtotal = detail.SubTotal
+                        })
+                        .ToList(),
                     OrderId = order.OrderID,
                     CustomerName = ResolveCustomerName(order.Customer),
                     OrderDate = order.OrderDate,
                     TotalAmount = order.TotalAmount,
+                    SubtotalBeforeDiscount = Math.Round(order.TotalAmount + order.LoyaltyDiscountAmount, 2, MidpointRounding.AwayFromZero),
+                    LoyaltyDiscountAmount = Math.Round(order.LoyaltyDiscountAmount, 2, MidpointRounding.AwayFromZero),
+                    LoyaltyPointsRedeemed = order.LoyaltyPointsRedeemed,
+                    LoyaltyPointsEarned = order.LoyaltyPointsEarned,
+                    LoyaltyProgramEnabled = loyaltyRules.Enabled,
+                    LoyaltyPointValue = loyaltyRules.PointRedemptionValue,
+                    LoyaltyBasePointsPerCurrency = loyaltyRules.BasePointsPerCurrency,
+                    LoyaltyBasePointsRaw = Math.Round(order.TotalAmount * loyaltyRules.BasePointsPerCurrency, 2, MidpointRounding.AwayFromZero),
+                    TotalItems = order.OrderDetails.Sum(detail => detail.Quantity),
                     PaymentStatus = string.IsNullOrWhiteSpace(order.PaymentStatus) ? "Unknown" : order.PaymentStatus,
                     OrderStatus = string.IsNullOrWhiteSpace(order.OrderStatus) ? "Unknown" : order.OrderStatus,
                     ProductsSummary = string.Join(", ", order.OrderDetails
                         .Select(detail => detail.Product?.ProductName)
                         .Where(productName => !string.IsNullOrWhiteSpace(productName))
+                        .Distinct()
                         .Take(2)) switch
                     {
                         "" => "No line items",
+                        var summary when order.OrderDetails
+                            .Select(detail => detail.Product?.ProductName)
+                            .Where(productName => !string.IsNullOrWhiteSpace(productName))
+                            .Distinct()
+                            .Count() > 2 => $"{summary} +{order.OrderDetails
+                                .Select(detail => detail.Product?.ProductName)
+                                .Where(productName => !string.IsNullOrWhiteSpace(productName))
+                                .Distinct()
+                                .Count() - 2} more",
                         var summary => summary
                     }
                 })
@@ -1204,12 +1233,13 @@ namespace kstech.Services
                 .ToList();
             var daysInRange = Math.Max(1, (rangeEndLocalDate - rangeStartLocalDate).Days + 1);
             var monthlyProjectionFactor = 30m / daysInRange;
-            var unitsSoldByProduct = ApplyOwnerFilter(_context.OrderDetails.AsNoTracking(), applyOwnerFilter, ownerUserId)
+            var unitsSoldOrderDetailsInRange = ApplyOwnerFilter(_context.OrderDetails.AsNoTracking(), applyOwnerFilter, ownerUserId)
                 .Where(detail =>
                     detail.Order != null &&
                     detail.Order.OrderDate >= rangeStartUtc &&
-                    detail.Order.OrderDate <= rangeEndUtcInclusive &&
-                    detail.Order.PaymentStatus != "Refunded")
+                    detail.Order.OrderDate <= rangeEndUtcInclusive);
+            var unitsSoldByProduct = RevenueRecognitionPolicy
+                .ApplyRecognizedRevenueOrderDetailFilter(unitsSoldOrderDetailsInRange)
                 .GroupBy(detail => detail.ProductID)
                 .Select(group => new
                 {
@@ -1767,7 +1797,9 @@ namespace kstech.Services
                     detail.ProductID > 0 &&
                     detail.Order.OrderDate >= rangeStartUtc &&
                     detail.Order.OrderDate <= rangeEndUtcInclusive &&
-                    (detail.Order.PaymentStatus == null || detail.Order.PaymentStatus != "Refunded"))
+                    detail.Order.PaymentStatus == RevenueRecognitionPolicy.PaidPaymentStatus &&
+                    detail.Order.PaymentStatus != RevenueRecognitionPolicy.RefundedPaymentStatus &&
+                    detail.Order.OrderStatus != RevenueRecognitionPolicy.CancelledOrderStatus)
                 .ToList();
 
             var unitCostLookup = BuildOrderProductUnitCostLookup(
@@ -2308,10 +2340,8 @@ WHERE TABLE_NAME IN ('PurchaseOrders', 'PurchaseOrderLines')";
             {
                 "all" => !IsCancelledStatus(order.OrderStatus),
                 "pending_only" => !IsCancelledStatus(order.OrderStatus) && IsPendingPaymentStatus(order.PaymentStatus),
-                "refunded_only" => IsRefundedStatus(order.PaymentStatus),
-                _ => !IsCancelledStatus(order.OrderStatus) &&
-                     IsPaidStatus(order.PaymentStatus) &&
-                     !IsRefundedStatus(order.PaymentStatus)
+                "refunded_only" => IsRefundedStatus(order.PaymentStatus) && !IsCancelledStatus(order.OrderStatus),
+                _ => RevenueRecognitionPolicy.IsRecognizedRevenueStatus(order.PaymentStatus, order.OrderStatus)
             };
         }
 
@@ -2331,10 +2361,10 @@ WHERE TABLE_NAME IN ('PurchaseOrders', 'PurchaseOrderLines')";
         }
 
         private static bool IsPaidStatus(string? paymentStatus) =>
-            string.Equals(paymentStatus, "Paid", StringComparison.OrdinalIgnoreCase);
+            string.Equals(paymentStatus, RevenueRecognitionPolicy.PaidPaymentStatus, StringComparison.OrdinalIgnoreCase);
 
         private static bool IsRefundedStatus(string? paymentStatus) =>
-            string.Equals(paymentStatus, "Refunded", StringComparison.OrdinalIgnoreCase);
+            string.Equals(paymentStatus, RevenueRecognitionPolicy.RefundedPaymentStatus, StringComparison.OrdinalIgnoreCase);
 
         private static bool IsPendingPaymentStatus(string? paymentStatus) =>
             string.IsNullOrWhiteSpace(paymentStatus) ||
@@ -2349,7 +2379,7 @@ WHERE TABLE_NAME IN ('PurchaseOrders', 'PurchaseOrderLines')";
             CompletedStatuses.Contains(orderStatus.Trim());
 
         private static bool IsCancelledStatus(string? orderStatus) =>
-            string.Equals(orderStatus, "Cancelled", StringComparison.OrdinalIgnoreCase);
+            string.Equals(orderStatus, RevenueRecognitionPolicy.CancelledOrderStatus, StringComparison.OrdinalIgnoreCase);
 
         private static decimal ResolveUnitCost(
             OrderDetail detail,
@@ -2372,9 +2402,12 @@ WHERE TABLE_NAME IN ('PurchaseOrders', 'PurchaseOrderLines')";
             // CALC-KPI: Use daily buckets for short ranges and monthly buckets for longer ranges.
             var (normalizedRangeStartLocalDate, normalizedRangeEndLocalDate) = NormalizeLocalDateRange(rangeStartLocalDate, rangeEndLocalDate);
             var days = (normalizedRangeEndLocalDate - normalizedRangeStartLocalDate).Days + 1;
+            var recognizedRevenueOrders = filteredOrders
+                .Where(RevenueRecognitionPolicy.IsRecognizedRevenueOrder)
+                .ToList();
             if (days <= 31)
             {
-                var revenueByDay = filteredOrders
+                var revenueByDay = recognizedRevenueOrders
                     .GroupBy(order => ConvertUtcToLocal(order.OrderDate).Date)
                     .ToDictionary(
                         group => group.Key,
@@ -2391,7 +2424,7 @@ WHERE TABLE_NAME IN ('PurchaseOrders', 'PurchaseOrderLines')";
                 return (labels, values);
             }
 
-            var revenueByMonth = filteredOrders
+            var revenueByMonth = recognizedRevenueOrders
                 .GroupBy(order =>
                 {
                     var localOrderDate = ConvertUtcToLocal(order.OrderDate);

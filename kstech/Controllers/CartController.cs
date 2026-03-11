@@ -589,6 +589,30 @@ namespace kstech.Controllers
             var latestPayment = order.Payments
                 .OrderByDescending(payment => payment.PaymentDateUtc)
                 .FirstOrDefault();
+            var loyaltyProgramRules = _loyaltyService.GetProgramRules();
+            var lifetimeSpendBeforeOrderQuery = _context.Orders
+                .AsNoTracking()
+                .Where(existingOrder =>
+                    existingOrder.CustomerID == order.CustomerID &&
+                    existingOrder.OrderID != order.OrderID &&
+                    existingOrder.PaymentStatus != "Refunded");
+
+            if (order.OwnerUserID.HasValue)
+            {
+                lifetimeSpendBeforeOrderQuery = lifetimeSpendBeforeOrderQuery
+                    .Where(existingOrder => existingOrder.OwnerUserID == order.OwnerUserID.Value);
+            }
+            else
+            {
+                lifetimeSpendBeforeOrderQuery = lifetimeSpendBeforeOrderQuery
+                    .Where(existingOrder => existingOrder.OwnerUserID == null);
+            }
+
+            var lifetimeSpendBeforeOrder = await lifetimeSpendBeforeOrderQuery
+                .SumAsync(existingOrder => existingOrder.TotalAmount);
+            var loyaltyTier = _loyaltyService.ResolveTier(lifetimeSpendBeforeOrder);
+            var orderSubtotalBeforeDiscount = order.TotalAmount + order.LoyaltyDiscountAmount;
+            var basePointsRaw = order.TotalAmount * loyaltyProgramRules.BasePointsPerCurrency;
             var addressParts = new List<string>();
             if (!string.IsNullOrWhiteSpace(order.Customer?.Address) &&
                 !string.Equals(order.Customer.Address, "Update in Profile", StringComparison.OrdinalIgnoreCase))
@@ -613,7 +637,19 @@ namespace kstech.Controllers
                 PaymentMethod = latestPayment?.PaymentMethod ?? "Card",
                 CanProcessPayment =
                     !string.Equals(order.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase) &&
-                    !string.Equals(order.PaymentStatus, "Refunded", StringComparison.OrdinalIgnoreCase)
+                    !string.Equals(order.PaymentStatus, "Refunded", StringComparison.OrdinalIgnoreCase),
+                LoyaltyProgramEnabled = loyaltyProgramRules.Enabled,
+                LoyaltyOrderSubtotalBeforeDiscount = orderSubtotalBeforeDiscount,
+                LoyaltyPointsRedeemed = order.LoyaltyPointsRedeemed,
+                LoyaltyDiscountAmount = order.LoyaltyDiscountAmount,
+                LoyaltyNetSubtotal = order.TotalAmount,
+                LoyaltyBasePointsPerCurrency = loyaltyProgramRules.BasePointsPerCurrency,
+                LoyaltyBasePointsRaw = basePointsRaw,
+                LoyaltyTierName = loyaltyTier.Name,
+                LoyaltyTierMultiplier = loyaltyTier.EarnMultiplier,
+                LoyaltyPointsEarned = order.LoyaltyPointsEarned,
+                LoyaltyNetPointsChange = order.LoyaltyPointsEarned - order.LoyaltyPointsRedeemed,
+                LoyaltyPointValue = loyaltyProgramRules.PointRedemptionValue
             };
 
             return View(model);

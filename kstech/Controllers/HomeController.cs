@@ -160,8 +160,9 @@ namespace kstech.Controllers
                 .Where(od =>
                     od.OrderID != 0 &&
                     od.Order != null &&
-                    od.Order.OrderStatus != "Cancelled" &&
-                    od.Order.PaymentStatus == "Paid" &&
+                    od.Order.OrderStatus != RevenueRecognitionPolicy.CancelledOrderStatus &&
+                    od.Order.PaymentStatus == RevenueRecognitionPolicy.PaidPaymentStatus &&
+                    od.Order.PaymentStatus != RevenueRecognitionPolicy.RefundedPaymentStatus &&
                     od.Order.OrderDate >= rangeStartUtc &&
                     od.Order.OrderDate <= rangeEndUtc &&
                     (!applyOwnerFilter || od.Order.OwnerUserID == ownerUserId) &&
@@ -173,8 +174,9 @@ namespace kstech.Controllers
                 .Where(od =>
                     od.OrderID != 0 &&
                     od.Order != null &&
-                    od.Order.OrderStatus != "Cancelled" &&
-                    od.Order.PaymentStatus == "Paid" &&
+                    od.Order.OrderStatus != RevenueRecognitionPolicy.CancelledOrderStatus &&
+                    od.Order.PaymentStatus == RevenueRecognitionPolicy.PaidPaymentStatus &&
+                    od.Order.PaymentStatus != RevenueRecognitionPolicy.RefundedPaymentStatus &&
                     od.Order.OrderDate >= comparisonRangeStartUtc &&
                     od.Order.OrderDate <= comparisonRangeEndUtc &&
                     (!applyOwnerFilter || od.Order.OwnerUserID == ownerUserId) &&
@@ -469,9 +471,7 @@ namespace kstech.Controllers
 
         private static IQueryable<Order> ApplyRecognizedRevenueOrderFilter(IQueryable<Order> query)
         {
-            return query.Where(order =>
-                order.PaymentStatus == "Paid" &&
-                order.OrderStatus != "Cancelled");
+            return RevenueRecognitionPolicy.ApplyRecognizedRevenueOrderFilter(query);
         }
 
         private static Dictionary<int, StockMovementSummary> BuildStockMovementSummaryByProduct(IEnumerable<InventoryMovement> movements)

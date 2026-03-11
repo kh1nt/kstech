@@ -1,5 +1,6 @@
 @model kstech.Models.ViewModels.SalesAnalyticsViewModel
 @using System.Text.Json
+@using System.Globalization
 @using kstech.Utilities
 @{
     ViewData["Title"] = "Sales Management";
@@ -215,16 +216,16 @@
         <h3 class="text-lg font-bold text-gray-900 dark:text-white">Recent Sales</h3>
     </div>
     <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
+        <table class="min-w-full text-left border-collapse">
             <thead>
                 <tr class="bg-gray-50/50 dark:bg-gray-800/50 text-xs uppercase text-gray-500 dark:text-gray-400 font-semibold tracking-wider">
-                    <th class="px-6 py-4">Order ID</th>
-                    <th class="px-6 py-4">Customer</th>
-                    <th class="px-6 py-4">Date</th>
-                    <th class="px-6 py-4">Products</th>
-                    <th class="px-6 py-4">Total</th>
-                    <th class="px-6 py-4 text-center">Status & Payment</th>
-                    <th class="px-6 py-4 text-right">Actions</th>
+                    <th class="px-6 py-4 w-[11rem]">Order</th>
+                    <th class="px-6 py-4 w-[12rem]">Date</th>
+                    <th class="px-6 py-4 w-[12rem]">Customer</th>
+                    <th class="px-6 py-4 min-w-[18rem]">Items</th>
+                    <th class="px-6 py-4 text-right w-[10rem]">Total</th>
+                    <th class="px-6 py-4 text-center w-[12rem]">Status & Payment</th>
+                    <th class="px-6 py-4 text-right w-[10rem]">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700 text-sm">
@@ -238,12 +239,40 @@
                             "Refunded" => "bg-red-100 text-red-700",
                             _ => "bg-yellow-100 text-yellow-700"
                         };
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                            <td class="px-6 py-4 font-medium text-brand-primary">#ORD-@order.OrderId</td>
-                            <td class="px-6 py-4 text-gray-900 dark:text-white">@order.CustomerName</td>
+                        <tr data-order-row
+                            data-order-id="@order.OrderId"
+                            data-order-date-label="@BusinessTime.ConvertUtcToBusinessTime(order.OrderDate).ToString("MMM dd, yyyy HH:mm")"
+                            data-customer-name="@order.CustomerName"
+                            data-order-status="@order.OrderStatus"
+                            data-payment-status="@order.PaymentStatus"
+                            data-total-amount="@order.TotalAmount.ToString("F2", CultureInfo.InvariantCulture)"
+                            data-subtotal-before-discount="@order.SubtotalBeforeDiscount.ToString("F2", CultureInfo.InvariantCulture)"
+                            data-loyalty-discount="@order.LoyaltyDiscountAmount.ToString("F2", CultureInfo.InvariantCulture)"
+                            data-points-redeemed="@order.LoyaltyPointsRedeemed"
+                            data-points-earned="@order.LoyaltyPointsEarned"
+                            data-points-net="@order.LoyaltyNetPointsChange"
+                            data-point-value="@order.LoyaltyPointValue.ToString("F4", CultureInfo.InvariantCulture)"
+                            data-base-rate="@order.LoyaltyBasePointsPerCurrency.ToString("F4", CultureInfo.InvariantCulture)"
+                            data-base-points-raw="@order.LoyaltyBasePointsRaw.ToString("F2", CultureInfo.InvariantCulture)"
+                            data-loyalty-enabled="@(order.LoyaltyProgramEnabled ? "true" : "false")"
+                            data-line-items='@JsonSerializer.Serialize(order.LineItems)'
+                            class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                            <td class="px-6 py-4">
+                                <button type="button"
+                                        data-order-open-modal
+                                        class="inline-flex items-center gap-1 rounded-md text-brand-primary font-semibold hover:underline">
+                                    <span class="material-icons-outlined text-[16px]">receipt_long</span>
+                                    <span>#ORD-@order.OrderId</span>
+                                </button>
+                                <p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">View breakdown</p>
+                            </td>
                             <td class="px-6 py-4 text-gray-500 dark:text-gray-400">@BusinessTime.ConvertUtcToBusinessTime(order.OrderDate).ToString("MMM dd, yyyy HH:mm")</td>
-                            <td class="px-6 py-4 text-gray-600 dark:text-gray-300">@order.ProductsSummary</td>
-                            <td class="px-6 py-4 font-semibold text-gray-900 dark:text-white">@order.TotalAmount.ToString("C")</td>
+                            <td class="px-6 py-4 text-gray-900 dark:text-white">@order.CustomerName</td>
+                            <td class="px-6 py-4 text-gray-600 dark:text-gray-300">
+                                <p class="font-medium text-gray-800 dark:text-gray-200">@order.ProductsSummary</p>
+                                <p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">@order.TotalItems item(s)</p>
+                            </td>
+                            <td class="px-6 py-4 text-right font-semibold text-gray-900 dark:text-white">@order.TotalAmount.ToString("C")</td>
                             <td class="px-6 py-4 text-center">
                                 <div class="flex flex-col gap-1 items-center">
                                     <span class="px-3 py-1 rounded-full text-[11px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">@order.OrderStatus</span>
@@ -252,6 +281,11 @@
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-3">
+                                    <button type="button"
+                                            data-order-open-modal
+                                            class="text-xs font-medium text-brand-primary hover:underline">
+                                        Details
+                                    </button>
                                     @if (order.OrderStatus == "Pending" || order.OrderStatus == "Processing")
                                     {
                                         <form asp-action="CancelOrder" method="post" class="m-0" onsubmit="return confirm('Cancel this order? This will revert inventory back to stock.');">
@@ -364,6 +398,105 @@
                 }
             </div>
         }
+    </div>
+</div>
+
+<div id="recentSalesOrderModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/50" data-close-recent-order-modal></div>
+    <div class="relative z-10 flex h-full w-full items-start justify-center px-4 py-6 md:py-10">
+        <div data-order-modal-panel class="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-card-dark">
+            <div class="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5 dark:border-gray-700">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Order Breakdown</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Order <span id="recentOrderModalOrderId" class="font-semibold text-gray-700 dark:text-gray-200">#ORD-</span></p>
+                </div>
+                <button type="button" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" data-close-recent-order-modal>
+                    <span class="material-icons-outlined">close</span>
+                </button>
+            </div>
+
+            <div class="px-6 py-5 space-y-4">
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
+                        <div class="flex justify-between py-1">
+                            <span class="text-gray-500 dark:text-gray-400">Ordered at</span>
+                            <span id="recentOrderModalDate" class="font-semibold text-gray-900 dark:text-white"></span>
+                        </div>
+                        <div class="flex justify-between py-1">
+                            <span class="text-gray-500 dark:text-gray-400">Customer</span>
+                            <span id="recentOrderModalCustomer" class="font-semibold text-gray-900 dark:text-white"></span>
+                        </div>
+                        <div class="flex justify-between py-1">
+                            <span class="text-gray-500 dark:text-gray-400">Order status</span>
+                            <span id="recentOrderModalOrderStatus" class="font-semibold text-gray-900 dark:text-white"></span>
+                        </div>
+                        <div class="flex justify-between py-1">
+                            <span class="text-gray-500 dark:text-gray-400">Payment status</span>
+                            <span id="recentOrderModalPaymentStatus" class="font-semibold text-gray-900 dark:text-white"></span>
+                        </div>
+                        <div class="flex justify-between py-1">
+                            <span class="text-gray-500 dark:text-gray-400">Total</span>
+                            <span id="recentOrderModalHeaderTotal" class="font-semibold text-gray-900 dark:text-white"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-4 xl:items-start">
+                    <div class="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-card-dark overflow-hidden">
+                        <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                            <h4 class="text-sm font-semibold text-gray-900 dark:text-white">Line Items</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-xs">
+                                <thead class="bg-gray-50/70 dark:bg-gray-800/60 uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left">Product</th>
+                                        <th class="px-4 py-2 text-right">Qty</th>
+                                        <th class="px-4 py-2 text-right">Unit Price</th>
+                                        <th class="px-4 py-2 text-right">Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentOrderModalLineItemsBody" class="divide-y divide-gray-100 dark:divide-gray-700 text-gray-700 dark:text-gray-300"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-card-dark">
+                        <h4 class="text-sm font-semibold text-gray-900 dark:text-white">How loyalty points were calculated</h4>
+                        <div class="mt-3 space-y-2 text-sm">
+                            <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
+                                <span class="text-gray-500 dark:text-gray-400">Order subtotal</span>
+                                <span id="recentOrderModalSubtotalBeforeDiscount" class="font-semibold text-gray-900 dark:text-white text-right"></span>
+                            </div>
+                            <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
+                                <span class="text-gray-500 dark:text-gray-400">Points redeemed</span>
+                                <span id="recentOrderModalPointsRedeemed" class="font-semibold text-gray-900 dark:text-white text-right"></span>
+                            </div>
+                            <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
+                                <span class="text-gray-500 dark:text-gray-400">Net subtotal used for earning</span>
+                                <span id="recentOrderModalNetTotal" class="font-semibold text-gray-900 dark:text-white text-right"></span>
+                            </div>
+                            <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
+                                <span class="text-gray-500 dark:text-gray-400">Base earning rate</span>
+                                <span id="recentOrderModalBaseRate" class="font-semibold text-gray-900 dark:text-white text-right"></span>
+                            </div>
+                            <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
+                                <span class="text-gray-500 dark:text-gray-400">Base points before tier bonus</span>
+                                <span id="recentOrderModalBasePointsRaw" class="font-semibold text-gray-900 dark:text-white text-right"></span>
+                            </div>
+                            <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
+                                <span class="text-gray-500 dark:text-gray-400">Final earned points</span>
+                                <span id="recentOrderModalPointsEarned" class="font-semibold text-gray-900 dark:text-white text-right"></span>
+                            </div>
+                        </div>
+                        <div class="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+                            <p class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Points balance impact</p>
+                            <p id="recentOrderModalPointsNet" class="mt-1 text-sm font-semibold text-gray-900 dark:text-white"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -498,6 +631,170 @@
                 }
             }
         }
+
+        const recentOrderModal = document.getElementById('recentSalesOrderModal');
+        const recentOrderModalOrderId = document.getElementById('recentOrderModalOrderId');
+        const recentOrderModalPanel = document.querySelector('[data-order-modal-panel]');
+        const recentOrderModalDate = document.getElementById('recentOrderModalDate');
+        const recentOrderModalCustomer = document.getElementById('recentOrderModalCustomer');
+        const recentOrderModalOrderStatus = document.getElementById('recentOrderModalOrderStatus');
+        const recentOrderModalPaymentStatus = document.getElementById('recentOrderModalPaymentStatus');
+        const recentOrderModalHeaderTotal = document.getElementById('recentOrderModalHeaderTotal');
+        const recentOrderModalLineItemsBody = document.getElementById('recentOrderModalLineItemsBody');
+        const recentOrderModalSubtotalBeforeDiscount = document.getElementById('recentOrderModalSubtotalBeforeDiscount');
+        const recentOrderModalPointsRedeemed = document.getElementById('recentOrderModalPointsRedeemed');
+        const recentOrderModalNetTotal = document.getElementById('recentOrderModalNetTotal');
+        const recentOrderModalBaseRate = document.getElementById('recentOrderModalBaseRate');
+        const recentOrderModalBasePointsRaw = document.getElementById('recentOrderModalBasePointsRaw');
+        const recentOrderModalPointsEarned = document.getElementById('recentOrderModalPointsEarned');
+        const recentOrderModalPointsNet = document.getElementById('recentOrderModalPointsNet');
+
+        const modalCurrencyFormatter = new Intl.NumberFormat('en-PH', {
+            style: 'currency',
+            currency: 'PHP',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+
+        function parseDecimalAttribute(value) {
+            const parsedValue = Number.parseFloat(value ?? '');
+            return Number.isFinite(parsedValue) ? parsedValue : 0;
+        }
+
+        function parseIntegerAttribute(value) {
+            const parsedValue = Number.parseInt(value ?? '', 10);
+            return Number.isFinite(parsedValue) ? parsedValue : 0;
+        }
+
+        function formatCurrencyAmount(amount) {
+            return modalCurrencyFormatter.format(Number.isFinite(amount) ? amount : 0);
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function closeRecentOrderModal() {
+            if (!recentOrderModal) {
+                return;
+            }
+
+            recentOrderModal.classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        }
+
+        function openRecentOrderModal(rowElement) {
+            if (!recentOrderModal || !rowElement) {
+                return;
+            }
+
+            const orderId = rowElement.getAttribute('data-order-id') ?? '-';
+            const orderDateLabel = rowElement.getAttribute('data-order-date-label') ?? '-';
+            const customerName = rowElement.getAttribute('data-customer-name') ?? 'Unknown';
+            const orderStatus = rowElement.getAttribute('data-order-status') ?? 'Unknown';
+            const paymentStatus = rowElement.getAttribute('data-payment-status') ?? 'Unknown';
+            const totalAmount = parseDecimalAttribute(rowElement.getAttribute('data-total-amount'));
+            const subtotalBeforeDiscount = parseDecimalAttribute(rowElement.getAttribute('data-subtotal-before-discount'));
+            const loyaltyDiscount = parseDecimalAttribute(rowElement.getAttribute('data-loyalty-discount'));
+            const loyaltyPointsRedeemed = parseIntegerAttribute(rowElement.getAttribute('data-points-redeemed'));
+            const loyaltyPointsEarned = parseIntegerAttribute(rowElement.getAttribute('data-points-earned'));
+            const loyaltyPointsNet = parseIntegerAttribute(rowElement.getAttribute('data-points-net'));
+            const loyaltyBaseRate = parseDecimalAttribute(rowElement.getAttribute('data-base-rate'));
+            const loyaltyBasePointsRaw = parseDecimalAttribute(rowElement.getAttribute('data-base-points-raw'));
+            const loyaltyProgramEnabled = (rowElement.getAttribute('data-loyalty-enabled') ?? 'false') === 'true';
+            const lineItemsRaw = rowElement.getAttribute('data-line-items') ?? '[]';
+
+            recentOrderModalOrderId.textContent = `#ORD-${orderId}`;
+            recentOrderModalDate.textContent = orderDateLabel;
+            recentOrderModalCustomer.textContent = customerName;
+            recentOrderModalOrderStatus.textContent = orderStatus;
+            recentOrderModalPaymentStatus.textContent = paymentStatus;
+            recentOrderModalHeaderTotal.textContent = formatCurrencyAmount(totalAmount);
+            recentOrderModalSubtotalBeforeDiscount.textContent = formatCurrencyAmount(subtotalBeforeDiscount);
+            recentOrderModalPointsRedeemed.textContent = `${loyaltyPointsRedeemed} pts (${formatCurrencyAmount(loyaltyDiscount)} discount)`;
+            recentOrderModalNetTotal.textContent = formatCurrencyAmount(totalAmount);
+            recentOrderModalPointsEarned.textContent = `${loyaltyPointsEarned} pts`;
+
+            if (loyaltyProgramEnabled && loyaltyBaseRate > 0) {
+                const spendPerPoint = 1 / loyaltyBaseRate;
+                recentOrderModalBaseRate.textContent = `${loyaltyBaseRate.toFixed(4)} pts per PHP 1 (1 pt per ${formatCurrencyAmount(spendPerPoint)})`;
+                recentOrderModalBasePointsRaw.textContent = `${formatCurrencyAmount(totalAmount)} net x ${loyaltyBaseRate.toFixed(4)} = ${loyaltyBasePointsRaw.toFixed(2)}`;
+            } else {
+                recentOrderModalBaseRate.textContent = 'Base earning disabled';
+                recentOrderModalBasePointsRaw.textContent = `${loyaltyBasePointsRaw.toFixed(2)}`;
+            }
+
+            recentOrderModalPointsNet.classList.remove('text-emerald-600', 'dark:text-emerald-400', 'text-red-600', 'dark:text-red-400');
+            if (loyaltyPointsNet >= 0) {
+                recentOrderModalPointsNet.classList.add('text-emerald-600', 'dark:text-emerald-400');
+                recentOrderModalPointsNet.textContent = `Spent: -${loyaltyPointsRedeemed} pts | Earned: +${loyaltyPointsEarned} pts | Net: +${loyaltyPointsNet} pts`;
+            } else {
+                recentOrderModalPointsNet.classList.add('text-red-600', 'dark:text-red-400');
+                recentOrderModalPointsNet.textContent = `Spent: -${loyaltyPointsRedeemed} pts | Earned: +${loyaltyPointsEarned} pts | Net: ${loyaltyPointsNet} pts`;
+            }
+
+            let lineItems = [];
+            try {
+                const parsedLineItems = JSON.parse(lineItemsRaw);
+                lineItems = Array.isArray(parsedLineItems) ? parsedLineItems : [];
+            } catch {
+                lineItems = [];
+            }
+
+            if (recentOrderModalLineItemsBody) {
+                if (lineItems.length === 0) {
+                    recentOrderModalLineItemsBody.innerHTML = '<tr><td colspan="4" class="px-4 py-4 text-center text-gray-500 dark:text-gray-400">No line items available.</td></tr>';
+                } else {
+                    recentOrderModalLineItemsBody.innerHTML = lineItems
+                        .map((lineItem) => {
+                            const productName = String(lineItem.ProductName ?? lineItem.productName ?? 'Unknown product');
+                            const quantity = parseIntegerAttribute(lineItem.Quantity ?? lineItem.quantity);
+                            const unitPrice = parseDecimalAttribute(lineItem.UnitPrice ?? lineItem.unitPrice);
+                            const subtotal = parseDecimalAttribute(lineItem.Subtotal ?? lineItem.subtotal);
+                            return `
+                                <tr>
+                                    <td class="px-4 py-2">${escapeHtml(productName)}</td>
+                                    <td class="px-4 py-2 text-right">${quantity}</td>
+                                    <td class="px-4 py-2 text-right">${formatCurrencyAmount(unitPrice)}</td>
+                                    <td class="px-4 py-2 text-right font-semibold text-gray-900 dark:text-white">${formatCurrencyAmount(subtotal)}</td>
+                                </tr>`;
+                        })
+                        .join('');
+                }
+            }
+
+            recentOrderModal.classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+            if (recentOrderModalPanel) {
+                recentOrderModalPanel.scrollTop = 0;
+            }
+        }
+
+        document.querySelectorAll('[data-order-open-modal]').forEach((openButton) => {
+            openButton.addEventListener('click', () => {
+                const rowElement = openButton.closest('[data-order-row]');
+                if (!rowElement) {
+                    return;
+                }
+
+                openRecentOrderModal(rowElement);
+            });
+        });
+
+        document.querySelectorAll('[data-close-recent-order-modal]').forEach((closeButton) => {
+            closeButton.addEventListener('click', closeRecentOrderModal);
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeRecentOrderModal();
+            }
+        });
 
         rangePresetToggle?.addEventListener('click', () => {
             rangePresetMenu?.classList.toggle('hidden');

@@ -13,7 +13,17 @@ namespace kstech.Models
         public List<int> LoyaltyPointBucketValues { get; set; } = new List<int>();
         public int TotalOutstandingPoints { get; set; }
         public decimal LoyaltyLiability { get; set; }
+        public LoyaltyProgramRulesViewModel LoyaltyProgramRules { get; set; } = new LoyaltyProgramRulesViewModel();
         public Dictionary<int, List<CustomerOutreachMessageViewModel>> OutreachHistoryByCustomer { get; set; } = new Dictionary<int, List<CustomerOutreachMessageViewModel>>();
+    }
+
+    public class LoyaltyProgramRulesViewModel
+    {
+        public bool Enabled { get; set; }
+        public decimal BasePointsPerCurrency { get; set; }
+        public decimal PointRedemptionValue { get; set; }
+        public decimal MaxRedemptionRate { get; set; }
+        public decimal MinimumOrderAmountForRedemption { get; set; }
     }
 
     public class CustomerViewModel

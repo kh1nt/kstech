@@ -54,9 +54,28 @@ namespace kstech.Models.ViewModels
         public string CustomerName { get; set; } = string.Empty;
         public DateTime OrderDate { get; set; }
         public decimal TotalAmount { get; set; }
+        public decimal SubtotalBeforeDiscount { get; set; }
+        public decimal LoyaltyDiscountAmount { get; set; }
+        public int LoyaltyPointsRedeemed { get; set; }
+        public int LoyaltyPointsEarned { get; set; }
+        public bool LoyaltyProgramEnabled { get; set; }
+        public decimal LoyaltyPointValue { get; set; }
+        public decimal LoyaltyBasePointsPerCurrency { get; set; }
+        public decimal LoyaltyBasePointsRaw { get; set; }
+        public int TotalItems { get; set; }
         public string PaymentStatus { get; set; } = string.Empty;
         public string OrderStatus { get; set; } = string.Empty;
         public string ProductsSummary { get; set; } = string.Empty;
+        public List<SalesOrderLineItemViewModel> LineItems { get; set; } = new();
+        public int LoyaltyNetPointsChange => LoyaltyPointsEarned - LoyaltyPointsRedeemed;
+    }
+
+    public class SalesOrderLineItemViewModel
+    {
+        public string ProductName { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal Subtotal { get; set; }
     }
 
     public class FastMovingItemViewModel

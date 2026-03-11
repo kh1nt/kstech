@@ -42,7 +42,7 @@ namespace kstech.Controllers
         }
 
         // Action of Index
-        public IActionResult Index()
+        public IActionResult Index(string tab = "customers")
         {
             var applyOwnerFilter = _tenantContext.HasOwnerScope;
             var ownerUserId = _tenantContext.OwnerUserId ?? 0;
@@ -157,6 +157,7 @@ namespace kstech.Controllers
 
             var pointBuckets = BuildLoyaltyPointBuckets(customers);
             var totalOutstandingPoints = customers.Sum(customer => customer.LoyaltyPoints);
+            var loyaltyProgramRules = _loyaltyService.GetProgramRules();
 
             var viewModel = new CustomerManagementViewModel
             {
@@ -167,9 +168,18 @@ namespace kstech.Controllers
                 LoyaltyPointBucketValues = pointBuckets.Select(bucket => bucket.Count).ToList(),
                 TotalOutstandingPoints = totalOutstandingPoints,
                 LoyaltyLiability = _loyaltyService.EstimateLiability(totalOutstandingPoints),
+                LoyaltyProgramRules = new LoyaltyProgramRulesViewModel
+                {
+                    Enabled = loyaltyProgramRules.Enabled,
+                    BasePointsPerCurrency = loyaltyProgramRules.BasePointsPerCurrency,
+                    PointRedemptionValue = loyaltyProgramRules.PointRedemptionValue,
+                    MaxRedemptionRate = loyaltyProgramRules.MaxRedemptionRate,
+                    MinimumOrderAmountForRedemption = loyaltyProgramRules.MinimumOrderAmountForRedemption
+                },
                 OutreachHistoryByCustomer = outreachHistoryByCustomer
             };
 
+            ViewData["InitialCrmTab"] = NormalizeCrmTab(tab);
             return View(viewModel);
         }
 
@@ -190,20 +200,15 @@ namespace kstech.Controllers
             {
                 ["Platinum"] = new List<string>
                 {
-                    "1.5x point multiplier on every purchase.",
-                    "Priority support and restock alerts.",
-                    "Early access to high-demand drops."
+                    "1.5x point multiplier on every purchase."
                 },
                 ["Gold"] = new List<string>
                 {
-                    "1.25x point multiplier on every purchase.",
-                    "Priority queue for support requests.",
-                    "Member-only accessory promos."
+                    "1.25x point multiplier on every purchase."
                 },
                 ["Silver"] = new List<string>
                 {
-                    "1.1x point multiplier on every purchase.",
-                    "Monthly loyalty offers."
+                    "1.1x point multiplier on every purchase."
                 },
                 ["Bronze"] = new List<string>
                 {
@@ -617,7 +622,14 @@ namespace kstech.Controllers
         // Action of LoyaltyProgram
         public IActionResult LoyaltyProgram()
         {
-            return View();
+            return RedirectToAction(nameof(Index), new { tab = "loyalty" });
+        }
+
+        private static string NormalizeCrmTab(string? tab)
+        {
+            return string.Equals(tab?.Trim(), "loyalty", StringComparison.OrdinalIgnoreCase)
+                ? "loyalty"
+                : "customers";
         }
 
         private static string NormalizeStatusFilter(string? status)

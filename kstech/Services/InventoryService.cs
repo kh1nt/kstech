@@ -3233,19 +3233,12 @@ WHERE TABLE_NAME IN ('PurchaseOrders', 'PurchaseOrderLines')";
 
         private static IQueryable<Order> ApplyRecognizedRevenueOrderFilter(IQueryable<Order> query)
         {
-            return query.Where(order =>
-                order.PaymentStatus == "Paid" &&
-                order.PaymentStatus != "Refunded" &&
-                order.OrderStatus != "Cancelled");
+            return RevenueRecognitionPolicy.ApplyRecognizedRevenueOrderFilter(query);
         }
 
         private static IQueryable<OrderDetail> ApplyRecognizedRevenueOrderDetailFilter(IQueryable<OrderDetail> query)
         {
-            return query.Where(orderDetail =>
-                orderDetail.Order != null &&
-                orderDetail.Order.PaymentStatus == "Paid" &&
-                orderDetail.Order.PaymentStatus != "Refunded" &&
-                orderDetail.Order.OrderStatus != "Cancelled");
+            return RevenueRecognitionPolicy.ApplyRecognizedRevenueOrderDetailFilter(query);
         }
 
         private IQueryable<Product> ApplyOwnerFilter(IQueryable<Product> query)

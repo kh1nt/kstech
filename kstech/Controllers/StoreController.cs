@@ -28,8 +28,16 @@ namespace kstech.Controllers
         private readonly ILogger<StoreController> _logger;
         private readonly IInventoryControlService _inventoryControlService;
         private readonly IEmailOutboxService _emailOutboxService;
+        private readonly ILoyaltyService _loyaltyService;
 
-        public StoreController(kstech.Data.ApplicationDbContext context, IAuthService authService, ISteamService steamService, ILogger<StoreController> logger, IInventoryControlService inventoryControlService, IEmailOutboxService emailOutboxService)
+        public StoreController(
+            kstech.Data.ApplicationDbContext context,
+            IAuthService authService,
+            ISteamService steamService,
+            ILogger<StoreController> logger,
+            IInventoryControlService inventoryControlService,
+            IEmailOutboxService emailOutboxService,
+            ILoyaltyService loyaltyService)
         {
             _context = context;
             _authService = authService;
@@ -37,6 +45,7 @@ namespace kstech.Controllers
             _logger = logger;
             _inventoryControlService = inventoryControlService;
             _emailOutboxService = emailOutboxService;
+            _loyaltyService = loyaltyService;
         }
 
         // Action of Index
@@ -1406,6 +1415,7 @@ namespace kstech.Controllers
             model.LoyaltyPoints = customer.LoyaltyPoints;
             model.LifetimePointsEarned = customer.LifetimePointsEarned;
             model.LifetimePointsRedeemed = customer.LifetimePointsRedeemed;
+            model.CurrentTier = _loyaltyService.ResolveTier(model.LifetimeSpend).Name;
             model.RegistrationDate = customer.RegistrationDate;
         }
 
