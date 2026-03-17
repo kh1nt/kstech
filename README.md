@@ -1,4 +1,4 @@
-# KSTech Cloud Deployment Guide (MonsterASP.NET)
+# KSTech Cloud Deployment Guide for IT20 SUBJECT (MonsterASP.NET)
 
 This document describes the deployment architecture and step-by-step process for deploying the KSTech ASP.NET Core application and SQL Server database to MonsterASP.NET.
 
