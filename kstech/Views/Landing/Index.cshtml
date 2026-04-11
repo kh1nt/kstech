@@ -1,0 +1,292 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>KSTech | Reliable Hardware Solutions</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "primary": "#98f5a4",
+                "primary-container": "#236460",
+                "on-primary": "#0f3936",
+                "on-primary-container": "#e5fff8",
+                "surface": "#123330",
+                "surface-variant": "#1a5c58",
+                "surface-container": "#174542",
+                "surface-container-low": "#143D3A",
+                "surface-container-highest": "#236460",
+                "surface-container-lowest": "#0e2a27",
+                "on-surface": "#f1f5f9",
+                "on-surface-variant": "#cbd5e1",
+                "outline": "#2c7a75",
+                "outline-variant": "#236460"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "2xl": "1rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Space Grotesk", "sans-serif"],
+                    "body": ["Inter", "sans-serif"],
+                    "label": ["Inter", "sans-serif"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #123330;
+            color: #f1f5f9;
+        }
+        .font-headline {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-surface/90 backdrop-blur-md shadow-lg border-b border-primary/10">
+<div class="flex justify-between items-center px-4 md:px-8 py-3 max-w-full mx-auto font-['Space_Grotesk'] tracking-tight">
+<div class="flex items-center gap-3">
+    <img src="/logo.png" alt="KSTech Logo" class="h-10 w-auto" />
+    <div class="text-2xl font-bold tracking-tighter text-primary">
+        KSTech
+    </div>
+</div>
+<div class="hidden md:flex items-center space-x-8">
+<a class="text-primary border-b-2 border-primary pb-1 font-semibold hover:text-primary transition-all active:scale-95 duration-200" href="@Url.Action("Index", "Store")">Hardware</a>
+<a class="text-on-surface-variant hover:text-primary transition-all active:scale-95 duration-200" href="@Url.Action("Index", "Store")">Storefront</a>
+<a class="text-on-surface-variant hover:text-primary transition-all active:scale-95 duration-200" href="@Url.Action("Login", "Account")">ERP</a>
+<a class="text-on-surface-variant hover:text-primary transition-all active:scale-95 duration-200" href="#">Systems</a>
+<a class="text-on-surface-variant hover:text-primary transition-all active:scale-95 duration-200" href="#">Support</a>
+</div>
+<div class="flex items-center space-x-3">
+<a href="@Url.Action("Login", "Store")" class="hidden sm:inline-flex items-center justify-center px-4 py-2 text-on-surface border border-outline-variant rounded-lg hover:bg-surface-variant transition-all active:scale-95 duration-200">
+                    Client Login
+</a>
+<a href="@Url.Action("Index", "Store")" class="inline-flex items-center justify-center px-5 py-2 bg-gradient-to-br from-primary to-primary-container text-on-primary font-bold rounded-lg shadow-lg hover:opacity-90 transition-all active:scale-95 duration-200">
+                    Get Started
+</a>
+</div>
+</div>
+</nav>
+<main class="pt-24">
+<!-- Hero Section -->
+<section class="relative min-h-[90vh] flex items-center px-6 lg:px-24 overflow-hidden">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center z-10 w-full max-w-7xl mx-auto py-12 lg:py-0">
+<div class="space-y-8">
+<div class="inline-flex items-center px-4 py-2 bg-surface-container rounded-full border border-outline-variant/40">
+<span class="w-2.5 h-2.5 rounded-full bg-primary animate-pulse mr-3"></span>
+<span class="text-xs font-bold uppercase tracking-widest text-primary">Store Status: Online</span>
+</div>
+<h1 class="text-5xl lg:text-7xl font-headline font-bold leading-[1.1] tracking-tighter text-on-surface">
+                        Build the Future of <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-[#70f094]">High-Performance</span> Desktop Systems
+                    </h1>
+<p class="text-xl text-on-surface-variant max-w-xl leading-relaxed">
+                        The definitive ecosystem for hardware enthusiasts and enterprise management. Combining consumer retail excellence with robust backend precision.
+                    </p>
+<div class="flex flex-wrap gap-4 pt-4">
+<a href="@Url.Action("Index", "Store")" class="px-8 py-4 bg-primary text-on-primary font-extrabold rounded-lg text-lg inline-flex items-center gap-2 transition-all hover:bg-opacity-90 active:scale-95 shadow-lg shadow-primary/20">
+                            Enter Storefront
+                            <span class="material-symbols-outlined">arrow_forward</span>
+</a>
+<a href="@Url.Action("Login", "Account")" class="px-8 py-4 border border-outline-variant text-on-surface font-bold rounded-lg text-lg hover:bg-surface-variant transition-all active:scale-95 inline-flex items-center justify-center">
+                            Access ERP
+</a>
+</div>
+</div>
+<div class="relative hidden lg:block">
+<div class="absolute inset-0 bg-primary/20 blur-[100px] rounded-full"></div>
+<img alt="High-end PC Hardware" class="relative z-20 w-full rounded-2xl shadow-2xl border border-outline-variant transform rotate-2 hover:rotate-0 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC_iM2gqaMQWf2sJ5-O9e821_RSn0Je6rphTGjV0ANrLS4ktqltdKNU4rFb8uIX6WM4nP5SQMyY3QjioT3NwBgir1Q3sUh3KFp7In4n8uAcShf6VYgVKDano0QbvlgCtkhUm4m7_Xt-t9d6kPxYYEPnFnm_DFcN5V2qD3B2fpjnKZYYeYa40JGHfO06P3tcRQkYe2cDiN90chAuSuh-xwIpQPIp7--izOk1rxLDuFY1fHF16yyZZnXK5E8VSwbo2SBKLvhHS47mU70"/>
+</div>
+</div>
+<!-- Decorative background element -->
+<div class="absolute -right-20 bottom-0 opacity-5 pointer-events-none text-primary">
+<span class="text-[15rem] lg:text-[20rem] font-black font-headline select-none">KSTECH</span>
+</div>
+</section>
+<!-- Dual Gateway Section -->
+<section class="py-24 px-6 lg:px-24 bg-surface-container-low">
+<div class="max-w-7xl mx-auto">
+<div class="text-center mb-16 space-y-4">
+<h2 class="text-4xl font-headline font-bold text-on-surface">Integrated Ecosystem</h2>
+<div class="w-16 h-1 bg-primary mx-auto rounded-full"></div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<!-- Customer Storefront -->
+<div class="group relative overflow-hidden rounded-2xl bg-surface-container-highest border border-outline p-8 flex flex-col justify-between transition-all hover:bg-surface-variant hover:-translate-y-1 hover:shadow-xl shadow-black/20">
+<div class="absolute -top-4 -right-4 p-4 text-outline/30 group-hover:text-primary/10 transition-colors">
+<span class="material-symbols-outlined text-[10rem]">shopping_cart</span>
+</div>
+<div class="relative z-10">
+<div class="w-14 h-14 bg-surface rounded-lg border border-outline/50 flex items-center justify-center mb-6 text-primary shadow-inner">
+<span class="material-symbols-outlined text-3xl">storefront</span>
+</div>
+<h3 class="text-3xl font-headline font-bold mb-4 text-on-surface">Customer Storefront</h3>
+<p class="text-on-surface-variant text-lg leading-relaxed mb-8">
+                                Browse our curated catalog of high-performance components. Features native Steam compatibility checks, live inventory, and 1-click checkout.
+                            </p>
+</div>
+<a href="@Url.Action("Index", "Store")" class="w-fit px-6 py-3 bg-primary text-on-primary font-bold rounded-lg inline-flex items-center justify-center gap-2 group-hover:gap-4 transition-all active:scale-95 relative z-10">
+                            Shop Now
+                            <span class="material-symbols-outlined">shopping_bag</span>
+</a>
+</div>
+<!-- ERP System -->
+<div class="group relative overflow-hidden rounded-xl bg-surface-container border border-outline-variant p-8 flex flex-col justify-between transition-all hover:bg-surface-variant hover:-translate-y-1 hover:shadow-xl shadow-black/20">
+<div class="absolute -top-4 -right-4 p-4 text-outline-variant/50 group-hover:text-primary/10 transition-colors">
+<span class="material-symbols-outlined text-[10rem]">settings_suggest</span>
+</div>
+<div class="relative z-10">
+<div class="w-14 h-14 bg-surface rounded-lg border border-outline-variant/60 flex items-center justify-center mb-6 text-primary">
+<span class="material-symbols-outlined text-3xl">analytics</span>
+</div>
+<h3 class="text-3xl font-headline font-bold mb-4 text-on-surface">Management Hub (ERP)</h3>
+<p class="text-on-surface-variant text-lg leading-relaxed mb-8">
+                                Control your operations with real-time inventory tracking, multi-channel sales analytics, and automated CRM integration for your team.
+                            </p>
+</div>
+<a href="@Url.Action("Login", "Account")" class="w-fit px-6 py-3 border-2 border-primary text-primary font-bold rounded-lg inline-flex items-center justify-center gap-2 group-hover:gap-4 transition-all active:scale-95 hover:bg-primary/10 relative z-10">
+                            Staff Login
+                            <span class="material-symbols-outlined">login</span>
+</a>
+</div>
+</div>
+</div>
+</section>
+<!-- Features Section -->
+<section class="py-24 px-6 lg:px-24 border-y border-outline/10">
+<div class="max-w-7xl mx-auto">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-12 text-center md:text-left">
+<!-- Feature 1 -->
+<div class="space-y-6">
+<div class="text-primary inline-flex p-4 rounded-xl bg-surface-container-highest border border-outline">
+<span class="material-symbols-outlined text-4xl">api</span>
+</div>
+<h4 class="text-2xl font-headline font-bold">Steam API Integration</h4>
+<p class="text-on-surface-variant leading-relaxed">
+                            Instant verification of hardware requirements for your entire Steam library. Never wonder if a part fits your gaming needs.
+                        </p>
+</div>
+<!-- Feature 2 -->
+<div class="space-y-6">
+<div class="text-primary inline-flex p-4 rounded-xl bg-surface-container-highest border border-outline">
+<span class="material-symbols-outlined text-4xl">sync_saved_locally</span>
+</div>
+<h4 class="text-2xl font-headline font-bold">Real-time Inventory</h4>
+<p class="text-on-surface-variant leading-relaxed">
+                            Live stock updates synced across our storefront and warehouses. Accuracy guaranteed down to the individual serial number.
+                        </p>
+</div>
+<!-- Feature 3 -->
+<div class="space-y-6">
+<div class="text-primary inline-flex p-4 rounded-xl bg-surface-container-highest border border-outline">
+<span class="material-symbols-outlined text-4xl">query_stats</span>
+</div>
+<h4 class="text-2xl font-headline font-bold">Advanced BI Tools</h4>
+<p class="text-on-surface-variant leading-relaxed">
+                            Deep-dive into sales performance with our proprietary Business Intelligence suite. Manage operations seamlessly.
+                        </p>
+</div>
+</div>
+</div>
+</section>
+<!-- Spec Grid Section (Updated to PC Specs / Builders info) -->
+<section class="py-24 px-6 lg:px-24 bg-surface-container-lowest overflow-hidden">
+<div class="max-w-7xl mx-auto flex flex-col lg:flex-row gap-16 items-center">
+<div class="lg:w-1/2 order-2 lg:order-1 w-full">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<div class="bg-surface-container p-6 rounded-xl border border-outline/30 flex flex-col items-center text-center group hover:border-primary/50 transition-colors">
+<div class="text-primary mb-4 p-3 rounded-full bg-surface-variant"><span class="material-symbols-outlined text-3xl group-hover:scale-110 transition-transform">local_shipping</span></div>
+<h5 class="text-xl font-headline font-bold mb-2">Same-Day Shipping</h5>
+<p class="text-on-surface-variant text-sm">Orders placed before 5 PM ship the exact same day.</p>
+</div>
+<div class="bg-surface-container p-6 rounded-xl border border-outline/30 flex flex-col items-center text-center group hover:border-primary/50 transition-colors">
+<div class="text-primary mb-4 p-3 rounded-full bg-surface-variant"><span class="material-symbols-outlined text-3xl group-hover:scale-110 transition-transform">verified</span></div>
+<h5 class="text-xl font-headline font-bold mb-2">Extended Warranty</h5>
+<p class="text-on-surface-variant text-sm">Every component comes with a KSTech 3-Year Guarantee.</p>
+</div>
+<div class="bg-surface-container p-6 rounded-xl border border-outline/30 flex flex-col items-center text-center group hover:border-primary/50 transition-colors">
+<div class="text-primary mb-4 p-3 rounded-full bg-surface-variant"><span class="material-symbols-outlined text-3xl group-hover:scale-110 transition-transform">support_agent</span></div>
+<h5 class="text-xl font-headline font-bold mb-2">Builder Support</h5>
+<p class="text-on-surface-variant text-sm">24/7 technical assistance from our PC building experts.</p>
+</div>
+<div class="bg-surface-container p-6 rounded-xl border border-outline/30 flex flex-col items-center text-center group hover:border-primary/50 transition-colors">
+<div class="text-primary mb-4 p-3 rounded-full bg-surface-variant"><span class="material-symbols-outlined text-3xl group-hover:scale-110 transition-transform">price_check</span></div>
+<h5 class="text-xl font-headline font-bold mb-2">Price Match Promise</h5>
+<p class="text-on-surface-variant text-sm">We guarantee the absolute best prices on the market.</p>
+</div>
+</div>
+</div>
+<div class="lg:w-1/2 order-1 lg:order-2 space-y-6 text-center lg:text-left">
+<h2 class="text-4xl lg:text-5xl font-headline font-bold tracking-tight">Dedicated to PC Builders</h2>
+<p class="text-on-surface-variant text-lg leading-relaxed">
+                        KSTech provides top-tier components with unmatched support and logistics. We make sure your build goes smoothly from the moment you order to the final POST screen.
+                    </p>
+<div class="pt-4">
+<a href="@Url.Action("Index", "Store")" class="text-primary font-bold hover:underline inline-flex items-center gap-1 group">
+                         Browse Catalog <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">chevron_right</span>
+</a>
+</div>
+</div>
+</div>
+</section>
+<!-- Footer -->
+<footer class="w-full border-t border-outline/20 bg-surface-container">
+<div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 px-6 lg:px-12 py-16 font-['Inter'] text-sm tracking-wide">
+<div class="space-y-6 lg:col-span-1">
+<div class="flex items-center gap-2">
+    <img src="/logo.png" alt="KSTech Logo" class="h-8 w-auto grayscale brightness-200" />
+    <div class="text-xl font-black text-primary tracking-tighter">KSTech</div>
+</div>
+<p class="text-on-surface-variant leading-relaxed pr-4">
+                        Redefining hardware retail and logistics through technical innovation and uncompromising service.
+                    </p>
+</div>
+<div class="flex flex-col space-y-4">
+<h6 class="text-primary font-bold uppercase tracking-wider text-xs">Solutions</h6>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-300" href="@Url.Action("Index", "Store")">Hardware Solutions</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-300" href="@Url.Action("Index", "Store")">Storefront Portal</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-300" href="@Url.Action("Login", "Account")">ERP System</a>
+</div>
+<div class="flex flex-col space-y-4">
+<h6 class="text-primary font-bold uppercase tracking-wider text-xs">Resources</h6>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-300" href="#">Documentation</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-300" href="#">Privacy Policy</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-300" href="#">Contact Support</a>
+</div>
+<div class="flex flex-col space-y-4">
+<h6 class="text-primary font-bold uppercase tracking-wider text-xs">Connect</h6>
+<div class="flex space-x-4">
+<div class="w-10 h-10 rounded-lg bg-surface flex items-center justify-center text-primary border border-outline/40 cursor-pointer hover:bg-surface-variant hover:border-primary transition-all">
+<span class="material-symbols-outlined">hub</span>
+</div>
+<div class="w-10 h-10 rounded-lg bg-surface flex items-center justify-center text-primary border border-outline/40 cursor-pointer hover:bg-surface-variant hover:border-primary transition-all">
+<span class="material-symbols-outlined">terminal</span>
+</div>
+</div>
+</div>
+</div>
+<div class="px-6 py-6 border-t border-outline/10 text-center text-on-surface-variant text-sm">
+                © 2026 KSTech. All rights reserved.
+            </div>
+</footer>
+</main>
+</body></html>

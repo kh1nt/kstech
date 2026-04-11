@@ -226,7 +226,7 @@ app.UseAuthorization();
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+    pattern: "{controller=Landing}/{action=Index}/{id?}");
 
 // Seeding
 var exitAfterStartupTasks = false;
