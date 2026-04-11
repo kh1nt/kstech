@@ -1,171 +1,98 @@
-# KSTech Cloud Deployment Guide (MonsterASP.NET)
+<div align="center">
+  <h1>⚡ KSTech</h1>
+  <p><i>Computer Parts Inventory and Customer Engagement System
 
-This document describes the deployment architecture and step-by-step process for deploying the KSTech ASP.NET Core application and SQL Server database to MonsterASP.NET.
+</i></p>
 
-## Architecture Overview
+  <p>
+    <img src="https://img.shields.io/badge/.NET-8.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white" alt=".NET 8" />
+    <img src="https://img.shields.io/badge/ASP.NET_Core_MVC-512BD4?style=for-the-badge&logo=dotnet&logoColor=white" alt="ASP.NET Core MVC" />
+    <img src="https://img.shields.io/badge/SQL_Server-CC2927?style=for-the-badge&logo=microsoft-sql-server&logoColor=white" alt="SQL Server" />
+    <img src="https://img.shields.io/badge/Bootstrap-7952B3?style=for-the-badge&logo=bootstrap&logoColor=white" alt="Bootstrap" />
+  </p>
+</div>
 
-- `Application`: ASP.NET Core MVC (`net8.0`) deployed to MonsterASP IIS.
-- `Database`: SQL Server database hosted in MonsterASP.
-- `Authentication`: Cookie authentication (Admin/Customer) with optional Google OAuth.
-- `API’s`: Brevo API, eBay Browse API, Steam API.
+---
 
-## System Architecture
+> KSTech is an intelligent, robust, and beautifully crafted Enterprise Resource Planning (ERP) and storefront application tailored specifically for **PC builders, hardware enthusiasts, and tech retail stores**.
 
-User Browser
-    |
- HTTPS
-    v
-MonsterASP Website (kstech.runasp.net)
-ASP.NET Core MVC App (KSTech)
-    |
-MonsterASP SQL Server Database
-    v
-Outbound HTTPS
-    +--> Brevo API
-    +--> eBay API
-    +--> Steam API
-    +--> Cloudinary API (File Storage)
+With a seamless digital experience, KSTech bridges the gap between complex back-office operations and a modern customer-centric storefront. From tracking high-value GPU inventory to automatically syncing real-time market prices, KSTech is engineered to handle your tech retail business effortlessly.
 
-## 1. Prerequisites
-- MonsterASP account with:
-  - Active web hosting site (`runasp.net`).
-  - SQL Server database created.
-  - Web Deploy credentials.
-- Visual Studio 2022 (or newer) with ASP.NET and Web Deploy support.
-- .NET 8 SDK installed.
-- Access to this project source code.
+---
 
+## 🌟 Key Features
 
-## 2. Prepare Production Configuration
+### 🛒 E-Commerce & Customer Experience
+*   **Immersive Storefront:** A visually stunning and responsive landing page designed to attract and convert tech enthusiasts.
+*   **Customer Portal:** A dedicated, secure hub for shoppers to track their orders, build lists, and browse available hardware.
+*   **Loyalty & Rewards System:** Built-in reward tracking to keep customers engaged and coming back for their next big PC upgrade.
+*   **Seamless Login:** Frictionless onboarding with Google Authentication alongside traditional secure sign-in.
 
-### 2.1 Move secrets out of source-controlled settings
-Store production secrets as hosting environment variables or a non-committed production settings file. 
+### 📦 Powerhouse Logistics & Inventory
+*   **Smart Inventory Control:** Advanced item tracking, low-stock alerts, and streamlined re-stocking workflows to ensure you never run out of critical components.
+*   **Real-time Market Sync:** Actively monitors and syncs market pricing utilizing integrations with **eBay** and **Steam**, ensuring your prices stay competitive automatically.
+*   **Secure Role Management:** Robust separation of privileges between administrators and customers for complete data integrity.
 
+### 📈 Business Intelligence & Insight
+*   **Interactive Dashboards:** Clear, real-time insights into sales, revenue trends, and overall business health.
+*   **Professional Reporting:** Automatically generates pixel-perfect, detailed financial and inventory reports using **QuestPDF**.
+*   **Cloud Archiving:** Safely and automatically archives your business reports to the cloud using **Cloudinary**.
 
-2.1.1 Configure environment variables in MonsterASP (Scripting)
+### ✉️ Marketing Automation
+*   **Automated Campaigns:** Engage your customer base with built-in mailing systems powered by **Brevo**.
+*   **Reliable Delivery:** Ensures your promotions, receipts, and newsletters are delivered reliably through optimized background email queues.
 
-1.	Login to MonsterASP Control Panel
-2.	Go to: Websites → (select your site) → Scripting
-3.	Add the required environment variables using the key format supported by ASP.NET Core, where nested config uses double underscores <__>.
+---
 
-Required keys:
-- ‘ASPNETCORE_ENVIRONMENT=Production’
-- `ConnectionStrings__DefaultConnection`
-- `Authentication__Google__ClientId`
-- `Authentication__Google__ClientSecret`
-- `Brevo__ApiKey`
-- `Ebay__ClientId`
-- `Ebay__ClientSecret`
-- `Steam__ApiKey`
-- ‘Cloudinary__ApiKey’
-- ‘Cloudinary__ApiSecret’
+## 🛠️ Technology Stack
 
+*   **Framework:** .NET 8.0 & ASP.NET Core MVC
+*   **Database:** Microsoft SQL Server with Entity Framework Core 8
+*   **Authentication:** Multi-Scheme Cookie Authentication & OAuth (Google)
+*   **Integrations:** 
+    *   **QuestPDF:** For dynamic PDF generation
+    *   **Cloudinary:** For media and report cloud storage
+    *   **Brevo API:** For transactional and marketing emails
+    *   **eBay & Steam APIs:** For market pricing analysis
 
-### 2.2 Production connection string
+---
 
-Server=tcp:<monsterasp-sql-server>,1433;Initial Catalog=<database-name>;User ID=<db-user>;Password=<db-password>;Encrypt=True;TrustServerCertificate=False;MultipleActiveResultSets=True;
+## 🚀 Getting Started
 
+Follow these steps to get a local development environment up and running.
 
-## 3. Create Website in MonsterASP
+### Prerequisites
+*   [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+*   Microsoft SQL Server (LocalDB or a dedicated instance)
+*   Visual Studio 2022 or Visual Studio Code
 
-### 3.1 Create website and subdomain
-1. Log in to MonsterASP Control Panel.
-2. Open `Website`.
-3. Click `Create Website`.
-4. Set subdomain to `kstech`.
-5. Save and wait until the website is provisioned.
-6. Confirm your URL (`kstech.runasp.net`).
+### 1. Configuration
+Clone the repository and update the `appsettings.json` (or create an `appsettings.Development.json`) with your local environment values:
 
-### 3.2 Collect publish details
-1. Open your created website in MonsterASP.
-2. Click `Deploy FTP/WebDeploy`.
-3. Enable `WebDeploy Access`.
-4. Download the publish profile file.
-5. Keep the downloaded profile because it will be used in Visual Studio publish.
+*   **Database:** Update the `DefaultConnection` string to point to your SQL Server.
+*   **API Keys Configuration:** To unlock full functionality, provide your keys for:
+    *   Google OAuth (`ClientId` & `ClientSecret`)
+    *   Brevo 
+    *   eBay Browse API
+    *   Steam API
+    *   Cloudinary
 
+### 2. Database Migrations
+Apply the initial schema using Entity Framework Core tools. Open your terminal in the project directory and run:
+```bash
+dotnet ef database update
+```
+*(If using the Package Manager Console in Visual Studio, run: `Update-Database`)*
 
-## 4. Prepare the MonsterASP SQL Database (Your SSMS Flow)
+### 3. Launch
+Run the application via visual studio or using the .NET CLI:
+```bash
+dotnet run
+```
+On the first successful startup, the system will automatically seed necessary administrative roles, sample product catalogs, and starter data (configurable via `SeedOptions`).
 
-### 4.1 Create database on MonsterASP
-1. Log in to MonsterASP Control Panel.
-2. Open `Database`.
-3. Click `Add Database`.
-4. Create the database.
-5. Copy the SQL Server details:
-- Server name
-- Database name
-- SQL username
-- SQL password
+---
 
-### 4.2 Connect to SQL Server in SSMS
-1. Open SQL Server Management Studio (SSMS).
-2. Connect to your local SQL Server instance (where the current `kstechdb` exists).
-3. Connect to the MonsterASP SQL Server using the copied credentials.
-
-### 4.3 Generate script from local database
-1. In SSMS, right-click your local database.
-2. Select `Tasks` -> `Generate Scripts`.
-3. In scripting options set:
-- `Script USE DATABASE` = `False`
-- `Types of data to script` = `Schema and data`
-4. Generate and save the `.sql` script file.
-
-### 4.4 Run script on MonsterASP database
-1. In SSMS, go to the MonsterASP SQL Server connection.
-2. Right-click the server database and open `New Query`.
-3. Paste/open your generated SQL script.
-4. Execute the script until completion without errors.
-
-## 5. Update App Connection String Before Publish
-
-Edit `kstech/appsettings.json` and set `ConnectionStrings:DefaultConnection` to the MonsterASP SQL Server connection string.
-
-Example:
-Server=tcp:<monsterasp-sql-server>,1433;Initial Catalog=<database-name>;User ID=<db-user>;Password=<db-password>;Encrypt=True;TrustServerCertificate=False;MultipleActiveResultSets=True;
-
-
-## 6. Deploy Website to MonsterASP (Web Deploy)
-
-### 6.1 Enable WebDeploy and download publish profile
-1. In MonsterASP, open your website (`kstech`).
-2. Click `Deploy FTP/WebDeploy`.
-3. Enable `WebDeploy Access` (if not enabled yet).
-4. Download the publish profile.
-
-### 6.2 Publish from Visual Studio using the downloaded profile
-1. Open `kstech.sln`.
-2. Right-click the `kstech` project.
-3. Select `Publish`.
-4. Select `Import Profile`.
-5. Choose the downloaded MonsterASP publish profile file.
-6. Click `Publish`.
-
-### 6.3 Optional CLI build validation before publish
-
-dotnet restore .\kstech\kstech.csproj
-dotnet build .\kstech\kstech.csproj -c Release
-dotnet publish .\kstech\kstech.csproj -c Release
-
-## 7. Post-Deployment Verification
-1. Browse `https://kstech.runasp.net/ or ‘http://kstech.runasp.net `.
-2. Verify login page and admin page load.
-3. Validate DB connectivity by executing a read/write flow:
-- Register or login.
-- Create/update a sample record (product/customer/order).
-4. Check critical features:
-- Google login (if configured).
-- Email outbox processing.
-- Inventory and reporting screens.
-5. Confirm logs are being generated and no startup exceptions occur.
-
-## 8. Security Checklist for Production
-- Enforce HTTPS-only access.
-- Rotate all API keys and passwords before go-live.
-- Use least-privilege SQL account for runtime.
-- Keep backups/snapshots before each deployment.
-- Restrict who can use Web Deploy credentials.
-
-## 9. Additional Documentation
-- `docs/cloud/cloud-solutions-architect.md`
-- `docs/cloud/cloud-security-engineer.md`
-- `docs/cloud/cloud-data-engineer.md`
+<p align="center">
+  <i>Built for performance. Designed for enthusiasts.</i>
+</p>
