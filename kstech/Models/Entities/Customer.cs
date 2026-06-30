@@ -37,15 +37,10 @@ namespace kstech.Models.Entities
 
         [StringLength(100)]
         public string? SteamId { get; set; }
-        public int LoyaltyPoints { get; set; }
-        public int LifetimePointsEarned { get; set; }
-        public int LifetimePointsRedeemed { get; set; }
-        public DateTime? LastLoyaltyActivityUtc { get; set; }
-
         // Navigation Properties
         public ICollection<Order> Orders { get; set; } = new List<Order>();
         public ICollection<TechnicalInquiry> TechnicalInquiries { get; set; } = new List<TechnicalInquiry>();
         public ICollection<EmailNotification> EmailNotifications { get; set; } = new List<EmailNotification>();
-
+        public ICollection<CustomerTenantLoyalty> TenantLoyalties { get; set; } = new List<CustomerTenantLoyalty>();
     }
 }

@@ -561,27 +561,39 @@ namespace kstech.Services
                 rangeEndLocalDate,
                 budgetAmount);
 
+            // Load linked POs for selected budget
+            var linkedPurchaseOrders = BuildLinkedPurchaseOrdersForBudget(
+                selectedBudget?.BudgetID,
+                applyOwnerFilter,
+                ownerUserId);
+
             var currentBudgetPoLines = new List<PurchaseOrderLine>();
-            if (selectedBudgetId.HasValue && applyOwnerFilter)
+            if (selectedBudget != null && applyOwnerFilter)
             {
                 currentBudgetPoLines = _context.PurchaseOrders
                     .Include(po => po.Lines)
                     .ThenInclude(line => line.Product)
-                    .Where(po => po.BudgetID == selectedBudgetId.Value && po.OwnerUserID == ownerUserId && po.Status != "Cancelled")
+                    .Where(po => po.BudgetID == selectedBudget.BudgetID && po.OwnerUserID == ownerUserId && po.Status != "Cancelled")
                     .SelectMany(po => po.Lines)
                     .ToList();
             }
-            else if (selectedBudgetId.HasValue)
+            else if (selectedBudget != null)
             {
                 currentBudgetPoLines = _context.PurchaseOrders
                     .Include(po => po.Lines)
                     .ThenInclude(line => line.Product)
-                    .Where(po => po.BudgetID == selectedBudgetId.Value && po.Status != "Cancelled")
+                    .Where(po => po.BudgetID == selectedBudget.BudgetID && po.Status != "Cancelled")
                     .SelectMany(po => po.Lines)
                     .ToList();
             }
 
             var suggestedAllocations = BuildBudgetAllocationSuggestions(inventoryPlanningItems, budgetAmount, currentBudgetPoLines);
+            var categoryAllocations = BuildCategoryAllocationRows(
+                suggestedAllocations,
+                budgetEvents,
+                selectedBudget?.BudgetID,
+                budgetAmount);
+
             var monthlyBudgets = BuildMonthlyBudgetRows(
                 allBudgets,
                 selectedBudget?.BudgetID,
@@ -591,6 +603,21 @@ namespace kstech.Services
             var budgetHistory = selectedBudget != null
                 ? BuildBudgetHistoryForBudget(selectedBudget.BudgetID, budgetHistoryLookupByBudgetId)
                 : new List<BudgetHistoryItemViewModel>();
+
+            // Annual roll-up: sum all active budgets in the selected year
+            var selectedYear = rangeStartLocalDate.Year;
+            var activeBudgetsThisYear = allBudgets
+                .Where(b => b.PeriodStartDateLocal.Year == selectedYear &&
+                            b.Status != BudgetStatusArchived &&
+                            b.Status != BudgetStatusDeleted)
+                .GroupBy(ResolveBudgetMonthKey)
+                .Select(g => g.OrderByDescending(b => b.UpdatedAtUtc).First())
+                .ToList();
+            var annualBudgetTotal = activeBudgetsThisYear.Sum(b => b.BudgetAmount);
+            var annualSpentTotal = activeBudgetsThisYear
+                .Sum(b => budgetUsageLookupByBudgetId.TryGetValue(b.BudgetID, out var u) ? u.SpentAmount : 0m);
+            var annualReservedTotal = activeBudgetsThisYear
+                .Sum(b => budgetUsageLookupByBudgetId.TryGetValue(b.BudgetID, out var u) ? u.ReservedAmount : 0m);
 
             return new BudgetPlanningViewModel
             {
@@ -604,6 +631,8 @@ namespace kstech.Services
                 SelectedMonthEndDateLocal = rangeEndLocalDate,
                 SelectedHistoryMonthLabel = rangeStartLocalDate.ToString("MMMM yyyy"),
                 BudgetAmount = budgetAmount,
+                ReservedAmount = budgetUsageSummary.ReservedAmount,
+                SpentAmount = budgetUsageSummary.SpentAmount,
                 ActualRevenue = budgetRevenueAnalytics.Summary.Revenue,
                 GrossProfit = budgetRevenueAnalytics.Summary.GrossProfit,
                 BudgetVariance = budgetPlanningKpis.BudgetVariance,
@@ -613,11 +642,17 @@ namespace kstech.Services
                 SuggestedRestockSpend = suggestedRestockSpend,
                 ActualProcurementSpend = actualProcurementSpend,
                 AtRiskInventoryPlanningItems = atRiskParts.Count,
+                AnnualBudgetTotal = annualBudgetTotal,
+                AnnualSpentTotal = annualSpentTotal,
+                AnnualReservedTotal = annualReservedTotal,
+                AnnualBudgetMonthCount = activeBudgetsThisYear.Count,
                 TrendLabels = trendLabels,
                 ActualRevenueTrendValues = actualRevenueTrendValues,
                 BudgetTargetTrendValues = budgetTargetTrendValues,
                 MonthlyBudgets = monthlyBudgets,
                 SuggestedAllocations = suggestedAllocations,
+                CategoryAllocations = categoryAllocations,
+                LinkedPurchaseOrders = linkedPurchaseOrders,
                 AtRiskParts = atRiskParts
                     .Take(50)
                     .Select(item => new BudgetAtRiskPartViewModel
@@ -998,6 +1033,10 @@ namespace kstech.Services
                     var usageSummary = budgetUsageLookupByBudgetId.TryGetValue(budget.BudgetID, out var usageForBudget)
                         ? usageForBudget
                         : new BudgetUsageSummary(0m, 0m);
+                    var committedAmount = usageSummary.ReservedAmount + usageSummary.SpentAmount;
+                    var utilizationPct = budget.BudgetAmount > 0m
+                        ? Math.Round(Math.Min(100m, committedAmount / budget.BudgetAmount * 100m), 1)
+                        : 0m;
                     return new BudgetMonthRowViewModel
                     {
                         BudgetId = budget.BudgetID,
@@ -1011,6 +1050,7 @@ namespace kstech.Services
                         UpdatedAtUtc = budget.UpdatedAtUtc,
                         ReservedAmount = usageSummary.ReservedAmount,
                         SpentAmount = usageSummary.SpentAmount,
+                        UtilizationPct = utilizationPct,
                         UsageStatus = ResolveBudgetUsageStatus(usageSummary),
                         History = budgetHistoryLookupByBudgetId.TryGetValue(budget.BudgetID, out var historyForBudget)
                             ? historyForBudget
@@ -1099,11 +1139,83 @@ namespace kstech.Services
                         {
                             BudgetId = group.Key,
                             Action = FormatBudgetEventAction(budgetEvent),
+                            EventType = budgetEvent.EventType,
                             ChangedAtUtc = budgetEvent.OccurredAtUtc,
                             ChangedAtLabel = BusinessTime.ConvertUtcToBusinessTime(budgetEvent.OccurredAtUtc)
                                 .ToString("MMM dd, yyyy HH:mm")
                         })
                         .ToList());
+        }
+
+        private List<BudgetLinkedPoViewModel> BuildLinkedPurchaseOrdersForBudget(
+            int? budgetId,
+            bool applyOwnerFilter,
+            int ownerUserId)
+        {
+            if (!budgetId.HasValue) return new List<BudgetLinkedPoViewModel>();
+
+            var query = _context.PurchaseOrders
+                .AsNoTracking()
+                .Where(po => po.BudgetID == budgetId.Value && po.Status != "Cancelled");
+
+            if (applyOwnerFilter)
+            {
+                query = query.Where(po => po.OwnerUserID == ownerUserId);
+            }
+
+            return query
+                .OrderByDescending(po => po.CreatedAtUtc)
+                .Take(20)
+                .Select(po => new BudgetLinkedPoViewModel
+                {
+                    PoId = po.PurchaseOrderID,
+                    Reference = po.PurchaseOrderNumber,
+                    SupplierName = po.SupplierName,
+                    Status = po.Status,
+                    TotalAmount = po.TotalAmount,
+                    CreatedAtUtc = po.CreatedAtUtc
+                })
+                .ToList();
+        }
+
+        private static List<BudgetCategoryRowViewModel> BuildCategoryAllocationRows(
+            IReadOnlyList<BudgetAllocationSuggestionViewModel> suggestedAllocations,
+            IReadOnlyList<BudgetEvent> budgetEvents,
+            int? budgetId,
+            decimal budgetAmount)
+        {
+            if (!budgetId.HasValue || !suggestedAllocations.Any())
+            {
+                return new List<BudgetCategoryRowViewModel>();
+            }
+
+            // Group budget events by category via reference (not directly tracked, so we use suggestion amounts)
+            var totalSuggested = suggestedAllocations.Sum(a => a.SuggestedBudgetAmount);
+
+            return suggestedAllocations
+                .Select(alloc =>
+                {
+                    var allocationPct = budgetAmount > 0m
+                        ? Math.Round(alloc.SuggestedBudgetAmount / budgetAmount * 100m, 1)
+                        : 0m;
+                    var reservedPct = alloc.SuggestedBudgetAmount > 0m
+                        ? Math.Min(100m, Math.Round(0m / alloc.SuggestedBudgetAmount * 100m, 1))
+                        : 0m;
+                    return new BudgetCategoryRowViewModel
+                    {
+                        Category = alloc.Category,
+                        SuggestedAmount = alloc.SuggestedBudgetAmount,
+                        ReservedAmount = 0m,
+                        SpentAmount = 0m,
+                        AllocationPct = allocationPct,
+                        ReservedPct = reservedPct,
+                        SpentPct = 0m
+                    };
+                })
+                .Where(r => r.AllocationPct > 0m)
+                .OrderByDescending(r => r.AllocationPct)
+                .Take(12)
+                .ToList();
         }
 
         private static string FormatBudgetEventAction(BudgetEvent budgetEvent)
@@ -1308,8 +1420,12 @@ namespace kstech.Services
                     movement.OccurredAtUtc <= rangeEndUtcInclusive)
                 .ToList();
 
-            var outstandingLoyaltyPoints = ApplyOwnerFilter(_context.Customers.AsNoTracking(), applyOwnerFilter, ownerUserId)
-                .Sum(customer => customer.LoyaltyPoints);
+            var outstandingLoyaltyPointsQuery = _context.CustomerTenantLoyalties.AsNoTracking();
+            if (applyOwnerFilter)
+            {
+                outstandingLoyaltyPointsQuery = outstandingLoyaltyPointsQuery.Where(l => l.TenantOwnerUserID == ownerUserId);
+            }
+            var outstandingLoyaltyPoints = outstandingLoyaltyPointsQuery.Any() ? outstandingLoyaltyPointsQuery.Sum(l => l.LoyaltyPoints) : 0;
 
             return new BusinessIntelligenceViewModel
             {
@@ -1387,7 +1503,11 @@ namespace kstech.Services
                 .ThenByDescending(budget => budget.BudgetID)
                 .ToList();
 
-            var targetBudget = monthlyBudgets.FirstOrDefault();
+            // Prefer the explicitly selected budget; fall back to the most-recently-updated one
+            // for the same month when no specific ID was provided or the selected one wasn't found.
+            var targetBudget = (selectedBudget != null && monthlyBudgets.Any(b => b.BudgetID == selectedBudget.BudgetID))
+                ? monthlyBudgets.First(b => b.BudgetID == selectedBudget.BudgetID)
+                : monthlyBudgets.FirstOrDefault();
             if (targetBudget == null)
             {
                 var createReason = string.IsNullOrWhiteSpace(normalizedReason)

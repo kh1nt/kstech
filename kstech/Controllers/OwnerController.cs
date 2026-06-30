@@ -101,7 +101,7 @@ namespace kstech.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            var scopeApplied = _tenantContext.SetSuperAdminOwnerScope(ownerUserId);
+            var scopeApplied = _tenantContext.SetSuperAdminOwnerScope(ownerUserId, owner.AllowSuperAdminWorkspaceEdits);
             if (!scopeApplied)
             {
                 return Forbid();

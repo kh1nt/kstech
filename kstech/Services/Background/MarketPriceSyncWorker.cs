@@ -51,6 +51,7 @@ namespace kstech.Services.Background
 
             // Find products that haven't been synced in the last hour
             var productsToSync = await dbContext.Products
+                .IgnoreQueryFilters()
                 .Where(p => p.MarketPriceSource != "Archived") // Removed SteamAppId filter to allow all products
                 .OrderBy(p => p.LastMarketPriceSyncUtc ?? DateTime.MinValue)
                 .Take(10) // Small batch

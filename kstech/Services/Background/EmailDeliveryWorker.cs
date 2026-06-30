@@ -47,6 +47,7 @@ namespace kstech.Services.Background
             var nowUtc = DateTime.UtcNow;
 
             var dueCampaignIds = await dbContext.Campaigns
+                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(campaign =>
                     campaign.ScheduledForUtc.HasValue &&
@@ -194,6 +195,7 @@ namespace kstech.Services.Background
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             var processingCampaignIds = await dbContext.Campaigns
+                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(campaign => campaign.Status == MarketingCampaignPolicy.ProcessingStatus)
                 .Select(campaign => campaign.CampaignID)
@@ -205,6 +207,7 @@ namespace kstech.Services.Background
             }
 
             var notificationRows = await dbContext.EmailNotifications
+                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(notification =>
                     notification.CampaignID.HasValue &&
@@ -228,6 +231,7 @@ namespace kstech.Services.Background
                         Failed: group.Count(row => MarketingCampaignPolicy.IsFailedDeliveryStatus(row.DeliveryStatus))));
 
             var campaigns = await dbContext.Campaigns
+                .IgnoreQueryFilters()
                 .Where(campaign => processingCampaignIds.Contains(campaign.CampaignID))
                 .ToListAsync(stoppingToken);
 

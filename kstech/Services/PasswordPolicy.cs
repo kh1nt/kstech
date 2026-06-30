@@ -2,14 +2,15 @@ namespace kstech.Services
 {
     public static class PasswordPolicy
     {
-        public const int MinLength = 8;
-        public const string RequirementsText = "Password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.";
+        public const int MinLength = 10;
+        public const string RequirementsText =
+            "Password must be at least 10 characters and include an uppercase letter, a lowercase letter, a number, and a special character (e.g. !@#$%^&*).";
 
         public static bool TryValidate(string? password, out string errorMessage)
         {
             errorMessage = string.Empty;
 
-            if (string.IsNullOrWhiteSpace(password))
+            if (string.IsNullOrEmpty(password))
             {
                 errorMessage = "Password is required.";
                 return false;
@@ -21,11 +22,12 @@ namespace kstech.Services
                 return false;
             }
 
-            var hasUpper = password.Any(char.IsUpper);
-            var hasLower = password.Any(char.IsLower);
-            var hasDigit = password.Any(char.IsDigit);
+            var hasUpper   = password.Any(char.IsUpper);
+            var hasLower   = password.Any(char.IsLower);
+            var hasDigit   = password.Any(char.IsDigit);
+            var hasSpecial = password.Any(c => !char.IsLetterOrDigit(c));
 
-            if (!hasUpper || !hasLower || !hasDigit)
+            if (!hasUpper || !hasLower || !hasDigit || !hasSpecial)
             {
                 errorMessage = RequirementsText;
                 return false;

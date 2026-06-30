@@ -10,11 +10,11 @@ namespace kstech.Services
         IReadOnlyList<LoyaltyTierSnapshot> GetProgramTiers();
         LoyaltyProgramRulesSnapshot GetProgramRules();
         LoyaltyCheckoutComputation CalculateCheckout(
-            Customer customer,
+            int customerLoyaltyPoints,
             decimal lifetimeSpendBeforeOrder,
             decimal orderSubtotal,
             int requestedRedeemPoints);
-        void ApplyCheckout(Customer customer, Order order, LoyaltyCheckoutComputation computation, DateTime occurredAtUtc);
+        void ApplyCheckout(CustomerTenantLoyalty tenantLoyalty, Order order, LoyaltyCheckoutComputation computation, DateTime occurredAtUtc);
         decimal EstimateLiability(int points);
         decimal PointValue { get; }
     }
@@ -76,7 +76,7 @@ namespace kstech.Services
         }
 
         public LoyaltyCheckoutComputation CalculateCheckout(
-            Customer customer,
+            int customerLoyaltyPoints,
             decimal lifetimeSpendBeforeOrder,
             decimal orderSubtotal,
             int requestedRedeemPoints)
@@ -99,14 +99,14 @@ namespace kstech.Services
             var discountAmount = 0m;
 
             if (requested > 0 &&
-                customer.LoyaltyPoints > 0 &&
+                customerLoyaltyPoints > 0 &&
                 _options.PointRedemptionValue > 0m &&
                 sanitizedSubtotal >= _options.MinimumOrderAmountForRedemption)
             {
                 var maxDiscountAllowed = sanitizedSubtotal * Math.Clamp(_options.MaxRedemptionRate, 0m, 1m);
                 var maxPointsByDiscount = (int)Math.Floor(maxDiscountAllowed / _options.PointRedemptionValue);
 
-                redeemablePoints = Math.Min(requested, customer.LoyaltyPoints);
+                redeemablePoints = Math.Min(requested, customerLoyaltyPoints);
                 redeemablePoints = Math.Min(redeemablePoints, Math.Max(0, maxPointsByDiscount));
                 discountAmount = Math.Round(redeemablePoints * _options.PointRedemptionValue, 2, MidpointRounding.AwayFromZero);
             }
@@ -123,7 +123,7 @@ namespace kstech.Services
                 Tier: tier);
         }
 
-        public void ApplyCheckout(Customer customer, Order order, LoyaltyCheckoutComputation computation, DateTime occurredAtUtc)
+        public void ApplyCheckout(CustomerTenantLoyalty tenantLoyalty, Order order, LoyaltyCheckoutComputation computation, DateTime occurredAtUtc)
         {
             order.LoyaltyPointsEarned = computation.PointsEarned;
             order.LoyaltyPointsRedeemed = computation.PointsRedeemed;
@@ -131,16 +131,16 @@ namespace kstech.Services
 
             if (computation.PointsRedeemed > 0)
             {
-                customer.LoyaltyPoints = Math.Max(0, customer.LoyaltyPoints - computation.PointsRedeemed);
-                customer.LifetimePointsRedeemed += computation.PointsRedeemed;
-                customer.LastLoyaltyActivityUtc = occurredAtUtc;
+                tenantLoyalty.LoyaltyPoints = Math.Max(0, tenantLoyalty.LoyaltyPoints - computation.PointsRedeemed);
+                tenantLoyalty.LifetimePointsRedeemed += computation.PointsRedeemed;
+                tenantLoyalty.LastLoyaltyActivityUtc = occurredAtUtc;
             }
 
             if (computation.PointsEarned > 0)
             {
-                customer.LoyaltyPoints += computation.PointsEarned;
-                customer.LifetimePointsEarned += computation.PointsEarned;
-                customer.LastLoyaltyActivityUtc = occurredAtUtc;
+                tenantLoyalty.LoyaltyPoints += computation.PointsEarned;
+                tenantLoyalty.LifetimePointsEarned += computation.PointsEarned;
+                tenantLoyalty.LastLoyaltyActivityUtc = occurredAtUtc;
             }
         }
 

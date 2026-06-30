@@ -20,6 +20,7 @@ namespace kstech.Controllers
     {
         private const string ArchivedMarketPriceSource = "Archived";
         private const string CustomerScheme = "CustomerScheme";
+        private const string ExternalScheme = "ExternalScheme";
         private const string CustomerPasswordResetAudience = "Customer";
         private static readonly TimeSpan PasswordResetTokenLifetime = TimeSpan.FromMinutes(30);
         private readonly kstech.Data.ApplicationDbContext _context;
@@ -29,6 +30,7 @@ namespace kstech.Controllers
         private readonly IInventoryControlService _inventoryControlService;
         private readonly IEmailOutboxService _emailOutboxService;
         private readonly ILoyaltyService _loyaltyService;
+        private readonly IConfiguration _configuration;
 
         public StoreController(
             kstech.Data.ApplicationDbContext context,
@@ -37,7 +39,8 @@ namespace kstech.Controllers
             ILogger<StoreController> logger,
             IInventoryControlService inventoryControlService,
             IEmailOutboxService emailOutboxService,
-            ILoyaltyService loyaltyService)
+            ILoyaltyService loyaltyService,
+            IConfiguration configuration)
         {
             _context = context;
             _authService = authService;
@@ -46,6 +49,7 @@ namespace kstech.Controllers
             _inventoryControlService = inventoryControlService;
             _emailOutboxService = emailOutboxService;
             _loyaltyService = loyaltyService;
+            _configuration = configuration;
         }
 
         // Action of Index
@@ -350,6 +354,7 @@ namespace kstech.Controllers
         // Action of Login
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthNormal")]
         public async Task<IActionResult> Login(string email, string password, bool rememberMe = false, string? returnUrl = null)
         {
             ViewData["ReturnUrl"] = returnUrl;
@@ -377,8 +382,16 @@ namespace kstech.Controllers
             if (!user.IsEmailVerified)
             {
                 await QueueCustomerVerificationEmailAsync(user);
-                ViewBag.Error = "Please verify your email address before signing in. We sent a verification link to your inbox.";
+                ViewBag.Error = "Please verify your email address before signing in. We sent a verification code to your inbox.";
                 return View();
+            }
+
+            if (user.TwoFactorEnabled)
+            {
+                HttpContext.Session.SetString("MfaTemp.Store.UserId", user.UserID.ToString());
+                HttpContext.Session.SetString("MfaTemp.Store.RememberMe", rememberMe.ToString());
+                HttpContext.Session.SetString("MfaTemp.Store.ReturnUrl", returnUrl ?? "");
+                return RedirectToAction(nameof(VerifyMfa));
             }
 
             await _authService.SignInAsync(user, rememberMe, CustomerScheme);
@@ -401,6 +414,7 @@ namespace kstech.Controllers
         // Action of ForgotPassword
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthStrict")]
         public async Task<IActionResult> ForgotPassword(string email)
         {
             email = (email ?? string.Empty).Trim();
@@ -452,10 +466,10 @@ namespace kstech.Controllers
                 return View();
             }
 
-            newPassword = (newPassword ?? string.Empty).Trim();
-            confirmPassword = (confirmPassword ?? string.Empty).Trim();
+            newPassword = newPassword ?? string.Empty;
+            confirmPassword = confirmPassword ?? string.Empty;
 
-            if (string.IsNullOrWhiteSpace(newPassword) || string.IsNullOrWhiteSpace(confirmPassword))
+            if (string.IsNullOrEmpty(newPassword) || string.IsNullOrEmpty(confirmPassword))
             {
                 ViewBag.Error = "New password and confirmation are required.";
                 return View();
@@ -532,15 +546,16 @@ namespace kstech.Controllers
         // Action of Register
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthStrict")]
         public async Task<IActionResult> Register(string fullName, string email, string password, string confirmPassword)
         {
             fullName = (fullName ?? string.Empty).Trim();
             email = (email ?? string.Empty).Trim();
-            password = (password ?? string.Empty).Trim();
-            confirmPassword = (confirmPassword ?? string.Empty).Trim();
+            password = password ?? string.Empty;
+            confirmPassword = confirmPassword ?? string.Empty;
 
             if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(email) ||
-                string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(confirmPassword))
+                string.IsNullOrEmpty(password) || string.IsNullOrEmpty(confirmPassword))
             {
                 ViewBag.Error = "All fields are required.";
                 return View();
@@ -607,25 +622,27 @@ namespace kstech.Controllers
             await _context.SaveChangesAsync();
 
             await QueueCustomerVerificationEmailAsync(user, forceNewToken: true);
-            TempData["SuccessMessage"] = "Account created. Verify your email first before signing in.";
-            return RedirectToAction(nameof(Login));
+            TempData["SuccessMessage"] = "Account created. Please enter the verification code sent to your email.";
+            return RedirectToAction(nameof(VerifyCode), new { email = user.Email });
         }
 
         // Action of VerifyEmail
         [HttpGet]
         public async Task<IActionResult> VerifyEmail(string token)
         {
+            token = (token ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(token))
             {
                 TempData["ErrorMessage"] = "Invalid verification token.";
                 return RedirectToAction("Index", "Store");
             }
 
+            var tokenHash = kstech.Services.PasswordResetTokenHelper.HashOtp(token);
             var user = await _context.Users.FirstOrDefaultAsync(existing =>
                 existing.IsActive &&
                 existing.UserType == "Customer" &&
                 existing.Role == "Customer" &&
-                existing.EmailVerificationToken == token);
+                existing.EmailVerificationToken == tokenHash);
 
             if (user == null)
             {
@@ -645,6 +662,131 @@ namespace kstech.Controllers
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = "Email verified successfully! You can now complete your checkout.";
+            return RedirectToAction("Index", "Store");
+        }
+
+        [HttpGet]
+        public IActionResult VerifyCode(string email)
+        {
+            ViewData["Email"] = email;
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthStrict")]
+        public async Task<IActionResult> VerifyCode(string email, string code)
+        {
+            email = (email ?? string.Empty).Trim();
+            code = (code ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(code))
+            {
+                ViewBag.Error = "Email and verification code are required.";
+                ViewData["Email"] = email;
+                return View();
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email && u.IsActive && u.Role == "Customer" && u.UserType == "Customer");
+            var codeHash = kstech.Services.PasswordResetTokenHelper.HashOtp(code);
+            var tokenMatch = user != null &&
+                !string.IsNullOrEmpty(user.EmailVerificationToken) &&
+                kstech.Services.PasswordResetTokenHelper.FixedTimeEqualsOtp(
+                    user.EmailVerificationToken, codeHash);
+
+            if (user == null || !tokenMatch)
+            {
+                ViewBag.Error = "Invalid verification code.";
+                ViewData["Email"] = email;
+                return View();
+            }
+
+            user.IsEmailVerified = true;
+            user.EmailVerificationToken = null; // Consume code
+            await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = "Email verified successfully! You can now sign in.";
+            return RedirectToAction(nameof(Login));
+        }
+
+        [HttpGet]
+        public IActionResult VerifyMfa()
+        {
+            var userIdStr = HttpContext.Session.GetString("MfaTemp.Store.UserId");
+            if (string.IsNullOrWhiteSpace(userIdStr))
+            {
+                return RedirectToAction(nameof(Login));
+            }
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthStrict")]
+        public async Task<IActionResult> VerifyMfa(string code)
+        {
+            var userIdStr = HttpContext.Session.GetString("MfaTemp.Store.UserId");
+            if (string.IsNullOrWhiteSpace(userIdStr) || !int.TryParse(userIdStr, out var userId))
+            {
+                return RedirectToAction(nameof(Login));
+            }
+
+            code = (code ?? string.Empty).Trim();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == userId && u.IsActive);
+            if (user == null)
+            {
+                return RedirectToAction(nameof(Login));
+            }
+
+            var isMfaVerified = false;
+            if (!string.IsNullOrWhiteSpace(user.TwoFactorSecret) && kstech.Utilities.TotpHelper.VerifyCode(user.TwoFactorSecret, code))
+            {
+                isMfaVerified = true;
+            }
+            else if (!string.IsNullOrWhiteSpace(user.TwoFactorBackupCodes) && code.Length == 8 && int.TryParse(code, out _))
+            {
+                var backupCodes = user.TwoFactorBackupCodes.Split(';', StringSplitOptions.RemoveEmptyEntries).ToList();
+                var matchedCodeIndex = -1;
+                for (int i = 0; i < backupCodes.Count; i++)
+                {
+                    if (_authService.VerifyPassword(code, backupCodes[i]))
+                    {
+                        matchedCodeIndex = i;
+                        break;
+                    }
+                }
+
+                if (matchedCodeIndex >= 0)
+                {
+                    backupCodes.RemoveAt(matchedCodeIndex);
+                    user.TwoFactorBackupCodes = backupCodes.Any() ? string.Join(";", backupCodes) : null;
+                    await _context.SaveChangesAsync();
+                    isMfaVerified = true;
+                }
+            }
+
+            if (!isMfaVerified)
+            {
+                ViewBag.Error = "Invalid verification code.";
+                return View();
+            }
+
+            var rememberMeStr = HttpContext.Session.GetString("MfaTemp.Store.RememberMe");
+            bool.TryParse(rememberMeStr, out var rememberMe);
+            var returnUrl = HttpContext.Session.GetString("MfaTemp.Store.ReturnUrl");
+
+            // Clean up session
+            HttpContext.Session.Remove("MfaTemp.Store.UserId");
+            HttpContext.Session.Remove("MfaTemp.Store.RememberMe");
+            HttpContext.Session.Remove("MfaTemp.Store.ReturnUrl");
+
+            await _authService.SignInAsync(user, rememberMe, CustomerScheme);
+            await MergeSessionCartIntoCustomerCartAsync(user.UserID);
+
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return Redirect(returnUrl);
+            }
             return RedirectToAction("Index", "Store");
         }
 
@@ -806,6 +948,289 @@ namespace kstech.Controllers
 
             TempData["ProfileMessage"] = "Steam account unlinked successfully.";
             return RedirectToAction(nameof(Profile));
+        }
+
+        [HttpPost]
+        [IgnoreAntiforgeryToken]
+        [Authorize(AuthenticationSchemes = CustomerScheme)]
+        public async Task<IActionResult> EnableMfa(string secret, string code)
+        {
+            var userId = await GetCurrentCustomerUserIdAsync();
+            if (!userId.HasValue)
+            {
+                return RedirectToAction("Login", "Store");
+            }
+
+            var user = await _context.Users.FindAsync(userId.Value);
+            if (user == null) return RedirectToAction("Login", "Store");
+
+            secret = (secret ?? string.Empty).Trim();
+            code = (code ?? string.Empty).Trim();
+
+            if (kstech.Utilities.TotpHelper.VerifyCode(secret, code))
+            {
+                user.TwoFactorEnabled = true;
+                user.TwoFactorSecret = secret;
+                await _context.SaveChangesAsync();
+                TempData["ProfileMessage"] = "Multi-Factor Authentication enabled successfully.";
+            }
+            else
+            {
+                TempData["PasswordError"] = "Invalid verification code. Please try again.";
+            }
+
+            return RedirectToAction(nameof(Profile));
+        }
+
+        [HttpPost]
+        [IgnoreAntiforgeryToken]
+        [Authorize(AuthenticationSchemes = CustomerScheme)]
+        public async Task<IActionResult> DisableMfa(string password)
+        {
+            var userId = await GetCurrentCustomerUserIdAsync();
+            if (!userId.HasValue)
+            {
+                return RedirectToAction("Login", "Store");
+            }
+
+            var user = await _context.Users.FindAsync(userId.Value);
+            if (user == null) return RedirectToAction("Login", "Store");
+
+            password = password ?? string.Empty;
+            if (_authService.VerifyPassword(password, user.PasswordHash))
+            {
+                user.TwoFactorEnabled = false;
+                user.TwoFactorSecret = null;
+                user.TwoFactorBackupCodes = null;
+                await _context.SaveChangesAsync();
+                TempData["ProfileMessage"] = "Multi-Factor Authentication disabled successfully.";
+            }
+            else
+            {
+                TempData["PasswordError"] = "Incorrect password. MFA could not be disabled.";
+            }
+
+            return RedirectToAction(nameof(Profile));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GoogleLogin(string? returnUrl = null)
+        {
+            var googleClientId = _configuration["Authentication:Google:ClientId"];
+            var googleClientSecret = _configuration["Authentication:Google:ClientSecret"];
+            if (string.IsNullOrWhiteSpace(googleClientId) || string.IsNullOrWhiteSpace(googleClientSecret))
+            {
+                TempData["ErrorMessage"] = "Google sign-in is not configured yet.";
+                return RedirectToAction(nameof(Login), new { returnUrl });
+            }
+
+            await HttpContext.SignOutAsync(ExternalScheme);
+
+            var redirectUrl = Url.Action(nameof(GoogleLoginCallback), "Store", new { returnUrl });
+            if (string.IsNullOrWhiteSpace(redirectUrl))
+            {
+                TempData["ErrorMessage"] = "Unable to start Google sign-in.";
+                return RedirectToAction(nameof(Login), new { returnUrl });
+            }
+
+            var authProperties = new AuthenticationProperties
+            {
+                RedirectUri = redirectUrl
+            };
+
+            return Challenge(authProperties, Microsoft.AspNetCore.Authentication.Google.GoogleDefaults.AuthenticationScheme);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GoogleLoginCallback(string? returnUrl = null, string? remoteError = null)
+        {
+            if (!string.IsNullOrWhiteSpace(remoteError))
+            {
+                TempData["ErrorMessage"] = $"Google login failed: {remoteError}";
+                return RedirectToAction(nameof(Login), new { returnUrl });
+            }
+
+            var externalAuth = await HttpContext.AuthenticateAsync(ExternalScheme);
+            if (!externalAuth.Succeeded || externalAuth.Principal == null)
+            {
+                TempData["ErrorMessage"] = "Google login could not be completed.";
+                return RedirectToAction(nameof(Login), new { returnUrl });
+            }
+
+            var email = externalAuth.Principal.FindFirst(ClaimTypes.Email)?.Value ??
+                        externalAuth.Principal.FindFirst("email")?.Value;
+
+            var name = externalAuth.Principal.FindFirst(ClaimTypes.Name)?.Value ?? "Google User";
+
+            await HttpContext.SignOutAsync(ExternalScheme);
+
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                TempData["ErrorMessage"] = "Google account did not provide an email address.";
+                return RedirectToAction(nameof(Login), new { returnUrl });
+            }
+
+            var normalizedEmail = email.Trim();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail && u.IsActive);
+            if (user == null)
+            {
+                // Auto-register customer!
+                user = new User
+                {
+                    Email = normalizedEmail,
+                    FullName = name,
+                    PasswordHash = _authService.HashPassword(Guid.NewGuid().ToString("N")),
+                    Role = "Customer",
+                    UserType = "Customer",
+                    IsActive = true,
+                    IsEmailVerified = true,
+                    DateCreated = DateTime.UtcNow
+                };
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+
+                var customer = new Customer
+                {
+                    UserID = user.UserID,
+                    FullName = name,
+                    Email = normalizedEmail,
+                    Phone = "N/A",
+                    Address = "",
+                    City = "",
+                    RegistrationDate = DateTime.UtcNow
+                };
+                _context.Customers.Add(customer);
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                if (user.Role != "Customer" || user.UserType != "Customer")
+                {
+                    TempData["ErrorMessage"] = "This email is registered as staff. Please use password login.";
+                    return RedirectToAction(nameof(Login), new { returnUrl });
+                }
+            }
+
+            if (user.TwoFactorEnabled)
+            {
+                HttpContext.Session.SetString("MfaTemp.Store.UserId", user.UserID.ToString());
+                HttpContext.Session.SetString("MfaTemp.Store.RememberMe", "true");
+                HttpContext.Session.SetString("MfaTemp.Store.ReturnUrl", returnUrl ?? "");
+                return RedirectToAction(nameof(VerifyMfa));
+            }
+
+            await _authService.SignInAsync(user, isPersistent: true, scheme: CustomerScheme);
+            await MergeSessionCartIntoCustomerCartAsync(user.UserID);
+
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return Redirect(returnUrl);
+            }
+            return RedirectToAction("Index", "Store");
+        }
+
+        [HttpPost]
+        [IgnoreAntiforgeryToken]
+        public async Task<IActionResult> GoogleOneTapLogin(string credential, string? returnUrl = null)
+        {
+            if (string.IsNullOrWhiteSpace(credential))
+            {
+                return Json(new { success = false, message = "Credential is required." });
+            }
+
+            var googleClientId = _configuration["Authentication:Google:ClientId"];
+            if (string.IsNullOrWhiteSpace(googleClientId))
+            {
+                return Json(new { success = false, message = "Google authentication is not configured." });
+            }
+
+            try
+            {
+                using var httpClient = new HttpClient();
+                var response = await httpClient.GetAsync($"https://oauth2.googleapis.com/tokeninfo?id_token={credential}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    return Json(new { success = false, message = "Failed to validate Google credential." });
+                }
+
+                var json = await response.Content.ReadAsStringAsync();
+                var tokenInfo = System.Text.Json.JsonSerializer.Deserialize<GoogleTokenInfo>(json);
+
+                if (tokenInfo == null || string.IsNullOrWhiteSpace(tokenInfo.Email))
+                {
+                    return Json(new { success = false, message = "Invalid Google token payload." });
+                }
+
+                if (!string.Equals(tokenInfo.Aud, googleClientId, StringComparison.Ordinal))
+                {
+                    return Json(new { success = false, message = "Audience mismatch." });
+                }
+
+                var email = tokenInfo.Email.Trim();
+                var name = tokenInfo.Name ?? "Google User";
+
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email && u.IsActive);
+                if (user == null)
+                {
+                    // Auto-register customer!
+                    user = new User
+                    {
+                        Email = email,
+                        FullName = name,
+                        PasswordHash = _authService.HashPassword(Guid.NewGuid().ToString("N")),
+                        Role = "Customer",
+                        UserType = "Customer",
+                        IsActive = true,
+                        IsEmailVerified = true,
+                        DateCreated = DateTime.UtcNow
+                    };
+                    _context.Users.Add(user);
+                    await _context.SaveChangesAsync();
+
+                    var customer = new Customer
+                    {
+                        UserID = user.UserID,
+                        FullName = name,
+                        Email = email,
+                        Phone = "N/A",
+                        Address = "",
+                        City = "",
+                        RegistrationDate = DateTime.UtcNow
+                    };
+                    _context.Customers.Add(customer);
+                    await _context.SaveChangesAsync();
+                }
+                else
+                {
+                    if (user.Role != "Customer" || user.UserType != "Customer")
+                    {
+                        return Json(new { success = false, message = "This account is registered as staff. Please use password login." });
+                    }
+                }
+
+                if (user.TwoFactorEnabled)
+                {
+                    HttpContext.Session.SetString("MfaTemp.Store.UserId", user.UserID.ToString());
+                    HttpContext.Session.SetString("MfaTemp.Store.RememberMe", "true");
+                    HttpContext.Session.SetString("MfaTemp.Store.ReturnUrl", returnUrl ?? "");
+                    var mfaUrl = Url.Action(nameof(VerifyMfa), "Store");
+                    return Json(new { success = true, redirectUrl = mfaUrl });
+                }
+
+                await _authService.SignInAsync(user, isPersistent: true, scheme: CustomerScheme);
+                await MergeSessionCartIntoCustomerCartAsync(user.UserID);
+
+                var successRedirectUrl = !string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)
+                    ? returnUrl
+                    : Url.Action("Index", "Store");
+
+                return Json(new { success = true, redirectUrl = successRedirectUrl });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Google One Tap login error");
+                return Json(new { success = false, message = "Authentication failed." });
+            }
         }
 
         // Action of ChangePassword
@@ -1377,6 +1802,18 @@ namespace kstech.Controllers
 
         private async Task<StoreCustomerProfileViewModel> BuildProfileViewModelAsync(User user, Customer customer)
         {
+            var secret = user.TwoFactorSecret;
+            var qrUrl = "";
+            if (string.IsNullOrWhiteSpace(secret) || secret.Length < 16)
+            {
+                secret = kstech.Utilities.TotpHelper.GenerateSecret();
+                qrUrl = kstech.Utilities.TotpHelper.GenerateOtpAuthUrl(user.Email, "KSTech", secret);
+            }
+            else if (!user.TwoFactorEnabled)
+            {
+                qrUrl = kstech.Utilities.TotpHelper.GenerateOtpAuthUrl(user.Email, "KSTech", secret);
+            }
+
             var model = new StoreCustomerProfileViewModel
             {
                 FullName = customer.FullName,
@@ -1385,7 +1822,10 @@ namespace kstech.Controllers
                 Address = customer.Address,
                 City = customer.City,
                 MarketingOptIn = customer.MarketingOptIn,
-                SteamId = customer.SteamId
+                SteamId = customer.SteamId,
+                TwoFactorEnabled = user.TwoFactorEnabled,
+                TwoFactorSecret = secret,
+                TwoFactorQrUrl = qrUrl
             };
 
             if (!string.IsNullOrWhiteSpace(customer.SteamId))
@@ -1412,9 +1852,14 @@ namespace kstech.Controllers
 
             model.OrderCount = await validOrdersQuery.CountAsync();
             model.LifetimeSpend = await validOrdersQuery.SumAsync(order => (decimal?)order.TotalAmount) ?? 0m;
-            model.LoyaltyPoints = customer.LoyaltyPoints;
-            model.LifetimePointsEarned = customer.LifetimePointsEarned;
-            model.LifetimePointsRedeemed = customer.LifetimePointsRedeemed;
+            var loyaltyStats = await _context.CustomerTenantLoyalties
+                .Where(l => l.CustomerID == customer.CustomerID)
+                .Select(l => new { l.LoyaltyPoints, l.LifetimePointsEarned, l.LifetimePointsRedeemed })
+                .ToListAsync();
+
+            model.LoyaltyPoints = loyaltyStats.Sum(l => l.LoyaltyPoints);
+            model.LifetimePointsEarned = loyaltyStats.Sum(l => l.LifetimePointsEarned);
+            model.LifetimePointsRedeemed = loyaltyStats.Sum(l => l.LifetimePointsRedeemed);
             model.CurrentTier = _loyaltyService.ResolveTier(model.LifetimeSpend).Name;
             model.RegistrationDate = customer.RegistrationDate;
         }
@@ -1486,36 +1931,32 @@ namespace kstech.Controllers
                 return;
             }
 
+            string rawCode;
             if (forceNewToken || string.IsNullOrWhiteSpace(user.EmailVerificationToken))
             {
+                rawCode = System.Security.Cryptography.RandomNumberGenerator.GetInt32(100000, 1000000).ToString("D6");
                 user.IsEmailVerified = false;
-                user.EmailVerificationToken = Guid.NewGuid().ToString("N");
+                user.EmailVerificationToken = kstech.Services.PasswordResetTokenHelper.HashOtp(rawCode);
                 await _context.SaveChangesAsync();
             }
-
-            var token = user.EmailVerificationToken;
-            if (string.IsNullOrWhiteSpace(token))
+            else
             {
-                return;
-            }
-
-            var verificationLink = Url.Action(nameof(VerifyEmail), "Store", new { token }, Request.Scheme);
-            if (string.IsNullOrWhiteSpace(verificationLink))
-            {
-                _logger.LogWarning("Failed to generate customer verification link for user {UserId}", user.UserID);
-                return;
+                rawCode = System.Security.Cryptography.RandomNumberGenerator.GetInt32(100000, 1000000).ToString("D6");
+                user.EmailVerificationToken = kstech.Services.PasswordResetTokenHelper.HashOtp(rawCode);
+                await _context.SaveChangesAsync();
             }
 
             var verificationEmailOwnerUserId = await ResolveSingleActiveOwnerUserIdAsync();
             var encodedName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(user.FullName) ? "Customer" : user.FullName);
-            var encodedLink = WebUtility.HtmlEncode(verificationLink);
+            var encodedCode = WebUtility.HtmlEncode(rawCode);
 
             await _emailOutboxService.QueueEmailAsync(
                 user.Email,
-                "Verify your account at kstech",
+                $"Your KSTech Verification Code: {encodedCode}",
                 $"""
                 <p>Hi {encodedName},</p>
-                <p>Please <a href="{encodedLink}">click here to verify your email address</a>.</p>
+                <p>Thank you for registering. Please use the following 6-digit verification code to verify your email address:</p>
+                <h2 style="font-size: 24px; letter-spacing: 4px; color: #1a5c58; text-align: center; margin: 20px 0; font-family: monospace;">{encodedCode}</h2>
                 <p>You must verify your email before placing orders.</p>
                 """,
                 verificationEmailOwnerUserId);
@@ -1607,6 +2048,18 @@ namespace kstech.Controllers
 
             return stockQuantity < 5 ? "Low Stock" : "In Stock";
         }
+    }
+
+    public class GoogleTokenInfo
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("email")]
+        public string Email { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("aud")]
+        public string Aud { get; set; } = string.Empty;
     }
 }
 

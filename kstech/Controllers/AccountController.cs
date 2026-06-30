@@ -50,6 +50,7 @@ namespace kstech.Controllers
         // Action of Login
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthNormal")]
         public async Task<IActionResult> Login(string email, string password, bool rememberMe = false, string? returnUrl = null)
         {
             ViewData["ReturnUrl"] = returnUrl;
@@ -82,10 +83,143 @@ namespace kstech.Controllers
             }
 
             var shouldUsePersistentSession = rememberMe || ShouldPersistStaffSessionByDefault(user);
+
+            if (user.TwoFactorEnabled)
+            {
+                HttpContext.Session.SetString("MfaTemp.UserId", user.UserID.ToString());
+                HttpContext.Session.SetString("MfaTemp.RememberMe", shouldUsePersistentSession.ToString());
+                HttpContext.Session.SetString("MfaTemp.ReturnUrl", returnUrl ?? "");
+                return RedirectToAction(nameof(VerifyMfa));
+            }
+
             await _authService.SignInAsync(user, isPersistent: shouldUsePersistentSession, scheme: AdminScheme);
             _logger.LogInformation($"User {email} logged in successfully.");
 
             return RedirectAfterAdminLogin(user, returnUrl);
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public IActionResult VerifyMfa()
+        {
+            var userIdStr = HttpContext.Session.GetString("MfaTemp.UserId");
+            if (string.IsNullOrWhiteSpace(userIdStr))
+            {
+                return RedirectToAction(nameof(Login));
+            }
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [AllowAnonymous]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthStrict")]
+        public async Task<IActionResult> VerifyMfa(string code)
+        {
+            var userIdStr = HttpContext.Session.GetString("MfaTemp.UserId");
+            if (string.IsNullOrWhiteSpace(userIdStr) || !int.TryParse(userIdStr, out var userId))
+            {
+                return RedirectToAction(nameof(Login));
+            }
+
+            code = (code ?? string.Empty).Trim();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == userId && u.IsActive);
+            if (user == null)
+            {
+                return RedirectToAction(nameof(Login));
+            }
+
+            var isMfaVerified = false;
+            if (!string.IsNullOrWhiteSpace(user.TwoFactorSecret) && kstech.Utilities.TotpHelper.VerifyCode(user.TwoFactorSecret, code))
+            {
+                isMfaVerified = true;
+            }
+            else if (!string.IsNullOrWhiteSpace(user.TwoFactorBackupCodes) && code.Length == 8 && int.TryParse(code, out _))
+            {
+                var backupCodes = user.TwoFactorBackupCodes.Split(';', StringSplitOptions.RemoveEmptyEntries).ToList();
+                var matchedCodeIndex = -1;
+                for (int i = 0; i < backupCodes.Count; i++)
+                {
+                    if (_authService.VerifyPassword(code, backupCodes[i]))
+                    {
+                        matchedCodeIndex = i;
+                        break;
+                    }
+                }
+
+                if (matchedCodeIndex >= 0)
+                {
+                    backupCodes.RemoveAt(matchedCodeIndex);
+                    user.TwoFactorBackupCodes = backupCodes.Any() ? string.Join(";", backupCodes) : null;
+                    await _context.SaveChangesAsync();
+                    isMfaVerified = true;
+                }
+            }
+
+            if (!isMfaVerified)
+            {
+                ViewBag.Error = "Invalid verification code.";
+                return View();
+            }
+
+            var rememberMeStr = HttpContext.Session.GetString("MfaTemp.RememberMe");
+            bool.TryParse(rememberMeStr, out var rememberMe);
+            var returnUrl = HttpContext.Session.GetString("MfaTemp.ReturnUrl");
+
+            HttpContext.Session.Remove("MfaTemp.UserId");
+            HttpContext.Session.Remove("MfaTemp.RememberMe");
+            HttpContext.Session.Remove("MfaTemp.ReturnUrl");
+
+            await _authService.SignInAsync(user, isPersistent: rememberMe, scheme: AdminScheme);
+            _logger.LogInformation("User {Email} signed in via admin MFA.", user.Email);
+
+            return RedirectAfterAdminLogin(user, returnUrl);
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public IActionResult VerifyCode(string email)
+        {
+            ViewData["Email"] = email;
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [AllowAnonymous]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthStrict")]
+        public async Task<IActionResult> VerifyCode(string email, string code)
+        {
+            email = (email ?? string.Empty).Trim();
+            code = (code ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(code))
+            {
+                ViewBag.Error = "Email and verification code are required.";
+                ViewData["Email"] = email;
+                return View();
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email && u.IsActive);
+            var codeHash = kstech.Services.PasswordResetTokenHelper.HashOtp(code);
+            var tokenMatch = user != null &&
+                !string.IsNullOrEmpty(user.EmailVerificationToken) &&
+                kstech.Services.PasswordResetTokenHelper.FixedTimeEqualsOtp(
+                    user.EmailVerificationToken, codeHash);
+
+            if (user == null || !tokenMatch)
+            {
+                ViewBag.Error = "Invalid verification code.";
+                ViewData["Email"] = email;
+                return View();
+            }
+
+            user.IsEmailVerified = true;
+            user.EmailVerificationToken = null;
+            await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = "Email verified successfully! You can now log in.";
+            return RedirectToAction(nameof(Login));
         }
 
         // Action of GoogleLogin
@@ -230,6 +364,7 @@ namespace kstech.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [AllowAnonymous]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthStrict")]
         public async Task<IActionResult> ForgotPassword(string email)
         {
             email = (email ?? string.Empty).Trim();
@@ -283,10 +418,10 @@ namespace kstech.Controllers
                 return View();
             }
 
-            newPassword = (newPassword ?? string.Empty).Trim();
-            confirmPassword = (confirmPassword ?? string.Empty).Trim();
+            newPassword = newPassword ?? string.Empty;
+            confirmPassword = confirmPassword ?? string.Empty;
 
-            if (string.IsNullOrWhiteSpace(newPassword) || string.IsNullOrWhiteSpace(confirmPassword))
+            if (string.IsNullOrEmpty(newPassword) || string.IsNullOrEmpty(confirmPassword))
             {
                 ViewBag.Error = "New password and confirmation are required.";
                 return View();
@@ -356,9 +491,10 @@ namespace kstech.Controllers
                 return RedirectToAction(nameof(Login));
             }
 
+            var tokenHash = kstech.Services.PasswordResetTokenHelper.HashOtp(token);
             var user = await _context.Users.FirstOrDefaultAsync(existing =>
                 existing.IsActive &&
-                existing.EmailVerificationToken == token);
+                existing.EmailVerificationToken == tokenHash);
 
             if (user == null || !RequiresOwnerEmailVerification(user))
             {
@@ -384,17 +520,18 @@ namespace kstech.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [AllowAnonymous]
+        [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("AuthStrict")]
         public async Task<IActionResult> Register(string fullName, string email, string password, string confirmPassword)
         {
             fullName = (fullName ?? string.Empty).Trim();
             email = (email ?? string.Empty).Trim();
-            password = (password ?? string.Empty).Trim();
-            confirmPassword = (confirmPassword ?? string.Empty).Trim();
+            password = password ?? string.Empty;
+            confirmPassword = confirmPassword ?? string.Empty;
 
             if (string.IsNullOrWhiteSpace(fullName) ||
                 string.IsNullOrWhiteSpace(email) ||
-                string.IsNullOrWhiteSpace(password) ||
-                string.IsNullOrWhiteSpace(confirmPassword))
+                string.IsNullOrEmpty(password) ||
+                string.IsNullOrEmpty(confirmPassword))
             {
                 ViewBag.Error = "All fields are required.";
                 return View();
@@ -587,14 +724,23 @@ namespace kstech.Controllers
                 return;
             }
 
+            string rawToken;
             if (forceNewToken || string.IsNullOrWhiteSpace(user.EmailVerificationToken))
             {
+                rawToken = Guid.NewGuid().ToString("N");
                 user.IsEmailVerified = false;
-                user.EmailVerificationToken = Guid.NewGuid().ToString("N");
+                user.EmailVerificationToken = kstech.Services.PasswordResetTokenHelper.HashOtp(rawToken);
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                // Token already set but un-consumed — generate fresh so we can re-send.
+                rawToken = Guid.NewGuid().ToString("N");
+                user.EmailVerificationToken = kstech.Services.PasswordResetTokenHelper.HashOtp(rawToken);
                 await _context.SaveChangesAsync();
             }
 
-            var token = user.EmailVerificationToken;
+            var token = rawToken;
             if (string.IsNullOrWhiteSpace(token))
             {
                 return;

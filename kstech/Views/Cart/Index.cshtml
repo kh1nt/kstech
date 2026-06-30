@@ -1,4 +1,4 @@
-﻿@using System.Linq
+@using System.Linq
 @model kstech.Models.CartViewModel
 @{
     ViewData["Title"] = "Cart";
@@ -45,7 +45,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
             <section class="space-y-3">
                 <div class="flex justify-end">
-                    <form asp-action="ClearCart" method="post">
+                    <form asp-action="ClearCart" method="post" data-skip-confirm="true">
                         <button type="submit" class="text-sm font-semibold text-red-600 hover:text-red-700">Clear all</button>
                     </form>
                 </div>
@@ -101,7 +101,7 @@
                             </div>
 
                             <div class="sm:self-start">
-                                <form asp-action="RemoveFromCart" method="post">
+                                <form asp-action="RemoveFromCart" method="post" data-skip-confirm="true">
                                     <input type="hidden" name="cartItemId" value="@item.CartItemId" />
                                     <button type="submit" class="text-sm text-red-600 font-semibold hover:text-red-700">Remove</button>
                                 </form>
@@ -461,6 +461,120 @@
                     event.preventDefault();
                     window.clearTimeout(debounceTimer);
                     submitQuantity();
+                });
+            });
+        })();
+
+        // ── Cart page: AJAX Remove & Clear with inline confirmation ──────────
+        (function () {
+            'use strict';
+
+            function getToken() {
+                return document.querySelector(
+                    '#store-anti-forgery-form input[name="__RequestVerificationToken"]'
+                )?.value || '';
+            }
+
+            async function cartPost(actionUrl, extraParams) {
+                const body = new URLSearchParams(extraParams || {});
+                body.append('__RequestVerificationToken', getToken());
+                const res = await fetch(actionUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: body.toString()
+                });
+                const json = await res.json().catch(() => null);
+                if (!res.ok || !json?.success) {
+                    throw new Error(json?.message || 'Could not complete the request.');
+                }
+                return json;
+            }
+
+            function showError(anchorEl, message) {
+                const msg = document.createElement('span');
+                msg.className = 'ml-2 text-xs text-red-600 font-semibold';
+                msg.textContent = message;
+                anchorEl.insertAdjacentElement('afterend', msg);
+                setTimeout(() => msg.remove(), 3000);
+            }
+
+            // ── Clear all ────────────────────────────────────────────────
+            const clearForm = document.querySelector('form[action$="ClearCart"]');
+            const clearBtn = clearForm && clearForm.querySelector('button[type="submit"]');
+
+            if (clearForm && clearBtn) {
+                clearForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+
+                    if (clearForm.querySelector('[data-clear-bar]')) return;
+
+                    const bar = document.createElement('span');
+                    bar.setAttribute('data-clear-bar', '');
+                    bar.className = 'inline-flex items-center gap-2 ml-2 text-xs font-semibold';
+                    bar.innerHTML =
+                        '<button type="button" class="text-store-muted hover:text-store-ink">Keep</button>' +
+                        '<button type="button" class="text-red-600 hover:text-red-700">Yes, clear all</button>';
+                    clearBtn.insertAdjacentElement('afterend', bar);
+
+                    const buttons = bar.querySelectorAll('button');
+                    buttons[0].addEventListener('click', () => bar.remove());
+                    buttons[1].addEventListener('click', async () => {
+                        bar.remove();
+                        clearBtn.disabled = true;
+                        clearBtn.textContent = 'Clearing\u2026';
+                        try {
+                            await cartPost(clearForm.action, {});
+                            window.location.reload();
+                        } catch (err) {
+                            clearBtn.disabled = false;
+                            clearBtn.textContent = 'Clear all';
+                            showError(clearBtn, err.message);
+                        }
+                    });
+                });
+            }
+
+            // ── Remove item ──────────────────────────────────────────────
+            document.querySelectorAll('form[action$="RemoveFromCart"]').forEach(function (form) {
+                const btn = form.querySelector('button[type="submit"]');
+                const cartItemId = form.querySelector('input[name="cartItemId"]')?.value;
+                if (!btn || !cartItemId) return;
+
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+
+                    if (form.querySelector('[data-remove-bar]')) return;
+
+                    const bar = document.createElement('span');
+                    bar.setAttribute('data-remove-bar', '');
+                    bar.className = 'inline-flex items-center gap-2 text-xs font-semibold';
+                    bar.innerHTML =
+                        '<button type="button" class="text-store-muted hover:text-store-ink">Keep</button>' +
+                        '<button type="button" class="text-red-600 hover:text-red-700">Remove</button>';
+
+                    btn.classList.add('hidden');
+                    btn.insertAdjacentElement('afterend', bar);
+
+                    const buttons = bar.querySelectorAll('button');
+                    const restore = function () { bar.remove(); btn.classList.remove('hidden'); };
+
+                    buttons[0].addEventListener('click', restore);
+                    buttons[1].addEventListener('click', async () => {
+                        bar.innerHTML = '<span class="text-store-muted">Removing\u2026</span>';
+                        try {
+                            await cartPost(form.action, { cartItemId: cartItemId });
+                            window.location.reload();
+                        } catch (err) {
+                            restore();
+                            showError(btn, err.message);
+                        }
+                    });
                 });
             });
         })();

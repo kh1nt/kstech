@@ -13,7 +13,7 @@ namespace kstech.Services
         bool CanEditOwnerWorkspace { get; }
         bool IsSuperAdmin { get; }
         bool IsAuthenticated { get; }
-        bool SetSuperAdminOwnerScope(int ownerUserId);
+        bool SetSuperAdminOwnerScope(int ownerUserId, bool allowEdits);
         void ClearSuperAdminOwnerScope();
     }
 
@@ -22,16 +22,12 @@ namespace kstech.Services
         private const string SuperAdminOwnerScopeSessionKey = "Auth.AdminScheme.SuperAdmin.OwnerScopeUserId";
         private const string SuperAdminOwnerScopeCookieKey = "KSTech.SuperAdmin.OwnerScopeUserId";
         private readonly IHttpContextAccessor _httpContextAccessor;
-        private readonly ApplicationDbContext _context;
         private bool _canEditOwnerWorkspaceResolved;
         private bool _canEditOwnerWorkspace;
 
-        public TenantContext(
-            IHttpContextAccessor httpContextAccessor,
-            ApplicationDbContext context)
+        public TenantContext(IHttpContextAccessor httpContextAccessor)
         {
             _httpContextAccessor = httpContextAccessor;
-            _context = context;
         }
 
         public int? CurrentUserId
@@ -60,6 +56,12 @@ namespace kstech.Services
 
                 var principal = _httpContextAccessor.HttpContext?.User;
                 if (principal == null)
+                {
+                    return null;
+                }
+
+                var role = principal.FindFirst(ClaimTypes.Role)?.Value;
+                if (string.Equals(role, "Customer", StringComparison.OrdinalIgnoreCase))
                 {
                     return null;
                 }
@@ -106,15 +108,29 @@ namespace kstech.Services
                     return _canEditOwnerWorkspace;
                 }
 
-                var ownerUserId = OwnerUserId.Value;
-                _canEditOwnerWorkspace = _context.Users
-                    .AsNoTracking()
-                    .Where(user =>
-                        user.UserID == ownerUserId &&
-                        user.UserType == "Internal" &&
-                        user.Role == "Owner")
-                    .Select(user => user.AllowSuperAdminWorkspaceEdits)
-                    .FirstOrDefault();
+                var httpContext = _httpContextAccessor.HttpContext;
+                if (httpContext == null)
+                {
+                    _canEditOwnerWorkspace = false;
+                }
+                else
+                {
+                    var sessionValue = httpContext.Session.GetString("Auth.AdminScheme.SuperAdmin.OwnerScopeAllowEdits");
+                    if (bool.TryParse(sessionValue, out var allowEdits))
+                    {
+                        _canEditOwnerWorkspace = allowEdits;
+                    }
+                    else if (httpContext.Request.Cookies.TryGetValue("KSTech.SuperAdmin.OwnerScopeAllowEdits", out var cookieValue) &&
+                             bool.TryParse(cookieValue, out allowEdits))
+                    {
+                        httpContext.Session.SetString("Auth.AdminScheme.SuperAdmin.OwnerScopeAllowEdits", allowEdits.ToString());
+                        _canEditOwnerWorkspace = allowEdits;
+                    }
+                    else
+                    {
+                        _canEditOwnerWorkspace = false;
+                    }
+                }
 
                 _canEditOwnerWorkspaceResolved = true;
                 return _canEditOwnerWorkspace;
@@ -127,7 +143,7 @@ namespace kstech.Services
         public bool IsAuthenticated =>
             _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated == true;
 
-        public bool SetSuperAdminOwnerScope(int ownerUserId)
+        public bool SetSuperAdminOwnerScope(int ownerUserId, bool allowEdits)
         {
             if (ownerUserId <= 0 || !IsSuperAdmin)
             {
@@ -142,6 +158,8 @@ namespace kstech.Services
 
             var ownerUserIdText = ownerUserId.ToString();
             httpContext.Session.SetString(SuperAdminOwnerScopeSessionKey, ownerUserIdText);
+            httpContext.Session.SetString("Auth.AdminScheme.SuperAdmin.OwnerScopeAllowEdits", allowEdits.ToString());
+
             httpContext.Response.Cookies.Append(
                 SuperAdminOwnerScopeCookieKey,
                 ownerUserIdText,
@@ -153,6 +171,19 @@ namespace kstech.Services
                     SameSite = SameSiteMode.Lax,
                     MaxAge = TimeSpan.FromHours(8)
                 });
+
+            httpContext.Response.Cookies.Append(
+                "KSTech.SuperAdmin.OwnerScopeAllowEdits",
+                allowEdits.ToString(),
+                new CookieOptions
+                {
+                    HttpOnly = true,
+                    IsEssential = true,
+                    Secure = httpContext.Request.IsHttps,
+                    SameSite = SameSiteMode.Lax,
+                    MaxAge = TimeSpan.FromHours(8)
+                });
+
             ResetEditPermissionCache();
             return true;
         }
@@ -171,7 +202,9 @@ namespace kstech.Services
             }
 
             httpContext.Session.Remove(SuperAdminOwnerScopeSessionKey);
+            httpContext.Session.Remove("Auth.AdminScheme.SuperAdmin.OwnerScopeAllowEdits");
             httpContext.Response.Cookies.Delete(SuperAdminOwnerScopeCookieKey);
+            httpContext.Response.Cookies.Delete("KSTech.SuperAdmin.OwnerScopeAllowEdits");
             ResetEditPermissionCache();
         }
 

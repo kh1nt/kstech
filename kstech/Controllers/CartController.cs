@@ -99,9 +99,11 @@ namespace kstech.Controllers
                 return RedirectBackOrCart();
             }
 
-            var product = await _context.Products.FirstOrDefaultAsync(p =>
-                p.ProductID == productId &&
-                p.MarketPriceSource != ArchivedMarketPriceSource);
+            var product = await _context.Products
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(p =>
+                    p.ProductID == productId &&
+                    p.MarketPriceSource != ArchivedMarketPriceSource);
             if (product == null || product.StockQuantity <= 0)
             {
                 if (IsAjaxRequest())
@@ -466,7 +468,7 @@ namespace kstech.Controllers
 
             if (stockIssues.Any())
             {
-                await transaction.CommitAsync();
+                await transaction.RollbackAsync();
                 TempData["CartError"] = "Inventory changed while checking out. Please review your cart quantities and try again.";
                 return RedirectToAction("Index");
             }
@@ -479,8 +481,24 @@ namespace kstech.Controllers
                     order.PaymentStatus != "Refunded")
                 .SumAsync(order => order.TotalAmount);
 
+            var tenantLoyalty = await _context.CustomerTenantLoyalties
+                .FirstOrDefaultAsync(l => l.CustomerID == customer.CustomerID && l.TenantOwnerUserID == orderOwnerUserId);
+
+            if (tenantLoyalty == null)
+            {
+                tenantLoyalty = new CustomerTenantLoyalty
+                {
+                    CustomerID = customer.CustomerID,
+                    TenantOwnerUserID = orderOwnerUserId,
+                    LoyaltyPoints = 0,
+                    LifetimePointsEarned = 0,
+                    LifetimePointsRedeemed = 0
+                };
+                _context.CustomerTenantLoyalties.Add(tenantLoyalty);
+            }
+
             var loyaltyComputation = _loyaltyService.CalculateCheckout(
-                customer,
+                tenantLoyalty.LoyaltyPoints,
                 lifetimeSpendBeforeOrder,
                 orderSubtotal,
                 pointsToRedeem);
@@ -540,7 +558,7 @@ namespace kstech.Controllers
                     user.UserID);
             }
 
-            _loyaltyService.ApplyCheckout(customer, order, loyaltyComputation, nowUtc);
+            _loyaltyService.ApplyCheckout(tenantLoyalty, order, loyaltyComputation, nowUtc);
 
             // Log Activity
             _context.SystemLogs.Add(new SystemLog
@@ -776,12 +794,12 @@ namespace kstech.Controllers
             if (cartOwnerUserId.HasValue)
             {
                 customerQuery = customerQuery
-                    .OrderByDescending(c => c.LastLoyaltyActivityUtc ?? c.RegistrationDate);
+                    .OrderByDescending(c => c.RegistrationDate);
             }
             else
             {
                 customerQuery = customerQuery
-                    .OrderByDescending(c => c.LastLoyaltyActivityUtc ?? c.RegistrationDate);
+                    .OrderByDescending(c => c.RegistrationDate);
             }
 
             var customer = await customerQuery.FirstOrDefaultAsync();
@@ -799,19 +817,31 @@ namespace kstech.Controllers
                     order.PaymentStatus != "Refunded")
                 .SumAsync(order => order.TotalAmount);
 
+            int availablePoints = 0;
+            if (cartOwnerUserId.HasValue)
+            {
+                var tenantLoyalty = await _context.CustomerTenantLoyalties
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(l => l.CustomerID == customer.CustomerID && l.TenantOwnerUserID == cartOwnerUserId.Value);
+                if (tenantLoyalty != null)
+                {
+                    availablePoints = tenantLoyalty.LoyaltyPoints;
+                }
+            }
+
             var redeemPreview = _loyaltyService.CalculateCheckout(
-                customer,
+                availablePoints,
                 lifetimeSpend,
                 viewModel.Total,
-                customer.LoyaltyPoints);
+                availablePoints);
 
             var earnPreview = _loyaltyService.CalculateCheckout(
-                customer,
+                availablePoints,
                 lifetimeSpend,
                 viewModel.Total,
                 0);
 
-            viewModel.AvailableLoyaltyPoints = customer.LoyaltyPoints;
+            viewModel.AvailableLoyaltyPoints = availablePoints;
             viewModel.LoyaltyPointValue = _loyaltyService.PointValue;
             viewModel.MaxRedeemablePoints = redeemPreview.PointsRedeemed;
             viewModel.MaxLoyaltyDiscount = redeemPreview.RedemptionDiscount;
@@ -852,7 +882,12 @@ namespace kstech.Controllers
             IQueryable<CartItem> query = _context.CartItems.AsQueryable();
             if (includeProduct)
             {
-                query = query.Include(item => item.Product);
+                // IgnoreQueryFilters on Product so the tenant scope filter (which is
+                // designed for owner dashboards) never silently drops products that a
+                // customer legitimately added while browsing any store.
+                query = query
+                    .Include(item => item.Product!)
+                    .IgnoreQueryFilters();
             }
 
             query = currentUserId.HasValue
@@ -883,6 +918,7 @@ namespace kstech.Controllers
                 .ToListAsync();
 
             var stockByProduct = await _context.Products
+                .IgnoreQueryFilters()
                 .Where(product =>
                     productIds.Contains(product.ProductID) &&
                     product.MarketPriceSource != ArchivedMarketPriceSource)

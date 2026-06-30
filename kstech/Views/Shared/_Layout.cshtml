@@ -1,4 +1,4 @@
-﻿@using kstech.Models.Entities
+@using kstech.Models.Entities
 @using System.Security.Claims
 @using Microsoft.EntityFrameworkCore
 @inject kstech.Services.ITenantContext TenantContext
@@ -9,6 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>KSTech</title>
+    <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <!-- Google Fonts -->
@@ -19,40 +20,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     
     
-    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
-    <script>
-        tailwind.config = {
-            corePlugins: {
-                preflight: false,
-            },
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        "brand-primary": "#236460", // Dark Teal 
-                        "brand-secondary": "#a9f090", // Light green accent
-                        "background-light": "#f3f5f6",
-                        "background-dark": "#111827",
-                        "card-light": "#ffffff",
-                        "card-dark": "#1f2937",
-                        "text-light": "#1f2937",
-                        "text-dark": "#f3f4f6",
-                        "muted-light": "#6b7280",
-                        "muted-dark": "#9ca3af",
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        display: ['Inter', 'sans-serif'],
-                    },
-                    borderRadius: {
-                        DEFAULT: "0.5rem",
-                        'xl': '1rem',
-                        '2xl': '1.5rem',
-                    },
-                },
-            },
-        };
-    </script>
+    <link rel="stylesheet" href="~/css/tailwind.css" asp-append-version="true" />
     <style>
         /* Scoped scrollbar styles */
         .custom-scrollbar::-webkit-scrollbar {

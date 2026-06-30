@@ -45,5 +45,9 @@ namespace kstech.Models.ViewModels
 
         public string? SteamPersonaName { get; set; }
         public string? SteamAvatarUrl { get; set; }
+
+        public bool TwoFactorEnabled { get; set; }
+        public string? TwoFactorSecret { get; set; }
+        public string? TwoFactorQrUrl { get; set; }
     }
 }

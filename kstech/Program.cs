@@ -10,6 +10,8 @@ using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using QuestPDF.Infrastructure;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 const string ExternalScheme = "ExternalScheme";
@@ -43,6 +45,30 @@ builder.Services.AddSession(options =>
     options.Cookie.Name = "KSTech.Session";
     options.Cookie.SecurePolicy = cookieSecurePolicy;
     options.Cookie.SameSite = SameSiteMode.Lax;
+});
+
+// Rate limiting — no extra NuGet needed (.NET 8 built-in)
+builder.Services.AddRateLimiter(options =>
+{
+    // Strict: for registration, OTP verification, and password reset
+    options.AddFixedWindowLimiter("AuthStrict", opt =>
+    {
+        opt.PermitLimit = 6;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
+
+    // Normal: for standard login attempts
+    options.AddFixedWindowLimiter("AuthNormal", opt =>
+    {
+        opt.PermitLimit = 20;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -211,6 +237,16 @@ var localizationOptions = new RequestLocalizationOptions()
 
 app.UseRequestLocalization(localizationOptions);
 
+// Security response headers
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
+    await next();
+});
+
 // Set Security:EnforceHttpsOnly = true to disable HTTP and force HTTPS-only.
 if (enforceHttpsOnly)
 {
@@ -219,6 +255,7 @@ if (enforceHttpsOnly)
 app.UseStaticFiles();
 
 app.UseRouting();
+app.UseRateLimiter();
 app.UseSession();
 
 app.UseAuthentication();
@@ -228,7 +265,7 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Landing}/{action=Index}/{id?}");
 
-// Seeding
+// Seeding and Migrations
 var exitAfterStartupTasks = false;
 using (var scope = app.Services.CreateScope())
 {
@@ -236,9 +273,13 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
+        var context = services.GetRequiredService<ApplicationDbContext>();
+        
+        logger.LogInformation("Applying pending database migrations...");
+        context.Database.Migrate();
+
         var seedOptions = services.GetRequiredService<IOptions<SeedOptions>>().Value;
         var dataSeeder = services.GetRequiredService<DataSeeder>();
-
         dataSeeder.EnsureSystemAccounts();
 
         if (seedOptions.CleanupToSuperAdminOnlyOnStartup)
@@ -261,7 +302,6 @@ using (var scope = app.Services.CreateScope())
         }
         else
         {
-            var context = services.GetRequiredService<ApplicationDbContext>();
             dataSeeder.Seed();
 
             var productCount = context.Products.Count();

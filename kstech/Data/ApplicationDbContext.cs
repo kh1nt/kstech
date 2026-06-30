@@ -1,13 +1,20 @@
 using Microsoft.EntityFrameworkCore;
 using kstech.Models.Entities;
 
+using kstech.Services;
+
 namespace kstech.Data
 {
     public class ApplicationDbContext : DbContext
     {
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+        private readonly ITenantContext? _tenantContext;
+
+        public ApplicationDbContext(
+            DbContextOptions<ApplicationDbContext> options,
+            ITenantContext? tenantContext = null)
             : base(options)
         {
+            _tenantContext = tenantContext;
         }
 
         public DbSet<User> Users { get; set; } = null!;
@@ -29,6 +36,7 @@ namespace kstech.Data
         public DbSet<PurchaseOrderLine> PurchaseOrderLines { get; set; } = null!;
         public DbSet<EmailOutbox> EmailOutbox { get; set; } = null!;
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; } = null!;
+        public DbSet<CustomerTenantLoyalty> CustomerTenantLoyalties { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -150,6 +158,10 @@ namespace kstech.Data
 
             modelBuilder.Entity<User>()
                 .HasIndex(user => new { user.Role, user.OwnerUserID });
+
+            modelBuilder.Entity<CustomerTenantLoyalty>()
+                .HasIndex(ctl => new { ctl.CustomerID, ctl.TenantOwnerUserID })
+                .IsUnique();
 
             modelBuilder.Entity<PasswordResetToken>()
                 .HasIndex(token => token.TokenHash)
@@ -282,8 +294,24 @@ namespace kstech.Data
                 .HasForeignKey(line => line.ProductID)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Relationships are mostly handled by EF conventions due to naming, 
-            // but explicit configuration can be added here if needed.
+            // Configure multi-tenant global query filters
+            if (_tenantContext != null)
+            {
+                modelBuilder.Entity<Product>().HasQueryFilter(p => !_tenantContext.HasOwnerScope || p.OwnerUserID == _tenantContext.OwnerUserId);
+                modelBuilder.Entity<Order>().HasQueryFilter(o => !_tenantContext.HasOwnerScope || o.OwnerUserID == _tenantContext.OwnerUserId);
+                modelBuilder.Entity<Payment>().HasQueryFilter(p => !_tenantContext.HasOwnerScope || p.OwnerUserID == _tenantContext.OwnerUserId);
+                modelBuilder.Entity<TechnicalInquiry>().HasQueryFilter(t => !_tenantContext.HasOwnerScope || t.OwnerUserID == _tenantContext.OwnerUserId);
+                modelBuilder.Entity<SystemLog>().HasQueryFilter(s => !_tenantContext.HasOwnerScope || s.OwnerUserID == _tenantContext.OwnerUserId);
+                modelBuilder.Entity<MarketingCampaign>().HasQueryFilter(m => !_tenantContext.HasOwnerScope || m.OwnerUserID == _tenantContext.OwnerUserId);
+                modelBuilder.Entity<EmailNotification>().HasQueryFilter(e => !_tenantContext.HasOwnerScope || e.OwnerUserID == _tenantContext.OwnerUserId);
+                modelBuilder.Entity<InventoryMovement>().HasQueryFilter(i => !_tenantContext.HasOwnerScope || i.OwnerUserID == _tenantContext.OwnerUserId);
+                modelBuilder.Entity<PurchaseOrder>().HasQueryFilter(p => !_tenantContext.HasOwnerScope || p.OwnerUserID == _tenantContext.OwnerUserId);
+                modelBuilder.Entity<FinancialBudget>().HasQueryFilter(f => !_tenantContext.HasOwnerScope || f.OwnerUserID == _tenantContext.OwnerUserId);
+                modelBuilder.Entity<BudgetEvent>().HasQueryFilter(b => !_tenantContext.HasOwnerScope || b.OwnerUserID == _tenantContext.OwnerUserId);
+                modelBuilder.Entity<Employee>().HasQueryFilter(e => !_tenantContext.HasOwnerScope || e.OwnerUserID == _tenantContext.OwnerUserId);
+                modelBuilder.Entity<OrderDetail>().HasQueryFilter(od => !_tenantContext.HasOwnerScope || od.Order!.OwnerUserID == _tenantContext.OwnerUserId);
+                modelBuilder.Entity<CustomerTenantLoyalty>().HasQueryFilter(ctl => !_tenantContext.HasOwnerScope || ctl.TenantOwnerUserID == _tenantContext.OwnerUserId);
+            }
         }
     }
 }

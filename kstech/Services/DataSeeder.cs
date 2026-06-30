@@ -443,9 +443,28 @@ namespace kstech.Services
 
                 var earnedPoints = (int)Math.Floor(total * 0.05m);
                 order.LoyaltyPointsEarned = earnedPoints;
-                customer.LoyaltyPoints += earnedPoints;
-                customer.LifetimePointsEarned += earnedPoints;
-                customer.LastLoyaltyActivityUtc = orderDate;
+
+                var tenantLoyalty = _context.CustomerTenantLoyalties.Local
+                    .FirstOrDefault(l => l.CustomerID == customer.CustomerID && l.TenantOwnerUserID == ownerUserId)
+                    ?? _context.CustomerTenantLoyalties
+                    .FirstOrDefault(l => l.CustomerID == customer.CustomerID && l.TenantOwnerUserID == ownerUserId);
+
+                if (tenantLoyalty == null)
+                {
+                    tenantLoyalty = new CustomerTenantLoyalty
+                    {
+                        CustomerID = customer.CustomerID,
+                        TenantOwnerUserID = ownerUserId,
+                        LoyaltyPoints = 0,
+                        LifetimePointsEarned = 0,
+                        LifetimePointsRedeemed = 0
+                    };
+                    _context.CustomerTenantLoyalties.Add(tenantLoyalty);
+                }
+
+                tenantLoyalty.LoyaltyPoints += earnedPoints;
+                tenantLoyalty.LifetimePointsEarned += earnedPoints;
+                tenantLoyalty.LastLoyaltyActivityUtc = orderDate;
                 order.TotalAmount = total;
 
                 orders.Add(order);
@@ -499,6 +518,7 @@ namespace kstech.Services
             _context.FinancialBudgets.ExecuteDelete();
             _context.Campaigns.ExecuteDelete();
             _context.SystemLogs.ExecuteDelete();
+            _context.CustomerTenantLoyalties.ExecuteDelete();
             _context.Customers.ExecuteDelete();
             _context.Employees.ExecuteDelete();
             _context.Products.ExecuteDelete();

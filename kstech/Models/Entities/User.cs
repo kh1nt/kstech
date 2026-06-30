@@ -42,6 +42,12 @@ namespace kstech.Models.Entities
 
         public DateTime? LastFailedLogin { get; set; }
 
+        public bool TwoFactorEnabled { get; set; } = false;
+
+        public string? TwoFactorSecret { get; set; }
+
+        public string? TwoFactorBackupCodes { get; set; }
+
         // Navigation Properties
         public Employee? Employee { get; set; }
         public Customer? Customer { get; set; }

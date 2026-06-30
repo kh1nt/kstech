@@ -1,0 +1,182 @@
+@{
+    ViewData["Title"] = "Security Verification";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+}
+
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-md mx-auto store-plain-card p-6">
+        <h1 class="font-display text-2xl text-store-ink mb-1">Security Verification</h1>
+        <p class="text-store-muted mb-6 text-sm">Your account is secured with Two-Factor Authentication. Please enter the 6-digit code from your authenticator app.</p>
+
+        @if (ViewBag.Error != null)
+        {
+            <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                @ViewBag.Error
+            </div>
+        }
+
+        <form asp-action="VerifyMfa" method="post" id="mfa-form" class="space-y-6">
+            <input type="hidden" name="code" id="mfa-code" />
+
+            <div>
+                <label class="block text-sm font-semibold text-store-ink text-center mb-3">6-Digit Authenticator Code</label>
+                <div class="flex justify-center gap-2" id="otp-inputs">
+                    <input type="text" maxlength="1" class="w-12 h-12 text-center text-xl font-bold border border-slate-200 rounded-xl focus:border-store-accent focus:ring-store-accent/20 otp-digit" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="w-12 h-12 text-center text-xl font-bold border border-slate-200 rounded-xl focus:border-store-accent focus:ring-store-accent/20 otp-digit" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="w-12 h-12 text-center text-xl font-bold border border-slate-200 rounded-xl focus:border-store-accent focus:ring-store-accent/20 otp-digit" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="w-12 h-12 text-center text-xl font-bold border border-slate-200 rounded-xl focus:border-store-accent focus:ring-store-accent/20 otp-digit" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="w-12 h-12 text-center text-xl font-bold border border-slate-200 rounded-xl focus:border-store-accent focus:ring-store-accent/20 otp-digit" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="w-12 h-12 text-center text-xl font-bold border border-slate-200 rounded-xl focus:border-store-accent focus:ring-store-accent/20 otp-digit" required pattern="[0-9]" inputmode="numeric" />
+                </div>
+            </div>
+
+            <div class="hidden" id="backup-code-container">
+                <label class="block text-sm font-semibold text-store-ink text-center mb-3">8-Digit Backup Recovery Code</label>
+                <input type="text" id="backup-code-input" maxlength="8" class="w-56 h-12 text-center text-xl font-bold border border-slate-200 rounded-xl focus:border-store-accent focus:ring-store-accent/20 mx-auto block tracking-wider" placeholder="00000000" inputmode="numeric" pattern="[0-9]*" />
+            </div>
+
+            <div class="text-center">
+                <a href="#" id="toggle-backup-codes" class="text-sm font-semibold text-store-accent no-underline hover:text-store-ink">Use a backup recovery code</a>
+            </div>
+
+            <button type="submit" class="w-full rounded-lg bg-store-accent text-white py-2.5 font-semibold hover:bg-store-ink store-action-btn">
+                Verify & Sign In
+            </button>
+        </form>
+
+        <div class="mt-6 pt-4 border-t border-slate-100 flex flex-col gap-2 text-center text-sm text-store-muted">
+            <p>
+                Lost access? Use one of your saved backup codes above or contact support.
+            </p>
+            <p>
+                Back to <a href="@Url.Action("Login", "Store")" class="font-semibold text-store-accent no-underline hover:text-store-ink">Sign In</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const inputs = document.querySelectorAll('.otp-digit');
+            const hiddenCode = document.getElementById('mfa-code');
+            const form = document.getElementById('mfa-form');
+            const toggleLink = document.getElementById('toggle-backup-codes');
+            const otpContainer = document.getElementById('otp-inputs').parentElement;
+            const backupContainer = document.getElementById('backup-code-container');
+            const backupInput = document.getElementById('backup-code-input');
+            let usingBackupCode = false;
+
+            // Focus first input
+            if (inputs.length > 0) {
+                inputs[0].focus();
+            }
+
+            toggleLink.addEventListener('click', function (e) {
+                e.preventDefault();
+                usingBackupCode = !usingBackupCode;
+                if (usingBackupCode) {
+                    otpContainer.classList.add('hidden');
+                    backupContainer.classList.remove('hidden');
+                    toggleLink.textContent = 'Use standard authenticator code';
+                    inputs.forEach(inp => inp.removeAttribute('required'));
+                    backupInput.setAttribute('required', 'required');
+                    backupInput.focus();
+                } else {
+                    otpContainer.classList.remove('hidden');
+                    backupContainer.classList.add('hidden');
+                    toggleLink.textContent = 'Use a backup recovery code';
+                    backupInput.removeAttribute('required');
+                    inputs.forEach(inp => inp.setAttribute('required', 'required'));
+                    if (inputs.length > 0) {
+                        inputs[0].focus();
+                    }
+                }
+            });
+
+            inputs.forEach((input, index) => {
+                input.addEventListener('input', function (e) {
+                    const val = input.value;
+                    
+                    if (!/^\d$/.test(val)) {
+                        input.value = '';
+                        return;
+                    }
+
+                    if (val && index < inputs.length - 1) {
+                        inputs[index + 1].focus();
+                    }
+
+                    combineOtp();
+
+                    // Auto-submit when all fields are filled
+                    if (allDigitsFilled()) {
+                        form.submit();
+                    }
+                });
+
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Backspace') {
+                        if (!input.value && index > 0) {
+                            inputs[index - 1].focus();
+                            inputs[index - 1].value = '';
+                        } else {
+                            input.value = '';
+                        }
+                        combineOtp();
+                    }
+                });
+
+                input.addEventListener('paste', function (e) {
+                    e.preventDefault();
+                    const pastedData = (e.clipboardData || window.clipboardData).getData('text').trim();
+
+                    if (/^\d{6}$/.test(pastedData)) {
+                        inputs.forEach((inp, i) => {
+                            inp.value = pastedData[i];
+                        });
+                        inputs[inputs.length - 1].focus();
+                        combineOtp();
+                        form.submit();
+                    }
+                });
+            });
+
+            function combineOtp() {
+                let code = '';
+                inputs.forEach(inp => {
+                    code += inp.value;
+                });
+                hiddenCode.value = code;
+            }
+
+            function allDigitsFilled() {
+                let filled = true;
+                inputs.forEach(inp => {
+                    if (!inp.value) {
+                        filled = false;
+                    }
+                });
+                return filled;
+            }
+
+            form.addEventListener('submit', function (e) {
+                if (usingBackupCode) {
+                    const backupCode = backupInput.value.trim();
+                    if (backupCode.length !== 8 || !/^\d{8}$/.test(backupCode)) {
+                        e.preventDefault();
+                        alert('Please enter your 8-digit backup recovery code.');
+                        return;
+                    }
+                    hiddenCode.value = backupCode;
+                } else {
+                    combineOtp();
+                    if (hiddenCode.value.length !== 6) {
+                        e.preventDefault();
+                        alert('Please enter all 6 digits of the verification code.');
+                    }
+                }
+            });
+        });
+    </script>
+}

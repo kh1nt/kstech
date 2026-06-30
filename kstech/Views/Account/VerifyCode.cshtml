@@ -1,0 +1,138 @@
+@{
+    ViewData["Title"] = "Verify Email";
+    Layout = "~/Views/Shared/_AuthLayout.cshtml";
+    var email = ViewData["Email"] as string;
+}
+
+<div class="auth-card">
+    <div class="auth-sidebar">
+        <div>
+            <div class="brand-logo mb-0">
+                <img src="~/logo.png" alt="KSTech Logo" />
+                <span>KSTech</span>
+            </div>
+            <p class="small text-white-50 mb-4 mt-2" style="font-size: 0.75rem;">Computer Parts Inventory and Customer Engagement System</p>
+            <h1 class="display-6 fw-bold mb-3">Almost there!</h1>
+            <p class="lead fs-6 opacity-75">
+                We've sent a 6-digit verification code to your email. Enter it to activate your account.
+            </p>
+        </div>
+        <div class="mt-auto">
+            <p class="small opacity-50 mb-0">&copy; 2026 KSTech System. All rights reserved.</p>
+        </div>
+    </div>
+    <div class="auth-content">
+        <h2 class="fw-bold mb-2">Verify Your Email</h2>
+        <p class="text-muted mb-4">Please enter the 6-digit verification code sent to <strong>@email</strong>.</p>
+
+        @if (ViewBag.Error != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @ViewBag.Error
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+
+        <form asp-action="VerifyCode" method="post" id="otp-form">
+            <input type="hidden" name="email" value="@email" />
+            <input type="hidden" name="code" id="verification-code" />
+
+            <div class="mb-4">
+                <label class="form-label text-muted small fw-semibold d-block text-center mb-3">Verification Code</label>
+                <div class="d-flex justify-content-center gap-2" id="otp-inputs">
+                    <input type="text" maxlength="1" class="form-control otp-digit text-center fw-bold fs-4" style="width: 50px; height: 55px;" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="form-control otp-digit text-center fw-bold fs-4" style="width: 50px; height: 55px;" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="form-control otp-digit text-center fw-bold fs-4" style="width: 50px; height: 55px;" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="form-control otp-digit text-center fw-bold fs-4" style="width: 50px; height: 55px;" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="form-control otp-digit text-center fw-bold fs-4" style="width: 50px; height: 55px;" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="form-control otp-digit text-center fw-bold fs-4" style="width: 50px; height: 55px;" required pattern="[0-9]" inputmode="numeric" />
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 mb-4 py-2 fw-semibold">Verify & Activate</button>
+
+            <div class="text-center">
+                <p class="small text-muted">
+                    Entered the wrong email? <a href="@Url.Action("Register", "Account")" class="text-decoration-none fw-bold" style="color: #236460;">Register again</a>
+                </p>
+                <p class="small text-muted">
+                    Back to <a href="@Url.Action("Login", "Account")" class="text-decoration-none fw-bold" style="color: #236460;">Sign In</a>
+                </p>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            const inputs = $('.otp-digit');
+            
+            // Auto-focus the first input on load
+            inputs.first().focus();
+
+            inputs.each(function (index) {
+                $(this).on('input', function (e) {
+                    const val = $(this).val();
+                    
+                    // Allow only digits
+                    if (!/^\d$/.test(val)) {
+                        $(this).val('');
+                        return;
+                    }
+
+                    // Move to next input if filled
+                    if (val && index < inputs.length - 1) {
+                        inputs.eq(index + 1).focus();
+                    }
+                    
+                    combineOtp();
+                });
+
+                $(this).on('keydown', function (e) {
+                    // Backspace key
+                    if (e.key === 'Backspace') {
+                        if (!$(this).val() && index > 0) {
+                            inputs.eq(index - 1).focus().val('');
+                        } else {
+                            $(this).val('');
+                        }
+                        combineOtp();
+                    }
+                });
+
+                // Paste behavior
+                $(this).on('paste', function (e) {
+                    e.preventDefault();
+                    const clipboardData = (e.originalEvent || e).clipboardData || window.clipboardData;
+                    const pastedData = clipboardData.getData('text').trim();
+
+                    if (/^\d{6}$/.test(pastedData)) {
+                        inputs.each(function (i) {
+                            $(this).val(pastedData[i]);
+                        });
+                        inputs.last().focus();
+                        combineOtp();
+                    }
+                });
+            });
+
+            function combineOtp() {
+                let code = '';
+                inputs.each(function () {
+                    code += $(this).val();
+                });
+                $('#verification-code').val(code);
+            }
+
+            $('#otp-form').on('submit', function (e) {
+                combineOtp();
+                const code = $('#verification-code').val();
+                if (code.length !== 6) {
+                    e.preventDefault();
+                    alert('Please enter all 6 digits of the verification code.');
+                }
+            });
+        });
+    </script>
+}

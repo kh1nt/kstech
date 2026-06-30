@@ -28,6 +28,14 @@
         </div>
     }
 
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div id="settings-error-alert" class="mb-6 flex items-center gap-3 rounded-xl border border-red-100 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4 text-red-700 transition-opacity duration-300 dark:text-red-400">
+            <span class="material-icons-outlined">error_outline</span>
+            @TempData["ErrorMessage"]
+        </div>
+    }
+
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
         <aside class="lg:col-span-4">
             <div class="sticky top-6 rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-card-dark p-3 shadow-sm">
@@ -161,19 +169,104 @@
                     </form>
                 </div>
             </section>
+
+            <!-- MFA Section -->
+            <section id="mfa-settings-panel" class="@securityPanelClass mt-6 rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-card-dark shadow-sm">
+                <div class="border-b border-gray-100 dark:border-gray-700 p-6">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">Multi-Factor Authentication (MFA)</h2>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Enhance your account security using Google Authenticator.</p>
+                </div>
+
+                <div class="p-6">
+                    @if (TempData["BackupCodes"] is IEnumerable<string> backupCodes && backupCodes.Any())
+                    {
+                        <div class="mb-6 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-6">
+                            <div class="flex items-center gap-2 text-amber-950 dark:text-amber-200 mb-2">
+                                <span class="material-icons-outlined text-amber-600">warning</span>
+                                <h3 class="text-base font-bold">Save Your MFA Backup Recovery Codes</h3>
+                            </div>
+                            <p class="text-xs text-amber-800 dark:text-amber-300 mb-4">
+                                Keep these 10 one-time codes in a secure place. If you lose your authenticator device, you can use any of these codes as a backup login code. Each code is single-use only!
+                            </p>
+                            <div class="grid grid-cols-2 gap-3 font-mono text-sm text-center">
+                                @foreach (var bCode in backupCodes)
+                                {
+                                    <div class="bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-700/60 rounded-xl p-2.5 font-bold text-gray-900 dark:text-white select-all tracking-wider">@bCode</div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (Model.TwoFactorEnabled)
+                    {
+                        <div class="rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10 p-4 mb-6 flex items-start gap-3">
+                            <span class="material-icons-outlined text-green-600">verified_user</span>
+                            <div>
+                                <h4 class="text-sm font-semibold text-green-900 dark:text-green-200">MFA is Currently Enabled</h4>
+                                <p class="mt-1 text-xs text-green-700 dark:text-green-400">Your account is extra secure. Every login requires a verification code from your authenticator app.</p>
+                            </div>
+                        </div>
+
+                        <form asp-action="DisableMfa" method="post" class="space-y-4">
+                            <div class="max-w-md">
+                                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300 font-semibold">Confirm Password to Disable MFA</label>
+                                <input type="password" name="password" required class="w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 px-4 py-2.5 text-gray-900 dark:text-white outline-none transition-all focus:ring-2 focus:ring-brand-primary" placeholder="Enter your current password" />
+                            </div>
+                            <button type="submit" class="rounded-xl bg-red-600 px-6 py-2.5 font-bold text-white transition-colors hover:bg-red-700">
+                                Disable MFA
+                            </button>
+                        </form>
+                    }
+                    else
+                    {
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Set up Google Authenticator</h3>
+                                <ol class="list-decimal list-inside text-sm text-gray-600 dark:text-gray-300 space-y-2 mb-4">
+                                    <li>Install Google Authenticator, Authy, or Microsoft Authenticator.</li>
+                                    <li>Scan the QR code or enter the secret key manually.</li>
+                                    <li>Type the 6-digit code here to verify and enable MFA.</li>
+                                </ol>
+
+                                <div class="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 mb-4">
+                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase block">Secret Key</span>
+                                    <code class="text-sm font-mono text-brand-primary dark:text-brand-light font-bold select-all">@Model.TwoFactorSecret</code>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-center justify-center border border-gray-100 dark:border-gray-700 p-4 rounded-xl">
+                                <div id="mfa-qrcode" class="bg-white p-2 rounded-lg mb-2"></div>
+                                <span class="text-xs text-gray-500 dark:text-gray-400 mt-2">Scan with Authenticator App</span>
+                            </div>
+                        </div>
+
+                        <form asp-action="EnableMfa" method="post" class="mt-6 border-t border-gray-100 dark:border-gray-700 pt-6">
+                            <input type="hidden" name="secret" value="@Model.TwoFactorSecret" />
+                            <div class="max-w-md mb-4">
+                                <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300 font-semibold">Verification Code</label>
+                                <input type="text" name="code" required maxlength="6" pattern="\d{6}" class="w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 px-4 py-2.5 text-gray-900 dark:text-white outline-none transition-all focus:ring-2 focus:ring-brand-primary" placeholder="000000" inputmode="numeric" />
+                            </div>
+                            <button type="submit" class="rounded-xl bg-brand-primary px-6 py-2.5 font-bold text-white shadow-lg shadow-brand-primary/30 transition-colors hover:bg-brand-primary/90">
+                                Verify & Enable MFA
+                            </button>
+                        </form>
+                    }
+                </div>
+            </section>
         </div>
     </div>
 </div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
     <script>
         (function () {
             const tabs = document.querySelectorAll('[data-settings-tab]');
             const profilePanel = document.getElementById('profile-panel');
             const securityPanel = document.getElementById('security-panel');
-
+            const mfaPanel = document.getElementById('mfa-settings-panel');
+ 
             if (!tabs.length || !profilePanel || !securityPanel) {
                 return;
             }
@@ -183,6 +276,9 @@
 
                 profilePanel.classList.toggle('hidden', isSecurity);
                 securityPanel.classList.toggle('hidden', !isSecurity);
+                if (mfaPanel) {
+                    mfaPanel.classList.toggle('hidden', !isSecurity);
+                }
 
                 tabs.forEach((tab) => {
                     const tabIsActive = tab.getAttribute('data-settings-tab') === section;
@@ -219,6 +315,28 @@
                     successAlert.classList.add('opacity-0');
                     window.setTimeout(() => successAlert.remove(), 300);
                 }, 5000);
+            }
+
+            const errorAlert = document.getElementById('settings-error-alert');
+            if (errorAlert) {
+                window.setTimeout(() => {
+                    errorAlert.classList.add('opacity-0');
+                    window.setTimeout(() => errorAlert.remove(), 300);
+                }, 5000);
+            }
+        })();
+
+        (function () {
+            const mfaQrEl = document.getElementById('mfa-qrcode');
+            if (mfaQrEl) {
+                new QRCode(mfaQrEl, {
+                    text: "@Html.Raw(Model.TwoFactorQrUrl)",
+                    width: 180,
+                    height: 180,
+                    colorDark : "#1a5c58",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.M
+                });
             }
         })();
     </script>

@@ -125,6 +125,65 @@
                     </button>
                 </form>
             </section>
+
+            <section class="store-plain-card p-5 mt-4">
+                <h2 class="font-display text-lg text-store-ink mb-1">Multi-Factor Authentication (MFA)</h2>
+                <p class="text-xs text-store-muted mb-4">Secure your store account using an Authenticator app (Google Authenticator, Authy, etc.).</p>
+
+                @if (Model.TwoFactorEnabled)
+                {
+                    <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 flex items-start gap-2.5">
+                        <i class="bi bi-shield-check-fill text-lg"></i>
+                        <div>
+                            <p class="font-semibold mb-0.5">MFA is active</p>
+                            <p class="text-xs text-emerald-600 mb-0">Every login will require a 6-digit code from your authenticator app.</p>
+                        </div>
+                    </div>
+
+                    <form asp-action="DisableMfa" method="post" class="space-y-3">
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold text-store-ink" for="disableMfaPassword">Confirm Password to Disable MFA</label>
+                            <input id="disableMfaPassword" name="password" type="password" required class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20" />
+                        </div>
+                        <button type="submit" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 store-action-btn">
+                            Disable MFA
+                        </button>
+                    </form>
+                }
+                else
+                {
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                        <div class="space-y-3">
+                            <h3 class="text-sm font-semibold text-store-ink">Setup Instructions</h3>
+                            <ol class="list-decimal list-inside text-xs text-store-muted space-y-1.5">
+                                <li>Download and install Google Authenticator, Authy, or similar app.</li>
+                                <li>Scan the QR code to link your store profile.</li>
+                                <li>Enter the 6-digit code below to confirm and activate.</li>
+                            </ol>
+
+                            <div class="p-3 bg-slate-50 border border-slate-100 rounded-lg">
+                                <span class="text-[10px] text-store-muted font-semibold uppercase block mb-1">Secret Key</span>
+                                <code class="text-xs font-mono text-store-accent font-bold select-all">@Model.TwoFactorSecret</code>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-center justify-center p-3 border border-slate-100 rounded-xl bg-white">
+                            <div id="mfa-qrcode" class="p-1.5 border border-slate-100 rounded bg-white"></div>
+                            <span class="text-[10px] text-store-muted mt-2 font-medium">Scan with app</span>
+                        </div>
+                    </div>
+
+                    <form asp-action="EnableMfa" method="post" class="mt-4 pt-4 border-t border-slate-100 space-y-3">
+                        <input type="hidden" name="secret" value="@Model.TwoFactorSecret" />
+                        <div>
+                            <label class="mb-1 block text-xs font-semibold text-store-ink" for="verificationCode">Verification Code</label>
+                            <input id="verificationCode" name="code" type="text" required maxlength="6" pattern="\d{6}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-store-accent focus:ring-store-accent/20" placeholder="000000" inputmode="numeric" />
+                        </div>
+                        <button type="submit" class="rounded-lg bg-store-accent px-4 py-2 text-sm font-semibold text-white hover:bg-store-ink store-action-btn">
+                            Verify & Enable MFA
+                        </button>
+                    </form>
+                }
+            </section>
         </div>
 
         <aside class="space-y-4">
@@ -214,4 +273,20 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        (function () {
+            const qrContainer = document.getElementById('mfa-qrcode');
+            if (qrContainer) {
+                new QRCode(qrContainer, {
+                    text: "@Html.Raw(Model.TwoFactorQrUrl)",
+                    width: 140,
+                    height: 140,
+                    colorDark : "#0f3936",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.M
+                });
+            }
+        })();
+    </script>
 }

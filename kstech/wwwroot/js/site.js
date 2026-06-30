@@ -291,6 +291,8 @@ document.addEventListener("DOMContentLoaded", () => {
     "login",
     "logout",
     "register",
+    "verifycode",
+    "verifymfa",
     "forgotpassword",
     "resetpassword",
     "profile",
@@ -299,6 +301,9 @@ document.addEventListener("DOMContentLoaded", () => {
     "selectownerscope",
     "clearownerscope",
     "addtocart",
+    "updatequantity",
+    "removefromcart",
+    "clearcart",
   ]);
 
   const transactionConfirmMessages = {
@@ -682,29 +687,56 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    if (!window.confirm("Remove this item from the cart?")) {
-      return;
-    }
-
+    // Replace the Remove button with an inline confirm row
+    const originalLabel = removeButton.textContent;
+    removeButton.textContent = "Removing…";
     removeButton.disabled = true;
-    const token = getAntiForgeryToken();
-    const body = new URLSearchParams();
-    body.append("cartItemId", cartItemId);
-    if (token) {
-      body.append("__RequestVerificationToken", token);
-    }
 
-    try {
-      const payload = await postCartMutation(
-        removeUrl,
-        body,
-        "Could not remove item.",
-      );
-      applyCartPayload(payload.cart);
-    } catch (error) {
-      showToast(error.message || "Could not remove item.", true);
+    // Show inline confirm: [Cancel] [Yes, remove]
+    const confirmRow = document.createElement("div");
+    confirmRow.className = "flex items-center gap-2 text-xs";
+    confirmRow.innerHTML = `
+      <span class="text-store-muted">Remove item?</span>
+      <button type="button" data-cancel-remove class="font-semibold text-store-muted hover:text-store-ink">Keep</button>
+      <button type="button" data-confirm-remove class="font-semibold text-red-600 hover:text-red-700">Remove</button>
+    `;
+    removeButton.parentNode.replaceChild(confirmRow, removeButton);
+
+    const cancelBtn = confirmRow.querySelector("[data-cancel-remove]");
+    const confirmBtn = confirmRow.querySelector("[data-confirm-remove]");
+
+    const restoreRemoveButton = () => {
+      confirmRow.parentNode.replaceChild(removeButton, confirmRow);
+      removeButton.textContent = originalLabel;
       removeButton.disabled = false;
-    }
+    };
+
+    cancelBtn.addEventListener("click", restoreRemoveButton);
+
+    confirmBtn.addEventListener("click", async () => {
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+      confirmBtn.textContent = "Removing…";
+
+      const token = getAntiForgeryToken();
+      const body = new URLSearchParams();
+      body.append("cartItemId", cartItemId);
+      if (token) {
+        body.append("__RequestVerificationToken", token);
+      }
+
+      try {
+        const payload = await postCartMutation(
+          removeUrl,
+          body,
+          "Could not remove item.",
+        );
+        applyCartPayload(payload.cart);
+      } catch (error) {
+        showToast(error.message || "Could not remove item.", true);
+        restoreRemoveButton();
+      }
+    });
   });
 
   if (clearCartButton) {
@@ -713,29 +745,49 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      if (!window.confirm("Clear all items from cart?")) {
+      // Show inline confirm bar above the items list
+      let existingConfirm = cartModalBody.querySelector("[data-clear-confirm-bar]");
+      if (existingConfirm) {
+        existingConfirm.remove();
         return;
       }
 
-      clearCartButton.disabled = true;
-      const token = getAntiForgeryToken();
-      const body = new URLSearchParams();
-      if (token) {
-        body.append("__RequestVerificationToken", token);
-      }
+      const bar = document.createElement("div");
+      bar.setAttribute("data-clear-confirm-bar", "");
+      bar.className = "rounded-xl border border-red-200 bg-red-50 px-3 py-2 mb-3 flex items-center justify-between gap-2";
+      bar.innerHTML = `
+        <span class="text-xs font-semibold text-red-700">Clear all items?</span>
+        <div class="flex gap-2">
+          <button type="button" data-cancel-clear class="text-xs font-semibold text-store-muted hover:text-store-ink">Keep</button>
+          <button type="button" data-confirm-clear class="text-xs font-semibold text-red-600 hover:text-red-700">Yes, clear</button>
+        </div>
+      `;
+      cartModalBody.prepend(bar);
 
-      try {
-        const payload = await postCartMutation(
-          clearUrl,
-          body,
-          "Could not clear cart.",
-        );
-        applyCartPayload(payload.cart);
-        showToast(payload.message || "Cart cleared.");
-      } catch (error) {
-        showToast(error.message || "Could not clear cart.", true);
-        clearCartButton.disabled = false;
-      }
+      bar.querySelector("[data-cancel-clear]").addEventListener("click", () => bar.remove());
+
+      bar.querySelector("[data-confirm-clear]").addEventListener("click", async () => {
+        bar.remove();
+        clearCartButton.disabled = true;
+        const token = getAntiForgeryToken();
+        const body = new URLSearchParams();
+        if (token) {
+          body.append("__RequestVerificationToken", token);
+        }
+
+        try {
+          const payload = await postCartMutation(
+            clearUrl,
+            body,
+            "Could not clear cart.",
+          );
+          applyCartPayload(payload.cart);
+          showToast(payload.message || "Cart cleared.");
+        } catch (error) {
+          showToast(error.message || "Could not clear cart.", true);
+          clearCartButton.disabled = false;
+        }
+      });
     });
   }
 

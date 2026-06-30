@@ -1,7 +1,9 @@
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
     ViewData["Title"] = "Customer Login";
     Layout = "~/Views/Shared/_StoreLayout.cshtml";
     var returnUrl = ViewData["ReturnUrl"] as string;
+    var googleClientId = Configuration["Authentication:Google:ClientId"];
 }
 
 <div class="container mx-auto px-4 py-8">
@@ -78,9 +80,67 @@
             <button type="submit" class="w-full rounded-lg bg-store-accent text-white py-2 font-semibold hover:bg-store-ink store-action-btn">Sign in</button>
         </form>
 
+        @if (!string.IsNullOrWhiteSpace(googleClientId))
+        {
+            <div class="relative flex py-4 items-center">
+                <div class="flex-grow border-t border-slate-200"></div>
+                <span class="flex-shrink mx-4 text-store-muted text-xs font-medium uppercase">Or</span>
+                <div class="flex-grow border-t border-slate-200"></div>
+            </div>
+
+            <a asp-action="GoogleLogin"
+               asp-controller="Store"
+               asp-route-returnUrl="@returnUrl"
+               class="w-full rounded-lg border border-slate-200 py-2.5 font-semibold hover:bg-slate-50 flex items-center justify-center gap-2 text-store-ink no-underline text-sm shadow-sm transition-colors">
+                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" style="width: 18px; height: 18px;">
+                Sign in with Google
+            </a>
+        }
+
         <p class="text-sm text-store-muted mt-5 mb-0">
             New customer?
             <a href="@Url.Action("Register", "Store")" class="font-semibold text-store-accent no-underline hover:text-store-ink">Create an account</a>
         </p>
     </div>
 </div>
+
+@if (!string.IsNullOrWhiteSpace(googleClientId))
+{
+    @section Scripts {
+        <script src="https://accounts.google.com/gsi/client" async defer></script>
+        <script>
+            function handleCredentialResponse(response) {
+                fetch('@Url.Action("GoogleOneTapLogin", "Store", new { returnUrl })', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        credential: response.credential
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = data.redirectUrl;
+                    } else {
+                        alert(data.message || "Google Authentication failed.");
+                    }
+                })
+                .catch(err => {
+                    console.error("One Tap login error", err);
+                });
+            }
+
+            window.onload = function () {
+                google.accounts.id.initialize({
+                    client_id: "@googleClientId",
+                    callback: handleCredentialResponse,
+                    auto_select: true
+                });
+
+                google.accounts.id.prompt();
+            };
+        </script>
+    }
+}

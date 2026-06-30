@@ -1,0 +1,124 @@
+@{
+    ViewData["Title"] = "Verify Email";
+    Layout = "~/Views/Shared/_StoreLayout.cshtml";
+    var email = ViewData["Email"] as string;
+}
+
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-md mx-auto store-plain-card p-6">
+        <h1 class="font-display text-2xl text-store-ink mb-1">Verify your email</h1>
+        <p class="text-store-muted mb-6 text-sm">We sent a 6-digit verification code to <strong>@email</strong>. Please enter it below.</p>
+
+        @if (ViewBag.Error != null)
+        {
+            <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                @ViewBag.Error
+            </div>
+        }
+
+        <form asp-action="VerifyCode" method="post" id="otp-form" class="space-y-6">
+            <input type="hidden" name="email" value="@email" />
+            <input type="hidden" name="code" id="verification-code" />
+
+            <div>
+                <label class="block text-sm font-semibold text-store-ink text-center mb-3">Verification Code</label>
+                <div class="flex justify-center gap-2" id="otp-inputs">
+                    <input type="text" maxlength="1" class="w-12 h-12 text-center text-xl font-bold border border-slate-200 rounded-xl focus:border-store-accent focus:ring-store-accent/20 otp-digit" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="w-12 h-12 text-center text-xl font-bold border border-slate-200 rounded-xl focus:border-store-accent focus:ring-store-accent/20 otp-digit" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="w-12 h-12 text-center text-xl font-bold border border-slate-200 rounded-xl focus:border-store-accent focus:ring-store-accent/20 otp-digit" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="w-12 h-12 text-center text-xl font-bold border border-slate-200 rounded-xl focus:border-store-accent focus:ring-store-accent/20 otp-digit" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="w-12 h-12 text-center text-xl font-bold border border-slate-200 rounded-xl focus:border-store-accent focus:ring-store-accent/20 otp-digit" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="w-12 h-12 text-center text-xl font-bold border border-slate-200 rounded-xl focus:border-store-accent focus:ring-store-accent/20 otp-digit" required pattern="[0-9]" inputmode="numeric" />
+                </div>
+            </div>
+
+            <button type="submit" class="w-full rounded-lg bg-store-accent text-white py-2.5 font-semibold hover:bg-store-ink store-action-btn">
+                Verify & Activate Account
+            </button>
+        </form>
+
+        <div class="mt-6 pt-4 border-t border-slate-100 flex flex-col gap-2 text-center text-sm text-store-muted">
+            <p>
+                Wrong email? 
+                <a href="@Url.Action("Register", "Store")" class="font-semibold text-store-accent no-underline hover:text-store-ink">Register again</a>
+            </p>
+            <p>
+                Already verified? 
+                <a href="@Url.Action("Login", "Store")" class="font-semibold text-store-accent no-underline hover:text-store-ink">Sign in</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const inputs = document.querySelectorAll('.otp-digit');
+            const hiddenCode = document.getElementById('verification-code');
+            const form = document.getElementById('otp-form');
+
+            // Focus first input
+            if (inputs.length > 0) {
+                inputs[0].focus();
+            }
+
+            inputs.forEach((input, index) => {
+                input.addEventListener('input', function (e) {
+                    const val = input.value;
+                    
+                    if (!/^\d$/.test(val)) {
+                        input.value = '';
+                        return;
+                    }
+
+                    if (val && index < inputs.length - 1) {
+                        inputs[index + 1].focus();
+                    }
+
+                    combineOtp();
+                });
+
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Backspace') {
+                        if (!input.value && index > 0) {
+                            inputs[index - 1].focus();
+                            inputs[index - 1].value = '';
+                        } else {
+                            input.value = '';
+                        }
+                        combineOtp();
+                    }
+                });
+
+                input.addEventListener('paste', function (e) {
+                    e.preventDefault();
+                    const pastedData = (e.clipboardData || window.clipboardData).getData('text').trim();
+
+                    if (/^\d{6}$/.test(pastedData)) {
+                        inputs.forEach((inp, i) => {
+                            inp.value = pastedData[i];
+                        });
+                        inputs[inputs.length - 1].focus();
+                        combineOtp();
+                    }
+                });
+            });
+
+            function combineOtp() {
+                let code = '';
+                inputs.forEach(inp => {
+                    code += inp.value;
+                });
+                hiddenCode.value = code;
+            }
+
+            form.addEventListener('submit', function (e) {
+                combineOtp();
+                if (hiddenCode.value.length !== 6) {
+                    e.preventDefault();
+                    alert('Please enter all 6 digits of the verification code.');
+                }
+            });
+        });
+    </script>
+}

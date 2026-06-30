@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using kstech.Data;
 
@@ -11,9 +12,11 @@ using kstech.Data;
 namespace kstech.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260629134541_AddUserBackupCodes")]
+    partial class AddUserBackupCodes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -143,6 +146,18 @@ namespace kstech.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<DateTime?>("LastLoyaltyActivityUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("LifetimePointsEarned")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LifetimePointsRedeemed")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LoyaltyPoints")
+                        .HasColumnType("int");
+
                     b.Property<bool>("MarketingOptIn")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -169,40 +184,6 @@ namespace kstech.Migrations
                         .IsUnique();
 
                     b.ToTable("Customers");
-                });
-
-            modelBuilder.Entity("kstech.Models.Entities.CustomerTenantLoyalty", b =>
-                {
-                    b.Property<int>("ID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ID"));
-
-                    b.Property<int>("CustomerID")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("LastLoyaltyActivityUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("LifetimePointsEarned")
-                        .HasColumnType("int");
-
-                    b.Property<int>("LifetimePointsRedeemed")
-                        .HasColumnType("int");
-
-                    b.Property<int>("LoyaltyPoints")
-                        .HasColumnType("int");
-
-                    b.Property<int>("TenantOwnerUserID")
-                        .HasColumnType("int");
-
-                    b.HasKey("ID");
-
-                    b.HasIndex("CustomerID", "TenantOwnerUserID")
-                        .IsUnique();
-
-                    b.ToTable("CustomerTenantLoyalties");
                 });
 
             modelBuilder.Entity("kstech.Models.Entities.EmailNotification", b =>
@@ -1038,17 +1019,6 @@ namespace kstech.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("kstech.Models.Entities.CustomerTenantLoyalty", b =>
-                {
-                    b.HasOne("kstech.Models.Entities.Customer", "Customer")
-                        .WithMany("TenantLoyalties")
-                        .HasForeignKey("CustomerID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Customer");
-                });
-
             modelBuilder.Entity("kstech.Models.Entities.EmailNotification", b =>
                 {
                     b.HasOne("kstech.Models.Entities.MarketingCampaign", "Campaign")
@@ -1205,8 +1175,6 @@ namespace kstech.Migrations
                     b.Navigation("Orders");
 
                     b.Navigation("TechnicalInquiries");
-
-                    b.Navigation("TenantLoyalties");
                 });
 
             modelBuilder.Entity("kstech.Models.Entities.Order", b =>

@@ -49,3 +49,9 @@ Desktop.ini
 # Generated logs and traces
 *.log
 *.trace
+
+# Node / NPM
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

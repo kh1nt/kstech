@@ -10,843 +10,973 @@
     var isEditingExistingBudget = !isViewingArchivedBudgets && Model.SelectedBudgetId.HasValue && !isSelectedBudgetArchived;
     var selectedMonthKey = Model.SelectedMonthStartDateLocal.ToString("yyyy-MM");
     var selectedMonthLabel = Model.SelectedMonthStartDateLocal.ToString("MMMM yyyy");
-    var monthlyBudgetCount = Model.MonthlyBudgets?.Count ?? 0;
-    var committedAmount = Math.Round(Model.BudgetAmount - Model.BudgetVariance, 2, MidpointRounding.AwayFromZero);
     var financialBudgetMessage = TempData["FinancialBudgetMessage"] as string;
     var hasErrorMessage = !string.IsNullOrWhiteSpace(financialBudgetMessage) &&
         (financialBudgetMessage.Contains("cannot", StringComparison.OrdinalIgnoreCase) ||
          financialBudgetMessage.Contains("unable", StringComparison.OrdinalIgnoreCase) ||
          financialBudgetMessage.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
-         financialBudgetMessage.Contains("select", StringComparison.OrdinalIgnoreCase));
+         financialBudgetMessage.Contains("select", StringComparison.OrdinalIgnoreCase) ||
+         financialBudgetMessage.Contains("enter", StringComparison.OrdinalIgnoreCase) ||
+         financialBudgetMessage.Contains("invalid", StringComparison.OrdinalIgnoreCase));
+
+    var committedAmount = Model.ReservedAmount + Model.SpentAmount;
+    var utilizationPct = Model.BudgetUtilizationPercentage;
+    var utilizationColor = utilizationPct >= 100m ? "#ef4444" : utilizationPct >= 80m ? "#f59e0b" : "#10b981";
+    var headroom = Model.BudgetVariance;
+    var annualBudgeted = Model.AnnualBudgetTotal;
+    var trendLabelsJson = JsonSerializer.Serialize(Model.TrendLabels);
+    var trendActualJson = JsonSerializer.Serialize(Model.ActualRevenueTrendValues);
+    var trendBudgetJson = JsonSerializer.Serialize(Model.BudgetTargetTrendValues);
+    var svgCircumference = 2m * 3.14159m * 52m; // radius=52
+    var strokeDashoffset = Math.Round(svgCircumference - (utilizationPct / 100m) * svgCircumference, 2);
 }
 
-<div class="mb-6 flex flex-col gap-2">
-    <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Budget Planning</h1>
-    <p class="text-sm text-gray-500 dark:text-gray-400">
-        Plan and track monthly budgets for @Model.FilterStartDate.ToString("MMM dd, yyyy") - @Model.FilterEndDate.ToString("MMM dd, yyyy").
-    </p>
-</div>
+<style>
+    .budget-page { animation: fadeIn .35s ease-out; }
+    @@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-@if (!string.IsNullOrWhiteSpace(financialBudgetMessage))
-{
-    <div class="mb-6 rounded-xl border px-4 py-3 text-sm @(hasErrorMessage ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700")">
-        @financialBudgetMessage
-    </div>
-}
+    .gauge-ring { transition: stroke-dashoffset .9s cubic-bezier(.4,0,.2,1); }
+    .kpi-card { transition: box-shadow .2s, transform .2s; }
+    .kpi-card:hover { box-shadow: 0 8px 30px rgba(0,0,0,.08); transform: translateY(-2px); }
 
-@if (!string.IsNullOrWhiteSpace(Model.BudgetSelectionMessage))
-{
-    <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-        @Model.BudgetSelectionMessage
-    </div>
-}
+    .budget-table tr { transition: background .15s; }
+    .budget-table tr:hover td { background: rgba(99,102,241,.04); }
+    .budget-table tr.selected-row td { background: rgba(99,102,241,.07); }
 
-<div class="mb-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
-        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Budget</p>
-        <h3 class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">@Model.BudgetAmount.ToString("C")</h3>
-        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            @Model.FilterStartDate.ToString("MMM dd") - @Model.FilterEndDate.ToString("MMM dd, yyyy")
-        </p>
-    </div>
-    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
-        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Actual Revenue</p>
-        <h3 class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">@Model.ActualRevenue.ToString("C")</h3>
-        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Realized sales in selected month.</p>
-    </div>
-    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
-        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Committed Spend</p>
-        <h3 class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">@committedAmount.ToString("C")</h3>
-        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Reserved + spent based on budget events.</p>
-    </div>
-    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
-        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Budget Headroom</p>
-        <h3 class="mt-1 text-2xl font-bold @(Model.BudgetVariance >= 0 ? "text-emerald-600" : "text-red-600")">
-            @(Model.BudgetVariance >= 0 ? "+" : "")@Model.BudgetVariance.ToString("C")
-        </h3>
-        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Remaining room before full commitment.</p>
-    </div>
-</div>
+    .prog-bar { border-radius: 99px; overflow: hidden; background: #e5e7eb; height: 6px; }
+    .dark .prog-bar { background: #374151; }
+    .prog-fill { height: 6px; border-radius: 99px; transition: width .8s cubic-bezier(.4,0,.2,1); }
 
-<div class="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-card-dark">
-    <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+    .event-feed-item { border-left: 2px solid #e5e7eb; padding-left: 1rem; margin-left: .6rem; }
+    .dark .event-feed-item { border-left-color: #374151; }
+    .event-dot { width: 10px; height: 10px; border-radius: 50%; margin-left: -.5rem; flex-shrink: 0; }
+
+    .category-bar-track { background: #e5e7eb; border-radius: 99px; overflow: hidden; height: 8px; }
+    .dark .category-bar-track { background: #374151; }
+
+    .panel-section { border-radius: 1rem; border: 1px solid; padding: 1.5rem; }
+    .panel-section.light { background: #fff; border-color: #e5e7eb; box-shadow: 0 1px 6px rgba(0,0,0,.05); }
+    .dark .panel-section.light { background: var(--color-card-dark, #1f2937); border-color: #374151; }
+
+    .status-badge { display: inline-flex; align-items: center; gap: 4px; font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: .04em; }
+    .badge-active { background: #d1fae5; color: #065f46; }
+    .badge-archived { background: #f3f4f6; color: #6b7280; }
+    .badge-unused { background: #eff6ff; color: #1d4ed8; }
+    .badge-reserved { background: #fef3c7; color: #92400e; }
+    .badge-spent { background: #fee2e2; color: #991b1b; }
+    .badge-partial { background: #fde68a; color: #78350f; }
+    .dark .badge-active { background: #064e3b; color: #6ee7b7; }
+    .dark .badge-archived { background: #374151; color: #9ca3af; }
+    .dark .badge-unused { background: #1e3a5f; color: #93c5fd; }
+    .dark .badge-reserved { background: #78350f; color: #fde68a; }
+    .dark .badge-spent { background: #7f1d1d; color: #fca5a5; }
+    .dark .badge-partial { background: #92400e; color: #fde68a; }
+
+    .po-badge-draft { background:#f3f4f6; color:#374151; }
+    .po-badge-approved { background:#dbeafe; color:#1e40af; }
+    .po-badge-received { background:#d1fae5; color:#065f46; }
+    .dark .po-badge-draft { background:#374151; color:#d1d5db; }
+    .dark .po-badge-approved { background:#1e3a5f; color:#93c5fd; }
+    .dark .po-badge-received { background:#064e3b; color:#6ee7b7; }
+
+    .history-filter-input { outline: none; border-radius: .5rem; border: 1px solid #e5e7eb; padding: .35rem .75rem; font-size: .8rem; width: 100%; background: transparent; color: inherit; }
+    .dark .history-filter-input { border-color: #374151; }
+    .history-filter-input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.15); }
+
+    .chevron-icon { transition: transform .2s; }
+    .open .chevron-icon { transform: rotate(180deg); }
+
+    .section-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; margin-bottom: .75rem; }
+</style>
+
+<div class="budget-page">
+
+    @* ─── Page title ─── *@
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-            <h2 class="text-3xl font-bold text-text-light dark:text-text-dark">Save Monthly Budget</h2>
-            @if (!isViewingArchivedBudgets)
-            {
-                @if (isEditingExistingBudget)
-                {
-                    <p class="text-sm text-muted-light dark:text-muted-dark">
-                        Editing @selectedMonthLabel. Update amount, then add reason if the amount changes.
-                    </p>
-                }
-                else
-                {
-                    <p class="text-sm text-muted-light dark:text-muted-dark">Create a monthly budget for the selected month.</p>
-                }
-            }
-            else
-            {
-                <p class="text-sm text-muted-light dark:text-muted-dark">
-                    Archived view is read-only. Switch to active budgets below to edit monthly amounts.
-                </p>
-            }
-        </div>
-        <div class="flex w-full flex-wrap items-end gap-2 xl:w-auto xl:justify-end">
-            <form asp-action="Budget" method="get" id="viewBudgetMonthForm" class="flex items-end">
-                <input type="hidden" name="showArchivedBudgets" value="@Model.ShowArchivedBudgets" />
-                <div class="w-full sm:w-[11.5rem]">
-                    <label for="viewBudgetMonth" class="mb-1 block text-xs text-gray-500">View month</label>
-                    <input id="viewBudgetMonth"
-                           name="budgetMonth"
-                           type="month"
-                           value="@selectedMonthKey"
-                           class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800" />
-                </div>
-            </form>
-
-            @if (!isViewingArchivedBudgets)
-            {
-                <form asp-action="SaveFinancialBudget"
-                      method="post"
-                      id="budgetSaveForm"
-                      data-skip-confirm="true"
-                      data-is-editing="@(isEditingExistingBudget ? "true" : "false")"
-                      data-initial-amount="@Model.BudgetAmount.ToString("0.##", CultureInfo.InvariantCulture)"
-                      data-selected-month-label="@selectedMonthLabel"
-                      class="flex w-full flex-wrap items-end gap-2 xl:w-auto">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="selectedBudgetId" value="@(isEditingExistingBudget ? Model.SelectedBudgetId : null)" />
-                    <input type="hidden" name="showArchivedBudgets" value="@Model.ShowArchivedBudgets" />
-                    <input type="hidden" name="budgetMonth" value="@selectedMonthKey" />
-                    <div class="w-full sm:w-[11rem]">
-                        <label for="budgetAmount" class="mb-1 block text-xs text-gray-500">Budget amount</label>
-                        <input id="budgetAmount"
-                               name="budgetAmount"
-                               type="number"
-                               min="0"
-                               step="0.01"
-                               value="@Model.BudgetAmount.ToString("0.##")"
-                               class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800" />
-                    </div>
-                    <div class="w-full sm:w-[16rem]">
-                        <label for="changeReason" class="mb-1 block text-xs text-gray-500">
-                            Change reason @(isEditingExistingBudget ? "(required for updates)" : "(optional)")
-                        </label>
-                        <input id="changeReason"
-                               name="changeReason"
-                               type="text"
-                               maxlength="250"
-                               placeholder="Why are you creating/updating this budget?"
-                               class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800" />
-                    </div>
-                    <button id="budgetSaveButton"
-                            type="submit"
-                            class="rounded-lg bg-brand-primary px-3 py-2 text-sm font-medium text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50">
-                        Save Budget
-                    </button>
-                    <a asp-action="Budget"
-                       asp-route-showArchivedBudgets="false"
-                       asp-route-budgetMonth="@selectedMonthKey"
-                       class="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 no-underline hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                        Clear
-                    </a>
-                    <div id="budgetChangeReview"
-                         class="hidden w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300">
-                        <p id="budgetChangeReviewText" class="font-medium"></p>
-                        <p class="mt-1">You will be asked for final confirmation when submitting this update.</p>
-                    </div>
-                </form>
-            }
-            else
-            {
-                <a asp-action="Budget"
-                   asp-route-showArchivedBudgets="false"
-                   asp-route-budgetMonth="@selectedMonthKey"
-                   class="inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 no-underline hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
-                    View Active
-                </a>
-            }
-
-            <p id="budgetSaveInlineError" class="hidden w-full text-xs font-medium text-red-600 xl:text-right"></p>
-        </div>
-    </div>
-</div>
-
-<div class="mb-8 bg-white dark:bg-card-dark rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-6 dark:border-gray-700">
-        <div>
-            <h3 class="text-lg font-bold text-gray-900 dark:text-white">
-                @(Model.ShowArchivedBudgets ? "Archived Monthly Budgets" : "Monthly Budgets")
-            </h3>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                @(Model.ShowArchivedBudgets
-                    ? "Use Restore to reactivate a month budget."
-                    : "Use Archive to hide retired month budgets while preserving history.")
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Budget Planning</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Manage monthly budgets, track commitments, and monitor procurement spend for <strong>@selectedMonthLabel</strong>.
             </p>
         </div>
-        @if (Model.ShowArchivedBudgets)
-        {
-            <a asp-action="Budget"
-               asp-route-showArchivedBudgets="false"
-               asp-route-budgetMonth="@selectedMonthKey"
-               class="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 no-underline">
-                View Active
-            </a>
-        }
-        else
-        {
-            <a asp-action="Budget"
-               asp-route-showArchivedBudgets="true"
-               asp-route-budgetMonth="@selectedMonthKey"
-               class="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 no-underline">
-                View Archived
-            </a>
-        }
+        <div class="flex gap-2">
+            @if (!isViewingArchivedBudgets)
+            {
+                <a href="@Url.Action("Budget", new { showArchivedBudgets = true, budgetMonth = selectedMonthKey })"
+                   class="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3.5 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8m-9 4v4"/></svg>
+                    View Archived
+                </a>
+            }
+            else
+            {
+                <a href="@Url.Action("Budget", new { showArchivedBudgets = false, budgetMonth = selectedMonthKey })"
+                   class="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3.5 py-2 text-sm font-medium text-white transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"/></svg>
+                    Back to Active
+                </a>
+            }
+        </div>
     </div>
 
-    <div class="hidden overflow-x-auto md:block">
-        <table class="w-full text-left border-collapse">
-            <thead>
-                <tr class="bg-gray-50/50 dark:bg-gray-800/50 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
-                    <th class="px-6 py-4">Month</th>
-                    <th class="px-6 py-4">Budget</th>
-                    <th class="px-6 py-4">Usage</th>
-                    <th class="px-6 py-4">Last Updated</th>
-                    <th class="px-6 py-4 text-right">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 dark:divide-gray-700 text-sm">
-                @if (Model.MonthlyBudgets?.Any() == true)
+    @* ─── Toast messages ─── *@
+    @if (!string.IsNullOrWhiteSpace(financialBudgetMessage))
+    {
+        <div id="budget-toast" class="mb-5 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm
+             @(hasErrorMessage ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                               : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300")">
+            <svg class="mt-0.5 w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                @if (hasErrorMessage)
                 {
-                    foreach (var budget in Model.MonthlyBudgets)
-                    {
-                        var rowCss = budget.IsSelected
-                            ? "bg-emerald-50/60 dark:bg-emerald-900/10"
-                            : "hover:bg-gray-50 dark:hover:bg-gray-800/50";
-                        var usageCss = budget.UsageStatus == "Unused"
-                            ? "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200"
-                            : budget.UsageStatus == "Reserved"
-                                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                                : budget.UsageStatus == "Partially Spent"
-                                    ? "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
-                                    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
-                        <tr class="@rowCss transition-colors">
-                            <td class="px-6 py-4 text-gray-700 dark:text-gray-300">
-                                <div class="font-semibold text-gray-900 dark:text-white">
-                                    @budget.MonthStartDateLocal.ToString("MMMM yyyy")
-                                </div>
-                                @if (budget.IsSelected)
-                                {
-                                    <span class="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                                        In editor
-                                    </span>
-                                }
-                            </td>
-                            <td class="px-6 py-4 font-semibold text-gray-900 dark:text-white">@budget.BudgetAmount.ToString("C")</td>
-                            <td class="px-6 py-4 text-gray-700 dark:text-gray-300">
-                                <div class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold @usageCss">
-                                    @budget.UsageStatus
-                                </div>
-                                <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    Reserved: @budget.ReservedAmount.ToString("C") | Spent: @budget.SpentAmount.ToString("C")
-                                </div>
-                            </td>
-                            <td class="px-6 py-4 text-gray-700 dark:text-gray-300">@BusinessTime.ConvertUtcToBusinessTime(budget.UpdatedAtUtc).ToString("MMM dd, yyyy HH:mm")</td>
-                            <td class="px-6 py-4 text-right">
-                                <div class="inline-flex items-center gap-2">
-                                    @if (Model.ShowArchivedBudgets)
-                                    {
-                                        <a asp-action="Budget"
-                                           asp-route-showArchivedBudgets="false"
-                                           asp-route-budgetMonth="@budget.MonthStartDateLocal.ToString("yyyy-MM")"
-                                           class="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 no-underline">
-                                            Open Active
-                                        </a>
-                                    }
-                                    else
-                                    {
-                                        <a asp-action="Budget"
-                                           asp-route-budgetId="@budget.BudgetId"
-                                           asp-route-showArchivedBudgets="@Model.ShowArchivedBudgets"
-                                           asp-route-budgetMonth="@budget.MonthStartDateLocal.ToString("yyyy-MM")"
-                                           class="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 no-underline">
-                                            Edit
-                                        </a>
-                                    }
-                                    <button type="button"
-                                            data-month-label="@budget.MonthStartDateLocal.ToString("MMMM yyyy")"
-                                            data-history='@JsonSerializer.Serialize(budget.History)'
-                                            onclick="openBudgetHistoryModal(this)"
-                                            class="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
-                                        History
-                                    </button>
-                                    @if (!Model.ShowArchivedBudgets)
-                                    {
-                                        <button type="button"
-                                                data-budget-action-trigger="true"
-                                                data-budget-action-type="archive"
-                                                data-budget-id="@budget.BudgetId"
-                                                data-month-key="@budget.MonthStartDateLocal.ToString("yyyy-MM")"
-                                                data-month-label="@budget.MonthStartDateLocal.ToString("MMMM yyyy")"
-                                                data-show-archived="@Model.ShowArchivedBudgets.ToString().ToLowerInvariant()"
-                                                class="inline-flex items-center rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-900/20">
-                                            Archive
-                                        </button>
-                                    }
-                                    else
-                                    {
-                                        <button type="button"
-                                                data-budget-action-trigger="true"
-                                                data-budget-action-type="restore"
-                                                data-budget-id="@budget.BudgetId"
-                                                data-month-key="@budget.MonthStartDateLocal.ToString("yyyy-MM")"
-                                                data-month-label="@budget.MonthStartDateLocal.ToString("MMMM yyyy")"
-                                                data-show-archived="@Model.ShowArchivedBudgets.ToString().ToLowerInvariant()"
-                                                class="inline-flex items-center rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/20">
-                                            Restore
-                                        </button>
-                                    }
-                                </div>
-                            </td>
-                        </tr>
-                    }
+                    <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
                 }
                 else
                 {
-                    <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                            @(Model.ShowArchivedBudgets ? "No archived monthly budgets yet." : "No monthly budget saved yet.")
-                        </td>
-                    </tr>
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/>
                 }
-            </tbody>
-        </table>
+            </svg>
+            <span>@financialBudgetMessage</span>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.BudgetSelectionMessage))
+    {
+        <div class="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+            @Model.BudgetSelectionMessage
+        </div>
+    }
+
+    @* ═══════════════════════════════════════════════
+        HERO — Gauge + Save Form
+    ═══════════════════════════════════════════════ *@
+    <div class="mb-6 rounded-2xl border border-indigo-100 dark:border-indigo-900/50 overflow-hidden shadow-sm"
+         style="background: linear-gradient(135deg, #eef2ff 0%, #f8faff 60%, #fdf4ff 100%);"
+         class-dark="background:linear-gradient(135deg,#1e1b4b 0%,#1f2937 60%,#2e1065 100%)">
+        <div class="dark:bg-gradient-to-br dark:from-indigo-950/50 dark:to-purple-950/30 p-6 lg:p-8">
+            <div class="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-8 items-center">
+
+                @* Gauge *@
+                <div class="flex flex-col items-center gap-2">
+                    <svg width="140" height="140" viewBox="0 0 140 140">
+                        <circle cx="70" cy="70" r="52" fill="none" stroke="#e5e7eb" stroke-width="12" class="dark:stroke-gray-700"/>
+                        <circle cx="70" cy="70" r="52" fill="none"
+                                stroke="@utilizationColor" stroke-width="12"
+                                stroke-linecap="round"
+                                stroke-dasharray="@svgCircumference.ToString("0.##", CultureInfo.InvariantCulture)"
+                                stroke-dashoffset="@strokeDashoffset.ToString("0.##", CultureInfo.InvariantCulture)"
+                                transform="rotate(-90 70 70)"
+                                class="gauge-ring"/>
+                        <text x="70" y="64" text-anchor="middle" font-size="20" font-weight="700" fill="currentColor" class="dark:fill-white">
+                            @utilizationPct.ToString("0.#", CultureInfo.InvariantCulture)%
+                        </text>
+                        <text x="70" y="82" text-anchor="middle" font-size="10" fill="#9ca3af">Utilized</text>
+                    </svg>
+                    <div class="text-center">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">@selectedMonthLabel</p>
+                        @if (Model.SelectedBudgetId.HasValue)
+                        {
+                            <span class="status-badge @(isSelectedBudgetArchived ? "badge-archived" : "badge-active")">
+                                @(isSelectedBudgetArchived ? "Archived" : "Active")
+                            </span>
+                        }
+                        else if (!isViewingArchivedBudgets)
+                        {
+                            <span class="status-badge badge-unused">No Budget Set</span>
+                        }
+                    </div>
+                </div>
+
+                @* Save Form *@
+                <div>
+                    <div class="mb-4">
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-white">
+                            @(isViewingArchivedBudgets ? "Archived Budgets" : isEditingExistingBudget ? "Update Monthly Budget" : "Set Monthly Budget")
+                        </h2>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            @if (isViewingArchivedBudgets)
+                            {
+                                <span>Viewing archived budget history. Restore a budget to make it active again.</span>
+                            }
+                            else if (isEditingExistingBudget)
+                            {
+                                <span>Editing Budget #@Model.SelectedBudgetId for @selectedMonthLabel. A reason is required to update an existing budget.</span>
+                            }
+                            else
+                            {
+                                <span>No budget set for @selectedMonthLabel. Enter an amount to create one.</span>
+                            }
+                        </p>
+                    </div>
+
+                    @if (!isViewingArchivedBudgets)
+                    {
+                        <form id="budgetSaveForm" method="post"
+                              action="@Url.Action("SaveFinancialBudget")"
+                              data-skip-confirm="true"
+                              class="space-y-4"
+                              data-initial-amount="@Model.BudgetAmount.ToString("0.##", CultureInfo.InvariantCulture)">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="showArchivedBudgets" value="false" />
+                            <input type="hidden" name="budgetMonth" value="@selectedMonthKey" />
+                            <input type="hidden" name="selectedBudgetId" value="@(isEditingExistingBudget ? Model.SelectedBudgetId : null)" />
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                @* Month picker *@
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Budget Month</label>
+                                    <input type="month" id="budgetMonthPicker" value="@selectedMonthKey"
+                                           class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" />
+                                </div>
+
+                                @* Amount *@
+                                <div>
+                                    <label for="budgetAmountInput" class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Budget Amount</label>
+                                    <div class="relative">
+                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium select-none">₱</span>
+                                        <input type="number" id="budgetAmountInput" name="budgetAmount" step="0.01" min="0"
+                                               value="@Model.BudgetAmount.ToString("0.##", CultureInfo.InvariantCulture)"
+                                               class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-7 pr-3 py-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            @* Reason *@
+                            <div id="budgetReasonWrapper" class="hidden">
+                                <label for="changeReasonInput" class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
+                                    Reason for Change <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="changeReasonInput" name="changeReason" maxlength="250" placeholder="Describe why the budget is being updated…"
+                                       class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" />
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-3 pt-1">
+                                <button type="submit" id="budgetSaveBtn"
+                                        class="flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    @(isEditingExistingBudget ? "Update Budget" : "Save Budget")
+                                </button>
+
+                                @if (isEditingExistingBudget)
+                                {
+                                    <button type="button" id="archiveBudgetBtn"
+                                            class="flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                                            data-budget-id="@Model.SelectedBudgetId"
+                                            data-budget-month="@selectedMonthLabel">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8m-9 4v4"/></svg>
+                                        Archive
+                                    </button>
+                                }
+                                @if (isSelectedBudgetArchived && Model.SelectedBudgetId.HasValue)
+                                {
+                                    <button type="button" id="restoreBudgetBtn"
+                                            class="flex items-center gap-2 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950 px-4 py-2.5 text-sm font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition"
+                                            data-budget-id="@Model.SelectedBudgetId"
+                                            data-budget-month="@selectedMonthLabel">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                        Restore
+                                    </button>
+                                }
+                            </div>
+                        </form>
+                    }
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="space-y-3 p-4 md:hidden">
-        @if (Model.MonthlyBudgets?.Any() == true)
-        {
-            foreach (var budget in Model.MonthlyBudgets)
+    @* ═══════════════════════════════════════════════
+        KPI STRIP — 5 metric cards
+    ═══════════════════════════════════════════════ *@
+    <div class="mb-6 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+        @{
+            var kpis = new[]
             {
-                var usageCss = budget.UsageStatus == "Unused"
-                    ? "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200"
-                    : budget.UsageStatus == "Reserved"
-                        ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                        : budget.UsageStatus == "Partially Spent"
-                            ? "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
-                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
-                var cardCss = budget.IsSelected
-                    ? "border-emerald-200 bg-emerald-50/40 dark:border-emerald-800 dark:bg-emerald-900/10"
-                    : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/40";
-
-                <article class="rounded-xl border p-4 @cardCss">
-                    <div class="flex items-start gap-2">
-                        <div>
-                            <h4 class="text-sm font-bold text-gray-900 dark:text-white">@budget.MonthStartDateLocal.ToString("MMMM yyyy")</h4>
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Updated @BusinessTime.ConvertUtcToBusinessTime(budget.UpdatedAtUtc).ToString("MMM dd, yyyy HH:mm")</p>
-                        </div>
-                    </div>
-
-                    <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
-                        <div class="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 dark:border-gray-700 dark:bg-gray-800/60">
-                            <p class="text-gray-500 dark:text-gray-400">Budget</p>
-                            <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">@budget.BudgetAmount.ToString("C")</p>
-                        </div>
-                        <div class="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 dark:border-gray-700 dark:bg-gray-800/60">
-                            <p class="text-gray-500 dark:text-gray-400">Usage</p>
-                            <p class="mt-1">
-                                <span class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold @usageCss">@budget.UsageStatus</span>
-                            </p>
-                        </div>
-                    </div>
-
-                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Reserved: @budget.ReservedAmount.ToString("C") | Spent: @budget.SpentAmount.ToString("C")</p>
-
-                    <div class="mt-3 flex flex-wrap gap-2">
-                        @if (Model.ShowArchivedBudgets)
-                        {
-                            <a asp-action="Budget"
-                               asp-route-showArchivedBudgets="false"
-                               asp-route-budgetMonth="@budget.MonthStartDateLocal.ToString("yyyy-MM")"
-                               class="inline-flex items-center rounded-lg border border-gray-200 px-3 py-1.5 text-[11px] font-semibold text-gray-700 no-underline hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
-                                Open Active
-                            </a>
-                        }
-                        else
-                        {
-                            <a asp-action="Budget"
-                               asp-route-budgetId="@budget.BudgetId"
-                               asp-route-showArchivedBudgets="@Model.ShowArchivedBudgets"
-                               asp-route-budgetMonth="@budget.MonthStartDateLocal.ToString("yyyy-MM")"
-                               class="inline-flex items-center rounded-lg border border-gray-200 px-3 py-1.5 text-[11px] font-semibold text-gray-700 no-underline hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
-                                Edit
-                            </a>
-                        }
-                        <button type="button"
-                                data-month-label="@budget.MonthStartDateLocal.ToString("MMMM yyyy")"
-                                data-history='@JsonSerializer.Serialize(budget.History)'
-                                onclick="openBudgetHistoryModal(this)"
-                                class="inline-flex items-center rounded-lg border border-gray-200 px-3 py-1.5 text-[11px] font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
-                            History
-                        </button>
-                        @if (!Model.ShowArchivedBudgets)
-                        {
-                            <button type="button"
-                                    data-budget-action-trigger="true"
-                                    data-budget-action-type="archive"
-                                    data-budget-id="@budget.BudgetId"
-                                    data-month-key="@budget.MonthStartDateLocal.ToString("yyyy-MM")"
-                                    data-month-label="@budget.MonthStartDateLocal.ToString("MMMM yyyy")"
-                                    data-show-archived="@Model.ShowArchivedBudgets.ToString().ToLowerInvariant()"
-                                    class="inline-flex items-center rounded-lg border border-amber-200 px-3 py-1.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-900/20">
-                                Archive
-                            </button>
-                        }
-                        else
-                        {
-                            <button type="button"
-                                    data-budget-action-trigger="true"
-                                    data-budget-action-type="restore"
-                                    data-budget-id="@budget.BudgetId"
-                                    data-month-key="@budget.MonthStartDateLocal.ToString("yyyy-MM")"
-                                    data-month-label="@budget.MonthStartDateLocal.ToString("MMMM yyyy")"
-                                    data-show-archived="@Model.ShowArchivedBudgets.ToString().ToLowerInvariant()"
-                                    class="inline-flex items-center rounded-lg border border-emerald-200 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/20">
-                                Restore
-                            </button>
-                        }
-                    </div>
-                </article>
-            }
+                new { Label = "Budget Allocated", Value = Model.BudgetAmount.ToString("C"), Sub = selectedMonthLabel, Color = "indigo", Icon = "M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" },
+                new { Label = "Reserved", Value = Model.ReservedAmount.ToString("C"), Sub = "Pending POs", Color = "amber", Icon = "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
+                new { Label = "Spent", Value = Model.SpentAmount.ToString("C"), Sub = "Confirmed spend", Color = "red", Icon = "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" },
+                new { Label = "Headroom", Value = (headroom >= 0 ? "+" : "") + headroom.ToString("C"), Sub = headroom >= 0 ? "Available budget" : "Over budget", Color = headroom >= 0 ? "emerald" : "red", Icon = "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" },
+                new { Label = "Actual Revenue", Value = Model.ActualRevenue.ToString("C"), Sub = selectedMonthLabel, Color = "purple", Icon = "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" }
+            };
         }
-        else
+        @foreach (var kpi in kpis)
         {
-            <div class="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                @(Model.ShowArchivedBudgets ? "No archived monthly budgets yet." : "No monthly budget saved yet.")
+            <div class="kpi-card rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-card-dark p-4 shadow-sm">
+                <div class="flex items-start justify-between gap-2 mb-2">
+                    <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 leading-snug">@kpi.Label</p>
+                    <div class="rounded-lg p-1.5 flex-shrink-0
+                        @(kpi.Color == "indigo" ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400" :
+                          kpi.Color == "amber" ? "bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400" :
+                          kpi.Color == "red" ? "bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400" :
+                          kpi.Color == "emerald" ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400" :
+                          "bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400")">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="@kpi.Icon"/>
+                        </svg>
+                    </div>
+                </div>
+                <p class="text-lg font-bold text-gray-900 dark:text-white leading-tight">@kpi.Value</p>
+                <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">@kpi.Sub</p>
             </div>
         }
     </div>
+
+    @* ═══════════════════════════════════════════════
+        ANNUAL ROLL-UP BAR
+    ═══════════════════════════════════════════════ *@
+    @if (Model.AnnualBudgetMonthCount > 0)
+    {
+        var annualUtilPct = annualBudgeted > 0m ? Math.Min(100m, Math.Round((Model.AnnualSpentTotal + Model.AnnualReservedTotal) / annualBudgeted * 100m, 1)) : 0m;
+        <div class="mb-6 panel-section light">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                <div>
+                    <p class="section-label">@Model.SelectedMonthStartDateLocal.Year Annual Overview</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        <strong class="text-gray-900 dark:text-white">@annualBudgeted.ToString("C")</strong> budgeted across <strong>@Model.AnnualBudgetMonthCount month@(Model.AnnualBudgetMonthCount != 1 ? "s" : "")</strong>
+                        — <strong class="text-red-600">@Model.AnnualSpentTotal.ToString("C")</strong> spent, <strong class="text-amber-600">@Model.AnnualReservedTotal.ToString("C")</strong> reserved
+                    </p>
+                </div>
+                <span class="text-lg font-bold @(annualUtilPct >= 100 ? "text-red-600" : annualUtilPct >= 80 ? "text-amber-600" : "text-emerald-600")">
+                    @annualUtilPct.ToString("0.#", CultureInfo.InvariantCulture)% used
+                </span>
+            </div>
+            <div class="prog-bar">
+                <div class="prog-fill @(annualUtilPct >= 100 ? "bg-red-500" : annualUtilPct >= 80 ? "bg-amber-500" : "bg-emerald-500")"
+                     style="width: @annualUtilPct.ToString("0.#", CultureInfo.InvariantCulture)%"></div>
+            </div>
+        </div>
+    }
+
+    @* ═══════════════════════════════════════════════
+        MAIN BODY — Two columns
+    ═══════════════════════════════════════════════ *@
+    <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,.9fr)] gap-6">
+
+        @* ─── LEFT COLUMN ─── *@
+        <div class="flex flex-col gap-6">
+
+            @* Monthly Budget Timeline *@
+            <div class="panel-section light">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <p class="section-label mb-0">Monthly Budget Timeline</p>
+                    <div class="flex gap-2">
+                        @for (var m = -2; m <= 2; m++)
+                        {
+                            var nav = BusinessTime.Today.AddMonths(m);
+                            var navKey = nav.ToString("yyyy-MM");
+                            var navLabel = nav.ToString("MMM yy");
+                            var isCurrentNav = navKey == selectedMonthKey;
+                            <a href="@Url.Action("Budget", new { budgetMonth = navKey, showArchivedBudgets = isViewingArchivedBudgets })"
+                               class="rounded-md px-2.5 py-1 text-xs font-semibold transition
+                               @(isCurrentNav ? "bg-indigo-600 text-white" : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600")">
+                                @navLabel
+                            </a>
+                        }
+                    </div>
+                </div>
+
+                @if (!Model.MonthlyBudgets.Any())
+                {
+                    <div class="flex flex-col items-center py-12 text-center">
+                        <svg class="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <p class="text-sm font-semibold text-gray-500 dark:text-gray-400">No budgets found</p>
+                        <p class="text-xs text-gray-400 mt-1">@(isViewingArchivedBudgets ? "No archived budgets." : "Set your first monthly budget using the form above.")</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="overflow-x-auto -mx-1.5">
+                        <table class="budget-table w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-gray-100 dark:border-gray-700">
+                                    <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">Month</th>
+                                    <th class="px-2 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400">Budget</th>
+                                    <th class="px-2 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 hidden sm:table-cell">Reserved</th>
+                                    <th class="px-2 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 hidden sm:table-cell">Spent</th>
+                                    <th class="px-2 py-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-400">Usage</th>
+                                    <th class="px-2 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">Status</th>
+                                    <th class="px-2 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-50 dark:divide-gray-800">
+                                @foreach (var budget in Model.MonthlyBudgets)
+                                {
+                                    var usageBadgeClass = budget.UsageStatus switch {
+                                        "Spent" => "badge-spent",
+                                        "Partially Spent" => "badge-partial",
+                                        "Reserved" => "badge-reserved",
+                                        _ => "badge-unused"
+                                    };
+                                    var headroomForRow = budget.BudgetAmount - budget.ReservedAmount - budget.SpentAmount;
+                                    <tr class="@(budget.IsSelected ? "selected-row" : "")">
+                                        <td class="px-2 py-3">
+                                            <div class="@(budget.IsSelected ? "flex items-center gap-2" : "")">
+                                                @if (budget.IsSelected)
+                                                {
+                                                    <span class="w-1 h-6 rounded-full bg-indigo-500 flex-shrink-0"></span>
+                                                }
+                                                <div>
+                                                    <p class="font-semibold text-gray-900 dark:text-white text-xs">
+                                                        @budget.MonthStartDateLocal.ToString("MMM yyyy")
+                                                    </p>
+                                                    @if (budget.IsSelected)
+                                                    {
+                                                        <p class="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">Selected</p>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-2 py-3 text-right font-medium text-gray-800 dark:text-gray-200 text-xs">@budget.BudgetAmount.ToString("C")</td>
+                                        <td class="px-2 py-3 text-right text-amber-600 dark:text-amber-400 text-xs hidden sm:table-cell">@budget.ReservedAmount.ToString("C")</td>
+                                        <td class="px-2 py-3 text-right text-red-600 dark:text-red-400 text-xs hidden sm:table-cell">@budget.SpentAmount.ToString("C")</td>
+                                        <td class="px-2 py-3">
+                                            <div class="flex flex-col items-center gap-1 min-w-[56px]">
+                                                <span class="text-[10px] font-bold @(budget.UtilizationPct >= 100 ? "text-red-600" : budget.UtilizationPct >= 80 ? "text-amber-600" : "text-emerald-600")">
+                                                    @budget.UtilizationPct.ToString("0.#", CultureInfo.InvariantCulture)%
+                                                </span>
+                                                <div class="prog-bar w-14">
+                                                    <div class="prog-fill @(budget.UtilizationPct >= 100 ? "bg-red-500" : budget.UtilizationPct >= 80 ? "bg-amber-400" : "bg-emerald-500")"
+                                                         style="width:@budget.UtilizationPct.ToString("0.#", CultureInfo.InvariantCulture)%"></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-2 py-3">
+                                            <span class="status-badge @(string.Equals(budget.Status, "Active", StringComparison.OrdinalIgnoreCase) ? "badge-active" : "badge-archived")">
+                                                @budget.Status
+                                            </span>
+                                        </td>
+                                        <td class="px-2 py-3">
+                                            <div class="flex justify-end gap-1">
+                                                @if (!string.Equals(budget.Status, "Archived", StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    <a href="@Url.Action("Budget", new { budgetId = budget.BudgetId, showArchivedBudgets = false })"
+                                                       title="Edit"
+                                                       class="rounded p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                                    </a>
+                                                }
+                                                else
+                                                {
+                                                    <a href="@Url.Action("Budget", new { budgetId = budget.BudgetId, showArchivedBudgets = true })"
+                                                       title="View archived"
+                                                       class="rounded p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                                    </a>
+                                                }
+                                                @if (budget.History.Any())
+                                                {
+                                                    <button type="button" title="History"
+                                                            onclick="openHistoryModal(@budget.BudgetId)"
+                                                            class="rounded p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 transition">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                                    </button>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
+            @* Linked Purchase Orders *@
+            <div class="panel-section light" id="poSection">
+                <button type="button" onclick="toggleSection('poBody','poSection')"
+                        class="flex w-full items-center justify-between text-left mb-0 open">
+                    <p class="section-label mb-0">Linked Purchase Orders</p>
+                    <svg class="w-4 h-4 text-gray-400 chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div id="poBody" class="mt-4">
+                    @if (!Model.LinkedPurchaseOrders.Any())
+                    {
+                        <p class="text-sm text-gray-400 dark:text-gray-500 text-center py-6">
+                            @(Model.SelectedBudgetId.HasValue ? "No purchase orders linked to this budget yet." : "Select a budget to view linked purchase orders.")
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-gray-100 dark:border-gray-700">
+                                        <th class="pb-2 text-left text-xs font-semibold text-gray-400">PO Ref</th>
+                                        <th class="pb-2 text-left text-xs font-semibold text-gray-400 hidden sm:table-cell">Supplier</th>
+                                        <th class="pb-2 text-center text-xs font-semibold text-gray-400">Status</th>
+                                        <th class="pb-2 text-right text-xs font-semibold text-gray-400">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-50 dark:divide-gray-800">
+                                    @foreach (var po in Model.LinkedPurchaseOrders)
+                                    {
+                                        var poBadge = po.Status.ToLowerInvariant() switch {
+                                            "approved" => "po-badge-approved",
+                                            "received" => "po-badge-received",
+                                            _ => "po-badge-draft"
+                                        };
+                                        <tr>
+                                            <td class="py-2.5 text-xs font-mono font-medium text-gray-700 dark:text-gray-300">@po.Reference</td>
+                                            <td class="py-2.5 text-xs text-gray-600 dark:text-gray-400 hidden sm:table-cell">@po.SupplierName</td>
+                                            <td class="py-2.5 text-center">
+                                                <span class="status-badge @poBadge">@po.Status</span>
+                                            </td>
+                                            <td class="py-2.5 text-right text-xs font-semibold text-gray-800 dark:text-gray-200">@po.TotalAmount.ToString("C")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* At-Risk Inventory *@
+            @if (Model.AtRiskParts.Any())
+            {
+                <div class="panel-section light" id="riskSection">
+                    <button type="button" onclick="toggleSection('riskBody','riskSection')"
+                            class="flex w-full items-center justify-between text-left open">
+                        <div>
+                            <p class="section-label mb-0">At-Risk Inventory</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="status-badge badge-spent text-[10px]">@Model.AtRiskParts.Count items</span>
+                            <svg class="w-4 h-4 text-gray-400 chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </div>
+                    </button>
+                    <div id="riskBody" class="mt-4">
+                        <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
+                            @foreach (var part in Model.AtRiskParts.Take(15))
+                            {
+                                var riskColor = part.DaysOfStockCover <= 7 ? "text-red-600 bg-red-50 dark:bg-red-950/40" : "text-amber-600 bg-amber-50 dark:bg-amber-950/40";
+                                <div class="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 bg-gray-50 dark:bg-gray-800/50">
+                                    <div class="min-w-0">
+                                        <p class="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">@part.ProductName</p>
+                                        <p class="text-[10px] text-gray-400">@part.Category • Stock: @part.CurrentStock</p>
+                                    </div>
+                                    <div class="flex items-center gap-2 flex-shrink-0">
+                                        <span class="status-badge @riskColor text-[10px]">@part.DaysOfStockCover.ToString("0.#")d</span>
+                                        <span class="text-xs font-medium text-gray-700 dark:text-gray-300">@part.SuggestedRestockSpend.ToString("C")</span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ─── RIGHT COLUMN ─── *@
+        <div class="flex flex-col gap-6">
+
+            @* Budget vs Revenue Trend Chart *@
+            <div class="panel-section light">
+                <p class="section-label">Budget vs Revenue Trend</p>
+                <div style="height: 180px; position: relative;">
+                    <canvas id="budgetTrendChart"></canvas>
+                </div>
+            </div>
+
+            @* Category Allocation Breakdown *@
+            @if (Model.CategoryAllocations.Any())
+            {
+                <div class="panel-section light">
+                    <p class="section-label">Category Allocation (Advisory)</p>
+                    <div class="space-y-3">
+                        @foreach (var cat in Model.CategoryAllocations)
+                        {
+                            <div>
+                                <div class="flex items-center justify-between mb-1 gap-2">
+                                    <span class="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">@cat.Category</span>
+                                    <div class="flex items-center gap-2 flex-shrink-0">
+                                        <span class="text-[10px] text-gray-400">@cat.AllocationPct.ToString("0.#", CultureInfo.InvariantCulture)%</span>
+                                        <span class="text-xs font-semibold text-gray-800 dark:text-gray-200">@cat.SuggestedAmount.ToString("C")</span>
+                                    </div>
+                                </div>
+                                <div class="category-bar-track">
+                                    <div class="prog-fill bg-indigo-500 opacity-80" style="width:@cat.AllocationPct.ToString("0.#", CultureInfo.InvariantCulture)%"></div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <p class="mt-3 text-[10px] text-gray-400 dark:text-gray-500">
+                        Advisory only — based on revenue share from previous orders. Not enforced as hard limits.
+                    </p>
+                </div>
+            }
+
+            @* Event History Feed *@
+            <div class="panel-section light flex-1">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <p class="section-label mb-0">Event History</p>
+                    <span class="text-xs text-gray-400">@selectedMonthLabel</span>
+                </div>
+
+                @if (!Model.BudgetHistory.Any())
+                {
+                    <div class="flex flex-col items-center py-10 text-center">
+                        <svg class="w-10 h-10 text-gray-300 dark:text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        </svg>
+                        <p class="text-sm text-gray-400">No events recorded yet</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="mb-3">
+                        <input type="text" id="historySearch" placeholder="Search events…" oninput="filterHistory(this.value)" class="history-filter-input"/>
+                    </div>
+                    <div id="historyFeed" class="space-y-0 max-h-[480px] overflow-y-auto pr-1">
+                        @foreach (var item in Model.BudgetHistory)
+                        {
+                            var evtType = item.EventType?.ToLowerInvariant() ?? "";
+                            var (dotColor, evtLabel) = evtType switch {
+                                "create" => ("#6366f1", "Created"),
+                                "update" => ("#8b5cf6", "Updated"),
+                                "reserve" => ("#f59e0b", "Reserved"),
+                                "spend" => ("#ef4444", "Spent"),
+                                "release" => ("#10b981", "Released"),
+                                "archive" => ("#6b7280", "Archived"),
+                                "restore" => ("#3b82f6", "Restored"),
+                                _ => ("#9ca3af", "Event")
+                            };
+                            <div class="history-event-item flex gap-3 pb-4" data-action="@item.Action.ToLowerInvariant()">
+                                <div class="flex flex-col items-center gap-1 flex-shrink-0 mt-0.5">
+                                    <div class="event-dot" style="background: @dotColor"></div>
+                                    <div class="w-px flex-1 bg-gray-200 dark:bg-gray-700 min-h-[12px]"></div>
+                                </div>
+                                <div class="pb-2 min-w-0">
+                                    <div class="flex items-center gap-2 flex-wrap mb-0.5">
+                                        <span class="text-[10px] font-bold uppercase tracking-wide" style="color: @dotColor">@evtLabel</span>
+                                        <span class="text-[10px] text-gray-400">@item.ChangedAtLabel</span>
+                                    </div>
+                                    <p class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">@item.Action</p>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
 </div>
 
-<div id="budgetActionModal"
-     data-archive-action-url="@Url.Action("ArchiveFinancialBudget", "BusinessIntelligence")"
-     data-restore-action-url="@Url.Action("RestoreFinancialBudget", "BusinessIntelligence")"
-     class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
-    <div class="w-full max-w-lg overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-card-dark">
-        <div class="border-b border-gray-100 px-5 py-4 dark:border-gray-700">
-            <h3 id="budgetActionModalTitle" class="text-base font-bold text-gray-900 dark:text-white">
-                Confirm Budget Action
-            </h3>
-            <p id="budgetActionModalDescription" class="mt-2 text-sm text-gray-600 dark:text-gray-300"></p>
-        </div>
-        <form id="budgetActionForm" method="post" data-skip-confirm="true" class="px-5 py-4">
+@* ═══════════════════════════════════════════════
+    MODALS
+═══════════════════════════════════════════════ *@
+
+@* Archive confirmation modal *@
+<div id="archiveModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" aria-modal="true" role="dialog">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeModal('archiveModal')"></div>
+    <div class="relative z-10 w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl p-6">
+        <h3 class="text-base font-bold text-gray-900 dark:text-white mb-1">Archive Budget</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-5" id="archiveModalMsg">Archive this budget?</p>
+        <form id="archiveForm" method="post" action="@Url.Action("ArchiveFinancialBudget")">
             @Html.AntiForgeryToken()
-            <input id="budgetActionBudgetId" type="hidden" name="budgetId" value="" />
-            <input id="budgetActionShowArchived" type="hidden" name="showArchivedBudgets" value="" />
-            <input id="budgetActionMonth" type="hidden" name="budgetMonth" value="" />
-            <div class="flex items-center justify-end gap-2">
-                <button id="budgetActionCancelButton"
-                        type="button"
-                        class="inline-flex items-center rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+            <input type="hidden" name="budgetId" id="archiveBudgetIdInput" value="" />
+            <input type="hidden" name="showArchivedBudgets" value="false" />
+            <input type="hidden" name="budgetMonth" value="@selectedMonthKey" />
+            <div class="flex gap-3">
+                <button type="button" onclick="closeModal('archiveModal')"
+                        class="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
                     Cancel
                 </button>
-                <button id="budgetActionConfirmButton"
-                        type="submit"
-                        class="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold text-white">
-                    Confirm
+                <button type="submit" class="flex-1 rounded-lg bg-amber-600 hover:bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white transition">
+                    Archive Budget
                 </button>
             </div>
         </form>
     </div>
 </div>
 
-<div id="budgetHistoryModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
-    <div class="w-full max-w-4xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-card-dark">
-        <div class="flex items-center justify-between border-b border-gray-100 p-5 dark:border-gray-700">
-            <h3 class="text-lg font-bold text-gray-900 dark:text-white">
-                Budget Timeline
-                <span id="budgetHistoryMonthLabel" class="text-sm font-medium text-gray-500 dark:text-gray-400"></span>
-            </h3>
-            <button type="button"
-                    onclick="closeBudgetHistoryModal()"
-                    class="inline-flex items-center rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
-                Close
-            </button>
-        </div>
-        <div class="max-h-[70vh] overflow-y-auto overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-gray-50/50 dark:bg-gray-800/50 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
-                        <th class="px-6 py-4">Changed At</th>
-                        <th class="px-6 py-4">Change</th>
-                    </tr>
-                </thead>
-                <tbody id="budgetHistoryModalBody" class="divide-y divide-gray-100 dark:divide-gray-700 text-sm">
-                    <tr>
-                        <td colspan="2" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">Select a monthly budget row to view history.</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+@* Restore confirmation modal *@
+<div id="restoreModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" aria-modal="true" role="dialog">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeModal('restoreModal')"></div>
+    <div class="relative z-10 w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl p-6">
+        <h3 class="text-base font-bold text-gray-900 dark:text-white mb-1">Restore Budget</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-5" id="restoreModalMsg">Restore this budget?</p>
+        <form id="restoreForm" method="post" action="@Url.Action("RestoreFinancialBudget")">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="budgetId" id="restoreBudgetIdInput" value="" />
+            <input type="hidden" name="showArchivedBudgets" value="true" />
+            <input type="hidden" name="budgetMonth" value="@selectedMonthKey" />
+            <div class="flex gap-3">
+                <button type="button" onclick="closeModal('restoreModal')"
+                        class="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+                    Cancel
+                </button>
+                <button type="submit" class="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition">
+                    Restore Budget
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
-@section Scripts {
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const viewBudgetMonthForm = document.getElementById('viewBudgetMonthForm');
-            const viewBudgetMonthInput = document.getElementById('viewBudgetMonth');
-            const budgetSaveForm = document.getElementById('budgetSaveForm');
-            const budgetAmountInput = document.getElementById('budgetAmount');
-            const changeReasonInput = document.getElementById('changeReason');
-            const budgetSaveButton = document.getElementById('budgetSaveButton');
-            const budgetSaveInlineError = document.getElementById('budgetSaveInlineError');
-            const budgetChangeReview = document.getElementById('budgetChangeReview');
-            const budgetChangeReviewText = document.getElementById('budgetChangeReviewText');
-            const budgetActionModal = document.getElementById('budgetActionModal');
-            const budgetActionForm = document.getElementById('budgetActionForm');
-            const budgetActionModalTitle = document.getElementById('budgetActionModalTitle');
-            const budgetActionModalDescription = document.getElementById('budgetActionModalDescription');
-            const budgetActionBudgetIdInput = document.getElementById('budgetActionBudgetId');
-            const budgetActionShowArchivedInput = document.getElementById('budgetActionShowArchived');
-            const budgetActionMonthInput = document.getElementById('budgetActionMonth');
-            const budgetActionConfirmButton = document.getElementById('budgetActionConfirmButton');
-            const budgetActionCancelButton = document.getElementById('budgetActionCancelButton');
-            const budgetHistoryModal = document.getElementById('budgetHistoryModal');
-            const budgetHistoryMonthLabel = document.getElementById('budgetHistoryMonthLabel');
-            const budgetHistoryModalBody = document.getElementById('budgetHistoryModalBody');
+@* History detail modal (for table row history button) *@
+<div id="historyModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" aria-modal="true" role="dialog">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeModal('historyModal')"></div>
+    <div class="relative z-10 w-full max-w-lg rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl p-6 max-h-[80vh] flex flex-col">
+        <div class="flex items-center justify-between mb-4 flex-shrink-0">
+            <h3 class="text-base font-bold text-gray-900 dark:text-white" id="historyModalTitle">Budget History</h3>
+            <button type="button" onclick="closeModal('historyModal')" class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div id="historyModalBody" class="overflow-y-auto flex-1 space-y-3 pr-1"></div>
+    </div>
+</div>
 
-            const currencyFormatter = new Intl.NumberFormat('en-PH', {
-                style: 'currency',
-                currency: 'PHP',
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
+@* ─── History data for JS ─── *@
+@{
+    var allHistoryData = Model.MonthlyBudgets
+        .Where(b => b.History.Any())
+        .ToDictionary(b => b.BudgetId, b => b.History.Select(h => new { h.Action, h.EventType, h.ChangedAtLabel }).ToList());
+    var historyJson = JsonSerializer.Serialize(allHistoryData);
+}
+<script>
+    const __budgetHistoryData = @Html.Raw(historyJson);
+    const __trendLabels = @Html.Raw(trendLabelsJson);
+    const __trendActual = @Html.Raw(trendActualJson);
+    const __trendBudget = @Html.Raw(trendBudgetJson);
+</script>
 
-            const archiveBudgetActionUrl = budgetActionModal?.dataset.archiveActionUrl ?? '';
-            const restoreBudgetActionUrl = budgetActionModal?.dataset.restoreActionUrl ?? '';
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+<script>
+(function() {
+    // ── Month navigation ──────────────────────────────────────────────────────
+    const monthPicker = document.getElementById('budgetMonthPicker');
+    if (monthPicker) {
+        monthPicker.addEventListener('change', function() {
+            const val = this.value;
+            if (!val) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set('budgetMonth', val);
+            url.searchParams.delete('budgetId');
+            window.location.href = url.toString();
+        });
+    }
 
-            const closeBudgetActionModal = () => {
-                if (!budgetActionModal) {
+    // ── Reason field visibility ───────────────────────────────────────────────
+    const amountInput = document.getElementById('budgetAmountInput');
+    const reasonWrapper = document.getElementById('budgetReasonWrapper');
+    const isEditing = @(isEditingExistingBudget ? "true" : "false");
+    const initialAmount = parseFloat(@Model.BudgetAmount.ToString("0.##", CultureInfo.InvariantCulture));
+
+    function updateReasonVisibility() {
+        if (!amountInput || !reasonWrapper) return;
+        const current = parseFloat(amountInput.value) || 0;
+        const changed = Math.abs(current - initialAmount) > 0.009;
+        if (isEditing && changed) {
+            reasonWrapper.classList.remove('hidden');
+        } else {
+            reasonWrapper.classList.add('hidden');
+        }
+    }
+    if (amountInput) {
+        amountInput.addEventListener('input', updateReasonVisibility);
+        updateReasonVisibility();
+    }
+
+    // ── Form validation ───────────────────────────────────────────────────────
+    const saveForm = document.getElementById('budgetSaveForm');
+    if (saveForm) {
+        saveForm.addEventListener('submit', function(e) {
+            const amount = parseFloat(amountInput?.value) || 0;
+            if (amount < 0) {
+                e.preventDefault();
+                alert('Please enter a valid budget amount.');
+                return;
+            }
+            const reasonInput = document.getElementById('changeReasonInput');
+            if (isEditing && Math.abs(amount - initialAmount) > 0.009) {
+                if (!reasonInput?.value.trim()) {
+                    e.preventDefault();
+                    reasonInput?.focus();
+                    reasonInput?.classList.add('border-red-500');
+                    alert('Please enter a reason for the budget change.');
                     return;
                 }
+            }
+        });
+    }
 
-                budgetActionModal.classList.add('hidden');
-                budgetActionModal.classList.remove('flex');
-                document.body.classList.remove('overflow-hidden');
-            };
+    // ── Modals ────────────────────────────────────────────────────────────────
+    window.openModal = function(id) {
+        const el = document.getElementById(id);
+        if (el) { el.classList.remove('hidden'); el.classList.add('flex'); }
+    };
+    window.closeModal = function(id) {
+        const el = document.getElementById(id);
+        if (el) { el.classList.add('hidden'); el.classList.remove('flex'); }
+    };
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') ['archiveModal','restoreModal','historyModal'].forEach(closeModal); });
 
-            const openBudgetActionModal = (triggerElement) => {
-                if (!budgetActionModal || !budgetActionForm || !triggerElement) {
-                    return;
-                }
+    // Archive trigger
+    const archiveBtn = document.getElementById('archiveBudgetBtn');
+    if (archiveBtn) {
+        archiveBtn.addEventListener('click', function() {
+            const budgetId = this.dataset.budgetId;
+            const budgetMonth = this.dataset.budgetMonth;
+            document.getElementById('archiveBudgetIdInput').value = budgetId;
+            document.getElementById('archiveModalMsg').textContent = `Archive the budget for ${budgetMonth}? Linked procurements will prevent archiving.`;
+            openModal('archiveModal');
+        });
+    }
 
-                const actionType = triggerElement.getAttribute('data-budget-action-type');
-                const monthLabel = triggerElement.getAttribute('data-month-label') ?? 'selected month';
-                const monthKey = triggerElement.getAttribute('data-month-key') ?? '';
-                const budgetIdValue = triggerElement.getAttribute('data-budget-id') ?? '';
-                const showArchivedValue = triggerElement.getAttribute('data-show-archived') ?? 'false';
-                const isArchiveAction = actionType === 'archive';
-                const actionUrl = isArchiveAction ? archiveBudgetActionUrl : restoreBudgetActionUrl;
+    // Restore trigger
+    const restoreBtn = document.getElementById('restoreBudgetBtn');
+    if (restoreBtn) {
+        restoreBtn.addEventListener('click', function() {
+            const budgetId = this.dataset.budgetId;
+            const budgetMonth = this.dataset.budgetMonth;
+            document.getElementById('restoreBudgetIdInput').value = budgetId;
+            document.getElementById('restoreModalMsg').textContent = `Restore the archived budget for ${budgetMonth} back to active?`;
+            openModal('restoreModal');
+        });
+    }
 
-                if (!actionUrl) {
-                    return;
-                }
+    // History modal
+    window.openHistoryModal = function(budgetId) {
+        const events = __budgetHistoryData[budgetId] || [];
+        const dotColors = {
+            create: '#6366f1', update: '#8b5cf6', reserve: '#f59e0b',
+            spend: '#ef4444', release: '#10b981', archive: '#6b7280', restore: '#3b82f6'
+        };
+        const labels = {
+            create: 'Created', update: 'Updated', reserve: 'Reserved',
+            spend: 'Spent', release: 'Released', archive: 'Archived', restore: 'Restored'
+        };
+        const body = document.getElementById('historyModalBody');
+        body.innerHTML = events.length === 0
+            ? '<p class="text-sm text-gray-400 text-center py-6">No history available.</p>'
+            : events.map(ev => {
+                const type = (ev.EventType || '').toLowerCase();
+                const color = dotColors[type] || '#9ca3af';
+                const label = labels[type] || 'Event';
+                return `<div class="flex gap-3 pb-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
+                    <div class="flex-shrink-0 mt-1">
+                        <div class="event-dot" style="background:${color}"></div>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 mb-0.5">
+                            <span class="text-[10px] font-bold uppercase" style="color:${color}">${label}</span>
+                            <span class="text-[10px] text-gray-400">${ev.ChangedAtLabel}</span>
+                        </div>
+                        <p class="text-xs text-gray-700 dark:text-gray-300">${ev.Action}</p>
+                    </div>
+                </div>`;
+            }).join('');
+        document.getElementById('historyModalTitle').textContent = `Budget #${budgetId} History`;
+        openModal('historyModal');
+    };
 
-                budgetActionForm.setAttribute('action', actionUrl);
+    // ── History search filter ─────────────────────────────────────────────────
+    window.filterHistory = function(query) {
+        const q = query.toLowerCase();
+        document.querySelectorAll('.history-event-item').forEach(el => {
+            const text = el.dataset.action || '';
+            el.style.display = text.includes(q) ? '' : 'none';
+        });
+    };
 
-                if (budgetActionBudgetIdInput) {
-                    budgetActionBudgetIdInput.value = budgetIdValue;
-                }
+    // ── Section collapse ──────────────────────────────────────────────────────
+    window.toggleSection = function(bodyId, sectionId) {
+        const body = document.getElementById(bodyId);
+        const btn = document.querySelector(`#${sectionId} button`);
+        if (!body) return;
+        const isOpen = !body.classList.contains('hidden');
+        body.classList.toggle('hidden', isOpen);
+        if (btn) btn.classList.toggle('open', !isOpen);
+    };
 
-                if (budgetActionShowArchivedInput) {
-                    budgetActionShowArchivedInput.value = showArchivedValue;
-                }
+    // ── Trend Chart ───────────────────────────────────────────────────────────
+    const canvas = document.getElementById('budgetTrendChart');
+    if (canvas && __trendLabels.length > 0) {
+        const isDark = document.documentElement.classList.contains('dark');
+        const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+        const textColor = isDark ? '#9ca3af' : '#6b7280';
 
-                if (budgetActionMonthInput) {
-                    budgetActionMonthInput.value = monthKey;
-                }
-
-                if (budgetActionModalTitle) {
-                    budgetActionModalTitle.textContent = isArchiveAction
-                        ? `Archive ${monthLabel}?`
-                        : `Restore ${monthLabel}?`;
-                }
-
-                if (budgetActionModalDescription) {
-                    budgetActionModalDescription.textContent = isArchiveAction
-                        ? 'This month budget will move to Archived and be removed from the active list. You can restore it later.'
-                        : 'This archived month budget will become active again and return to the active workspace list.';
-                }
-
-                if (budgetActionConfirmButton) {
-                    budgetActionConfirmButton.textContent = isArchiveAction ? 'Archive Budget' : 'Restore Budget';
-                    budgetActionConfirmButton.className = isArchiveAction
-                        ? 'inline-flex items-center rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700'
-                        : 'inline-flex items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700';
-                }
-
-                budgetActionModal.classList.remove('hidden');
-                budgetActionModal.classList.add('flex');
-                document.body.classList.add('overflow-hidden');
-            };
-
-            document.querySelectorAll('[data-budget-action-trigger="true"]').forEach((triggerButton) => {
-                triggerButton.addEventListener('click', () => {
-                    openBudgetActionModal(triggerButton);
-                });
-            });
-
-            budgetActionCancelButton?.addEventListener('click', () => {
-                closeBudgetActionModal();
-            });
-
-            budgetActionForm?.addEventListener('submit', () => {
-                if (budgetActionConfirmButton) {
-                    budgetActionConfirmButton.disabled = true;
-                    budgetActionConfirmButton.classList.add('opacity-70', 'cursor-not-allowed');
-                }
-            });
-
-            const emptyHistoryRowMarkup = '<tr><td colspan="2" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No budget history available for this month.</td></tr>';
-
-            const escapeHtml = (value) => String(value ?? '')
-                .replaceAll('&', '&amp;')
-                .replaceAll('<', '&lt;')
-                .replaceAll('>', '&gt;')
-                .replaceAll('"', '&quot;')
-                .replaceAll("'", '&#39;');
-
-            const formatHistoryTimestamp = (rawDateValue) => {
-                const parsedDate = new Date(rawDateValue);
-                return Number.isNaN(parsedDate.getTime())
-                    ? '-'
-                    : parsedDate.toLocaleString(undefined, {
-                        month: 'short',
-                        day: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    });
-            };
-
-            const parseHistoryItems = (rawHistory) => {
-                if (!rawHistory) {
-                    return [];
-                }
-
-                try {
-                    const parsed = JSON.parse(rawHistory);
-                    return Array.isArray(parsed) ? parsed : [];
-                } catch {
-                    return [];
-                }
-            };
-
-            const renderHistoryRows = (historyItems) => {
-                if (!budgetHistoryModalBody) {
-                    return;
-                }
-
-                if (!Array.isArray(historyItems) || historyItems.length === 0) {
-                    budgetHistoryModalBody.innerHTML = emptyHistoryRowMarkup;
-                    return;
-                }
-
-                budgetHistoryModalBody.innerHTML = historyItems
-                    .map((item) => {
-                        const changedAt = item.ChangedAtLabel ?? item.changedAtLabel ?? formatHistoryTimestamp(item.ChangedAtUtc ?? item.changedAtUtc);
-                        const rawAction = String(item.Action ?? item.action ?? '');
-                        const cleanedAction = rawAction
-                            .replace(/\[BudgetId:\d+\]\s*/g, '')
-                            .replace(/\[Month:\d{4}-\d{2}\]\s*/g, '')
-                            .trim();
-                        const action = escapeHtml(cleanedAction);
-
-                        return `
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">${changedAt}</td>
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">${action}</td>
-                            </tr>`;
-                    })
-                    .join('');
-            };
-
-            window.openBudgetHistoryModal = (triggerElement) => {
-                if (!budgetHistoryModal || !triggerElement) {
-                    return;
-                }
-
-                const monthLabel = triggerElement.getAttribute('data-month-label');
-                const historyItems = parseHistoryItems(triggerElement.getAttribute('data-history'));
-
-                if (budgetHistoryMonthLabel) {
-                    budgetHistoryMonthLabel.textContent = monthLabel
-                        ? `- ${monthLabel}`
-                        : '';
-                }
-
-                renderHistoryRows(historyItems);
-                budgetHistoryModal.classList.remove('hidden');
-                budgetHistoryModal.classList.add('flex');
-                document.body.classList.add('overflow-hidden');
-            };
-
-            window.closeBudgetHistoryModal = () => {
-                if (!budgetHistoryModal) {
-                    return;
-                }
-
-                budgetHistoryModal.classList.add('hidden');
-                budgetHistoryModal.classList.remove('flex');
-                document.body.classList.remove('overflow-hidden');
-            };
-
-            viewBudgetMonthInput?.addEventListener('change', () => {
-                viewBudgetMonthForm?.submit();
-            });
-
-            const hideSaveInlineError = () => {
-                if (!budgetSaveInlineError) {
-                    return;
-                }
-
-                budgetSaveInlineError.textContent = '';
-                budgetSaveInlineError.classList.add('hidden');
-            };
-
-            const showSaveInlineError = (message) => {
-                if (!budgetSaveInlineError) {
-                    return;
-                }
-
-                budgetSaveInlineError.textContent = message;
-                budgetSaveInlineError.classList.remove('hidden');
-            };
-
-            const getInitialBudgetAmount = () => {
-                const parsedInitialAmount = Number.parseFloat(budgetSaveForm?.dataset.initialAmount ?? '0');
-                return Number.isFinite(parsedInitialAmount) ? parsedInitialAmount : 0;
-            };
-
-            const getEnteredBudgetAmount = () => {
-                const parsedAmount = Number.parseFloat(budgetAmountInput?.value ?? '');
-                return Number.isFinite(parsedAmount) ? parsedAmount : Number.NaN;
-            };
-
-            const hasBudgetAmountChanged = (initialAmount, enteredAmount) =>
-                Number.isFinite(enteredAmount) &&
-                Math.abs(enteredAmount - initialAmount) > 0.0001;
-
-            const formatSignedCurrency = (amount) => {
-                const absoluteAmount = Math.abs(amount);
-                const signPrefix = amount > 0.0001
-                    ? '+'
-                    : amount < -0.0001
-                        ? '-'
-                        : '';
-                return `${signPrefix}${currencyFormatter.format(absoluteAmount)}`;
-            };
-
-            const syncBudgetSaveGuardrails = () => {
-                if (!budgetSaveForm) {
-                    return;
-                }
-
-                const isEditing = budgetSaveForm.dataset.isEditing === 'true';
-                const selectedMonthLabel = budgetSaveForm.dataset.selectedMonthLabel ?? '';
-                const initialAmount = getInitialBudgetAmount();
-                const enteredAmount = getEnteredBudgetAmount();
-                const hasValidAmount = Number.isFinite(enteredAmount) && enteredAmount >= 0;
-                const reason = (changeReasonInput?.value ?? '').trim();
-                const amountChanged = isEditing && hasBudgetAmountChanged(initialAmount, enteredAmount);
-                const reasonRequired = amountChanged;
-                const hasRequiredReason = !reasonRequired || reason.length > 0;
-                const canSubmit = hasValidAmount && hasRequiredReason;
-
-                if (budgetChangeReview) {
-                    budgetChangeReview.classList.toggle('hidden', !amountChanged);
-                }
-
-                if (budgetChangeReviewText && amountChanged && hasValidAmount) {
-                    const deltaAmount = enteredAmount - initialAmount;
-                    budgetChangeReviewText.textContent = `Updating ${selectedMonthLabel} from ${currencyFormatter.format(initialAmount)} to ${currencyFormatter.format(enteredAmount)} (${formatSignedCurrency(deltaAmount)}).`;
-                }
-
-                if (budgetSaveButton) {
-                    budgetSaveButton.disabled = !canSubmit;
-                }
-            };
-
-            changeReasonInput?.addEventListener('input', () => {
-                hideSaveInlineError();
-                syncBudgetSaveGuardrails();
-            });
-
-            budgetAmountInput?.addEventListener('input', () => {
-                hideSaveInlineError();
-                syncBudgetSaveGuardrails();
-            });
-
-            budgetSaveForm?.addEventListener('submit', (event) => {
-                const isEditing = budgetSaveForm.dataset.isEditing === 'true';
-                const initialAmount = getInitialBudgetAmount();
-                const enteredAmount = getEnteredBudgetAmount();
-                const reason = (changeReasonInput?.value ?? '').trim();
-                const amountChanged = isEditing && hasBudgetAmountChanged(initialAmount, enteredAmount);
-
-                if (!Number.isFinite(enteredAmount) || enteredAmount < 0) {
-                    event.preventDefault();
-                    showSaveInlineError('Enter a valid budget amount before saving.');
-                    budgetAmountInput?.focus();
-                    return;
-                }
-
-                if (isEditing && amountChanged && !reason) {
-                    event.preventDefault();
-                    showSaveInlineError('Enter a reason before updating an existing budget amount.');
-                    changeReasonInput?.focus();
-                    return;
-                }
-
-                if (isEditing && amountChanged) {
-                    const selectedMonthLabel = budgetSaveForm.dataset.selectedMonthLabel ?? 'selected month';
-                    const shouldContinue = window.confirm(
-                        `Update ${selectedMonthLabel} budget from ${currencyFormatter.format(initialAmount)} to ${currencyFormatter.format(enteredAmount)}?`);
-                    if (!shouldContinue) {
-                        event.preventDefault();
-                        return;
+        new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: __trendLabels,
+                datasets: [
+                    {
+                        label: 'Actual Revenue',
+                        data: __trendActual,
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99,102,241,0.08)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
+                    },
+                    {
+                        label: 'Budget Target',
+                        data: __trendBudget,
+                        borderColor: '#10b981',
+                        borderWidth: 2,
+                        borderDash: [5, 4],
+                        fill: false,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        display: true,
+                        labels: {
+                            color: textColor,
+                            font: { size: 10 },
+                            boxWidth: 20,
+                            padding: 12
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `${ctx.dataset.label}: ₱${ctx.parsed.y.toLocaleString('en-PH', {minimumFractionDigits:2})}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: textColor, font: { size: 9 }, maxRotation: 0, maxTicksLimit: 8 },
+                        grid: { color: gridColor }
+                    },
+                    y: {
+                        ticks: {
+                            color: textColor,
+                            font: { size: 9 },
+                            callback: v => '₱' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v)
+                        },
+                        grid: { color: gridColor }
                     }
                 }
-
-                hideSaveInlineError();
-            });
-
-            syncBudgetSaveGuardrails();
-
-            budgetActionModal?.addEventListener('click', (event) => {
-                if (event.target === budgetActionModal) {
-                    closeBudgetActionModal();
-                }
-            });
-
-            budgetHistoryModal?.addEventListener('click', (event) => {
-                if (event.target === budgetHistoryModal) {
-                    window.closeBudgetHistoryModal();
-                }
-            });
-
-            document.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape' && budgetActionModal && !budgetActionModal.classList.contains('hidden')) {
-                    closeBudgetActionModal();
-                    return;
-                }
-
-                if (event.key === 'Escape' && budgetHistoryModal && !budgetHistoryModal.classList.contains('hidden')) {
-                    window.closeBudgetHistoryModal();
-                }
-            });
+            }
         });
-    </script>
-}
+    }
+
+    // ── Auto-dismiss toast ────────────────────────────────────────────────────
+    const toast = document.getElementById('budget-toast');
+    if (toast) {
+        setTimeout(() => {
+            toast.style.transition = 'opacity .5s';
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 500);
+        }, 6000);
+    }
+})();
+</script>

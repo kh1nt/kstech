@@ -1,0 +1,187 @@
+@{
+    ViewData["Title"] = "MFA Challenge";
+    Layout = "~/Views/Shared/_AuthLayout.cshtml";
+}
+
+<div class="auth-card">
+    <div class="auth-sidebar">
+        <div>
+            <div class="brand-logo mb-0">
+                <img src="~/logo.png" alt="KSTech Logo" />
+                <span>KSTech</span>
+            </div>
+            <p class="small text-white-50 mb-4 mt-2" style="font-size: 0.75rem;">Computer Parts Inventory and Customer Engagement System</p>
+            <h1 class="display-6 fw-bold mb-3">Two-Factor Auth</h1>
+            <p class="lead fs-6 opacity-75">
+                Your account is protected by Multi-Factor Authentication. Enter the 6-digit code from Google Authenticator to sign in.
+            </p>
+        </div>
+        <div class="mt-auto">
+            <p class="small opacity-50 mb-0">&copy; 2026 KSTech System. All rights reserved.</p>
+        </div>
+    </div>
+    <div class="auth-content">
+        <h2 class="fw-bold mb-2">Security Verification</h2>
+        <p class="text-muted mb-4">Open your Google Authenticator or other TOTP app to retrieve your code.</p>
+
+        @if (ViewBag.Error != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @ViewBag.Error
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+
+        <form asp-action="VerifyMfa" method="post" id="mfa-form">
+            <input type="hidden" name="code" id="mfa-code" />
+
+            <div class="mb-4">
+                <label class="form-label text-muted small fw-semibold d-block text-center mb-3">6-Digit Authenticator Code</label>
+                <div class="d-flex justify-content-center gap-2" id="otp-inputs">
+                    <input type="text" maxlength="1" class="form-control otp-digit text-center fw-bold fs-4" style="width: 50px; height: 55px;" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="form-control otp-digit text-center fw-bold fs-4" style="width: 50px; height: 55px;" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="form-control otp-digit text-center fw-bold fs-4" style="width: 50px; height: 55px;" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="form-control otp-digit text-center fw-bold fs-4" style="width: 50px; height: 55px;" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="form-control otp-digit text-center fw-bold fs-4" style="width: 50px; height: 55px;" required pattern="[0-9]" inputmode="numeric" />
+                    <input type="text" maxlength="1" class="form-control otp-digit text-center fw-bold fs-4" style="width: 50px; height: 55px;" required pattern="[0-9]" inputmode="numeric" />
+                </div>
+            </div>
+
+            <div class="mb-4 d-none" id="backup-code-container">
+                <label class="form-label text-muted small fw-semibold d-block text-center mb-3">8-Digit Backup Recovery Code</label>
+                <input type="text" id="backup-code-input" maxlength="8" class="form-control text-center fw-bold fs-4 tracking-wider mx-auto" style="width: 220px; height: 55px;" placeholder="00000000" inputmode="numeric" pattern="[0-9]*" />
+            </div>
+
+            <div class="text-center mb-4">
+                <a href="#" id="toggle-backup-codes" class="text-decoration-none small fw-semibold" style="color: #236460;">Use a backup recovery code</a>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 mb-4 py-2 fw-semibold">Verify & Sign In</button>
+
+            <div class="text-center">
+                <p class="small text-muted">
+                    Lost access? Use one of your saved backup codes above or contact support.
+                </p>
+                <p class="small text-muted">
+                    Back to <a href="@Url.Action("Login", "Account")" class="text-decoration-none fw-bold" style="color: #236460;">Sign In</a>
+                </p>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            const inputs = $('.otp-digit');
+            let usingBackupCode = false;
+            
+            // Focus the first input on load
+            inputs.first().focus();
+
+            $('#toggle-backup-codes').on('click', function (e) {
+                e.preventDefault();
+                usingBackupCode = !usingBackupCode;
+                if (usingBackupCode) {
+                    $('#otp-inputs').parent().addClass('d-none');
+                    $('#backup-code-container').removeClass('d-none');
+                    $(this).text('Use standard authenticator code');
+                    $('.otp-digit').removeAttr('required');
+                    $('#backup-code-input').attr('required', 'required').focus();
+                } else {
+                    $('#otp-inputs').parent().removeClass('d-none');
+                    $('#backup-code-container').addClass('d-none');
+                    $(this).text('Use a backup recovery code');
+                    $('#backup-code-input').removeAttr('required');
+                    $('.otp-digit').attr('required', 'required');
+                    inputs.first().focus();
+                }
+            });
+
+            inputs.each(function (index) {
+                $(this).on('input', function (e) {
+                    const val = $(this).val();
+                    
+                    if (!/^\d$/.test(val)) {
+                        $(this).val('');
+                        return;
+                    }
+
+                    if (val && index < inputs.length - 1) {
+                        inputs.eq(index + 1).focus();
+                    }
+                    
+                    combineOtp();
+
+                    // Auto-submit if all digits are entered
+                    if (allDigitsFilled()) {
+                        $('#mfa-form').submit();
+                    }
+                });
+
+                $(this).on('keydown', function (e) {
+                    if (e.key === 'Backspace') {
+                        if (!$(this).val() && index > 0) {
+                            inputs.eq(index - 1).focus().val('');
+                        } else {
+                            $(this).val('');
+                        }
+                        combineOtp();
+                    }
+                });
+
+                $(this).on('paste', function (e) {
+                    e.preventDefault();
+                    const clipboardData = (e.originalEvent || e).clipboardData || window.clipboardData;
+                    const pastedData = clipboardData.getData('text').trim();
+
+                    if (/^\d{6}$/.test(pastedData)) {
+                        inputs.each(function (i) {
+                            $(this).val(pastedData[i]);
+                        });
+                        inputs.last().focus();
+                        combineOtp();
+                        $('#mfa-form').submit();
+                    }
+                });
+            });
+
+            function combineOtp() {
+                let code = '';
+                inputs.each(function () {
+                    code += $(this).val();
+                });
+                $('#mfa-code').val(code);
+            }
+
+            function allDigitsFilled() {
+                let filled = true;
+                inputs.each(function () {
+                    if (!$(this).val()) {
+                        filled = false;
+                    }
+                });
+                return filled;
+            }
+
+            $('#mfa-form').on('submit', function (e) {
+                if (usingBackupCode) {
+                    const backupCode = $('#backup-code-input').val().trim();
+                    if (backupCode.length !== 8 || !/^\d{8}$/.test(backupCode)) {
+                        e.preventDefault();
+                        alert('Please enter your 8-digit backup recovery code.');
+                        return;
+                    }
+                    $('#mfa-code').val(backupCode);
+                } else {
+                    combineOtp();
+                    const code = $('#mfa-code').val();
+                    if (code.length !== 6) {
+                        e.preventDefault();
+                        alert('Please enter all 6 digits of the verification code.');
+                    }
+                }
+            });
+        });
+    </script>
+}

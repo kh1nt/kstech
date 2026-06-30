@@ -60,9 +60,18 @@ namespace kstech.Controllers
                     c.Phone,
                     c.MarketingOptIn,
                     c.RegistrationDate,
-                    c.LoyaltyPoints,
-                    c.LifetimePointsEarned,
-                    c.LifetimePointsRedeemed,
+                    LoyaltyPoints = c.TenantLoyalties
+                        .Where(l => l.TenantOwnerUserID == ownerUserId)
+                        .Select(l => l.LoyaltyPoints)
+                        .FirstOrDefault(),
+                    LifetimePointsEarned = c.TenantLoyalties
+                        .Where(l => l.TenantOwnerUserID == ownerUserId)
+                        .Select(l => l.LifetimePointsEarned)
+                        .FirstOrDefault(),
+                    LifetimePointsRedeemed = c.TenantLoyalties
+                        .Where(l => l.TenantOwnerUserID == ownerUserId)
+                        .Select(l => l.LifetimePointsRedeemed)
+                        .FirstOrDefault(),
                     OrderCount = c.Orders.Count(order =>
                         !applyOwnerFilter || order.OwnerUserID == ownerUserId),
                     TotalSpent = c.Orders
