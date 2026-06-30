@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>⚡ KSTech</h1>
+  <h1>KSTech</h1>
   <p><i>Computer Parts Inventory and Customer Engagement System
 
 </i></p>
