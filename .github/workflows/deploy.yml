@@ -46,7 +46,7 @@ jobs:
 
       # 7. Publish/Compile the project into a local folder named 'publish'
       - name: Publish project
-        run: dotnet publish ./kstech/kstech.csproj --configuration Release --no-restore --output ${{ github.workspace }}/publish
+        run: dotnet publish ./kstech/kstech.csproj --configuration Release --no-restore --output publish
 
       # 8. Deploy the compiled files to MonsterASP via WebDeploy
       - name: Deploy to MonsterASP.NET
@@ -56,4 +56,4 @@ jobs:
           server-computer-name: https://${{ secrets.MONSTERASP_SERVER }}:8172/msdeploy.axd
           server-username: ${{ secrets.MONSTERASP_USERNAME }}
           server-password: ${{ secrets.MONSTERASP_PASSWORD }}
-          source-path: ${{ github.workspace }}/publish
+          source-path: publish
