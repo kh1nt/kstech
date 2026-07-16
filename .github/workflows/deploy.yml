@@ -53,7 +53,7 @@ jobs:
         uses: rasmusbuchholdt/simply-web-deploy@2.1.0
         with:
           website-name: ${{ secrets.MONSTERASP_SITE }}
-          server-computer-name: ${{ secrets.MONSTERASP_SERVER }}
+          server-computer-name: https://${{ secrets.MONSTERASP_SERVER }}:8172/msdeploy.axd
           server-username: ${{ secrets.MONSTERASP_USERNAME }}
           server-password: ${{ secrets.MONSTERASP_PASSWORD }}
           source-path: ./publish
