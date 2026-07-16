@@ -2,7 +2,7 @@
     Layout = null;
 }
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" class="light">
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
@@ -17,33 +17,36 @@
         }
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0f172a;
-            color: #f8fafc;
+            background-color: #f8fafc;
+            color: #0f172a;
         }
         .font-headline {
             font-family: 'Space Grotesk', sans-serif;
         }
+        a {
+            text-decoration: none !important;
+        }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100">
+<body class="bg-slate-50 text-slate-900">
 <!-- TopNavBar -->
-<nav class="fixed top-0 w-full z-50 bg-slate-900 border-b border-slate-800 shadow-md">
+<nav class="fixed top-0 w-full z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
     <div class="flex justify-between items-center px-4 md:px-8 py-3 max-w-7xl mx-auto font-['Space_Grotesk'] tracking-tight">
         <div class="flex items-center gap-3">
             <img src="/logo.png" alt="KSTech Logo" class="h-10 w-auto" />
-            <div class="text-2xl font-bold tracking-tighter text-teal-400">
+            <div class="text-2xl font-bold tracking-tighter text-teal-600">
                 KSTech
             </div>
         </div>
         <div class="hidden md:flex items-center space-x-8">
-            <a class="text-teal-400 border-b-2 border-teal-400 pb-1 font-semibold transition-colors duration-200" href="@Url.Action("Index", "Store")">Hardware</a>
-            <a class="text-slate-300 hover:text-teal-400 pb-1 border-b-2 border-transparent hover:border-slate-700 transition-colors duration-200" href="@Url.Action("Index", "Store")">Storefront</a>
-            <a class="text-slate-300 hover:text-teal-400 pb-1 border-b-2 border-transparent hover:border-slate-700 transition-colors duration-200" href="@Url.Action("Login", "Account")">ERP</a>
-            <a class="text-slate-300 hover:text-teal-400 pb-1 border-b-2 border-transparent hover:border-slate-700 transition-colors duration-200" href="#">Systems</a>
-            <a class="text-slate-300 hover:text-teal-400 pb-1 border-b-2 border-transparent hover:border-slate-700 transition-colors duration-200" href="#">Support</a>
+            <a class="text-teal-600 font-semibold transition-colors duration-200" href="@Url.Action("Index", "Store")">Hardware</a>
+            <a class="text-slate-600 hover:text-teal-600 transition-colors duration-200" href="@Url.Action("Index", "Store")">Storefront</a>
+            <a class="text-slate-600 hover:text-teal-600 transition-colors duration-200" href="@Url.Action("Login", "Account")">ERP</a>
+            <a class="text-slate-600 hover:text-teal-600 transition-colors duration-200" href="#">Systems</a>
+            <a class="text-slate-600 hover:text-teal-600 transition-colors duration-200" href="#">Support</a>
         </div>
         <div class="flex items-center space-x-3">
-            <a href="@Url.Action("Login", "Store")" class="hidden sm:inline-flex items-center justify-center px-4 py-2 text-slate-300 border border-slate-700 rounded-md hover:bg-slate-800 transition-colors duration-200 text-sm font-medium">
+            <a href="@Url.Action("Login", "Store")" class="hidden sm:inline-flex items-center justify-center px-4 py-2 text-slate-700 border border-slate-200 rounded-md hover:bg-slate-100 transition-colors duration-200 text-sm font-medium">
                 Client Login
             </a>
             <a href="@Url.Action("Index", "Store")" class="inline-flex items-center justify-center px-5 py-2 bg-teal-600 hover:bg-teal-500 text-white font-semibold rounded-md transition-colors duration-200 text-sm">
@@ -57,14 +60,14 @@
 <section class="relative min-h-[80vh] flex items-center px-6 lg:px-24">
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center w-full max-w-7xl mx-auto py-12 lg:py-0">
         <div class="space-y-8">
-            <div class="inline-flex items-center px-3 py-1 bg-teal-950/50 rounded-full border border-teal-900">
-                <span class="w-2 h-2 rounded-full bg-teal-400 mr-2 animate-pulse"></span>
-                <span class="text-xs font-bold uppercase tracking-wider text-teal-300">Store Status: Online</span>
+            <div class="inline-flex items-center px-3 py-1 bg-teal-50 rounded-full border border-teal-100">
+                <span class="w-2 h-2 rounded-full bg-teal-500 mr-2 animate-pulse"></span>
+                <span class="text-xs font-bold uppercase tracking-wider text-teal-700">Store Status: Online</span>
             </div>
-            <h1 class="text-5xl lg:text-6xl font-headline font-bold leading-[1.1] tracking-tighter text-slate-50">
-                Build the Future of <span class="text-teal-400">High-Performance</span> Desktop Systems
+            <h1 class="text-5xl lg:text-6xl font-headline font-bold leading-[1.1] tracking-tighter text-slate-900">
+                Build the Future of <span class="text-teal-600">High-Performance</span> Desktop Systems
             </h1>
-            <p class="text-lg text-slate-300 max-w-xl leading-relaxed">
+            <p class="text-lg text-slate-600 max-w-xl leading-relaxed">
                 The definitive ecosystem for hardware enthusiasts and enterprise management. Combining consumer retail excellence with robust backend precision.
             </p>
             <div class="flex flex-wrap gap-4 pt-2">
@@ -72,31 +75,31 @@
                     Enter Storefront
                     <span class="material-symbols-outlined text-lg">arrow_forward</span>
                 </a>
-                <a href="@Url.Action("Login", "Account")" class="px-6 py-3 border border-slate-700 text-slate-300 font-semibold rounded-md text-base hover:bg-slate-800 transition-colors inline-flex items-center justify-center">
+                <a href="@Url.Action("Login", "Account")" class="px-6 py-3 border border-slate-200 text-slate-700 font-semibold rounded-md text-base hover:bg-slate-100 transition-colors inline-flex items-center justify-center">
                     Access ERP
                 </a>
             </div>
         </div>
         <div class="hidden lg:block">
-            <img alt="High-end PC Hardware" class="w-full rounded-xl border border-slate-800 shadow-md" src="/images/hero_hardware.png"/>
+            <img alt="High-end PC Hardware" class="w-full rounded-xl border border-slate-200 shadow-lg" src="/images/hero_hardware.png"/>
         </div>
     </div>
 </section>
 <!-- Dual Gateway Section -->
-<section class="py-20 px-6 lg:px-24 bg-slate-950/20 border-t border-slate-800">
+<section class="py-20 px-6 lg:px-24 bg-slate-100/50 border-t border-slate-200">
     <div class="max-w-7xl mx-auto">
         <div class="text-center mb-16">
-            <h2 class="text-3xl font-headline font-bold text-slate-50">Integrated Ecosystem</h2>
+            <h2 class="text-3xl font-headline font-bold text-slate-900">Integrated Ecosystem</h2>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <!-- Customer Storefront -->
-            <div class="relative rounded-xl bg-slate-900/60 border border-slate-800 p-8 flex flex-col justify-between hover:border-slate-750 hover:bg-slate-850 transition-all shadow-sm">
+            <div class="relative rounded-xl bg-white border border-slate-200 p-8 flex flex-col justify-between hover:border-slate-300 hover:bg-slate-50/50 transition-all shadow-md">
                 <div>
-                    <div class="w-12 h-12 bg-teal-950/50 rounded-lg border border-teal-900 flex items-center justify-center mb-6 text-teal-400">
+                    <div class="w-12 h-12 bg-teal-50 rounded-lg border border-teal-100 flex items-center justify-center mb-6 text-teal-600">
                         <span class="material-symbols-outlined text-2xl">storefront</span>
                     </div>
-                    <h3 class="text-2xl font-headline font-bold mb-3 text-slate-50">Customer Storefront</h3>
-                    <p class="text-slate-300 text-base leading-relaxed mb-8">
+                    <h3 class="text-2xl font-headline font-bold mb-3 text-slate-900">Customer Storefront</h3>
+                    <p class="text-slate-600 text-base leading-relaxed mb-8">
                         Browse our curated catalog of high-performance components. Features native Steam compatibility checks, live inventory, and 1-click checkout.
                     </p>
                 </div>
@@ -106,17 +109,17 @@
                 </a>
             </div>
             <!-- ERP System -->
-            <div class="relative rounded-xl bg-slate-900/60 border border-slate-800 p-8 flex flex-col justify-between hover:border-slate-750 hover:bg-slate-850 transition-all shadow-sm">
+            <div class="relative rounded-xl bg-white border border-slate-200 p-8 flex flex-col justify-between hover:border-slate-300 hover:bg-slate-50/50 transition-all shadow-md">
                 <div>
-                    <div class="w-12 h-12 bg-slate-800/50 rounded-lg border border-slate-700 flex items-center justify-center mb-6 text-slate-300">
+                    <div class="w-12 h-12 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center mb-6 text-slate-600">
                         <span class="material-symbols-outlined text-2xl">analytics</span>
                     </div>
-                    <h3 class="text-2xl font-headline font-bold mb-3 text-slate-50">Management Hub (ERP)</h3>
+                    <h3 class="text-2xl font-headline font-bold mb-3 text-slate-900">Management Hub (ERP)</h3>
                     <p class="text-slate-600 text-base leading-relaxed mb-8">
                         Control your operations with real-time inventory tracking, multi-channel sales analytics, and automated CRM integration for your team.
                     </p>
                 </div>
-                <a href="@Url.Action("Login", "Account")" class="w-fit px-5 py-2.5 border border-slate-300 text-slate-300 font-semibold rounded-md inline-flex items-center justify-center gap-2 hover:bg-slate-800 hover:text-white transition-colors">
+                <a href="@Url.Action("Login", "Account")" class="w-fit px-5 py-2.5 border border-slate-200 text-slate-700 font-semibold rounded-md inline-flex items-center justify-center gap-2 hover:bg-slate-100 transition-colors">
                     Staff Login
                     <span class="material-symbols-outlined text-xl">login</span>
                 </a>
@@ -125,36 +128,36 @@
     </div>
 </section>
 <!-- Features Section -->
-<section class="py-20 px-6 lg:px-24 border-t border-slate-800 bg-slate-950/40">
+<section class="py-20 px-6 lg:px-24 border-t border-slate-200 bg-slate-100/30">
     <div class="max-w-7xl mx-auto">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-12 text-center md:text-left">
             <!-- Feature 1 -->
             <div class="space-y-4">
-                <div class="text-teal-400 inline-flex p-3 rounded-lg bg-teal-950/50 border border-teal-900">
+                <div class="text-teal-600 inline-flex p-3 rounded-lg bg-teal-50 border border-teal-100">
                     <span class="material-symbols-outlined text-3xl">api</span>
                 </div>
-                <h4 class="text-xl font-headline font-bold text-slate-50">Steam API Integration</h4>
-                <p class="text-slate-300 text-sm leading-relaxed">
+                <h4 class="text-xl font-headline font-bold text-slate-900">Steam API Integration</h4>
+                <p class="text-slate-600 text-sm leading-relaxed">
                     Instant verification of hardware requirements for your entire Steam library. Never wonder if a part fits your gaming needs.
                 </p>
             </div>
             <!-- Feature 2 -->
             <div class="space-y-4">
-                <div class="text-teal-400 inline-flex p-3 rounded-lg bg-teal-950/50 border border-teal-900">
+                <div class="text-teal-600 inline-flex p-3 rounded-lg bg-teal-50 border border-teal-100">
                     <span class="material-symbols-outlined text-3xl">sync_saved_locally</span>
                 </div>
-                <h4 class="text-xl font-headline font-bold text-slate-50">Real-time Inventory</h4>
-                <p class="text-slate-300 text-sm leading-relaxed">
+                <h4 class="text-xl font-headline font-bold text-slate-900">Real-time Inventory</h4>
+                <p class="text-slate-600 text-sm leading-relaxed">
                     Live stock updates synced across our storefront and warehouses. Accuracy guaranteed down to the individual serial number.
                 </p>
             </div>
             <!-- Feature 3 -->
             <div class="space-y-4">
-                <div class="text-teal-400 inline-flex p-3 rounded-lg bg-teal-950/50 border border-teal-900">
+                <div class="text-teal-600 inline-flex p-3 rounded-lg bg-teal-50 border border-teal-100">
                     <span class="material-symbols-outlined text-3xl">query_stats</span>
                 </div>
-                <h4 class="text-xl font-headline font-bold text-slate-50">Advanced BI Tools</h4>
-                <p class="text-slate-300 text-sm leading-relaxed">
+                <h4 class="text-xl font-headline font-bold text-slate-900">Advanced BI Tools</h4>
+                <p class="text-slate-600 text-sm leading-relaxed">
                     Deep-dive into sales performance with our proprietary Business Intelligence suite. Manage operations seamlessly.
                 </p>
             </div>
@@ -162,47 +165,47 @@
     </div>
 </section>
 <!-- Spec Grid Section -->
-<section class="py-20 px-6 lg:px-24 bg-slate-900 border-t border-slate-800">
+<section class="py-20 px-6 lg:px-24 bg-white border-t border-slate-200">
     <div class="max-w-7xl mx-auto flex flex-col lg:flex-row gap-16 items-center">
         <div class="lg:w-1/2 order-2 lg:order-1 w-full">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="bg-slate-950/30 p-6 rounded-lg border border-slate-800 flex flex-col items-center text-center shadow-sm">
-                    <div class="text-teal-400 mb-4 p-2.5 rounded-full bg-teal-950/50 border border-teal-900">
+                <div class="bg-slate-50 p-6 rounded-lg border border-slate-200/80 flex flex-col items-center text-center shadow-sm">
+                    <div class="text-teal-600 mb-4 p-2.5 rounded-full bg-teal-50 border border-teal-100">
                         <span class="material-symbols-outlined text-2xl">local_shipping</span>
                     </div>
-                    <h5 class="text-lg font-headline font-bold mb-2 text-slate-50">Same-Day Shipping</h5>
-                    <p class="text-slate-450 text-xs text-slate-400">Orders placed before 5 PM ship the exact same day.</p>
+                    <h5 class="text-lg font-headline font-bold mb-2 text-slate-900">Same-Day Shipping</h5>
+                    <p class="text-xs text-slate-600">Orders placed before 5 PM ship the exact same day.</p>
                 </div>
-                <div class="bg-slate-950/30 p-6 rounded-lg border border-slate-800 flex flex-col items-center text-center shadow-sm">
-                    <div class="text-teal-400 mb-4 p-2.5 rounded-full bg-teal-950/50 border border-teal-900">
+                <div class="bg-slate-50 p-6 rounded-lg border border-slate-200/80 flex flex-col items-center text-center shadow-sm">
+                    <div class="text-teal-600 mb-4 p-2.5 rounded-full bg-teal-50 border border-teal-100">
                         <span class="material-symbols-outlined text-2xl">verified</span>
                     </div>
-                    <h5 class="text-lg font-headline font-bold mb-2 text-slate-50">Extended Warranty</h5>
-                    <p class="text-slate-450 text-xs text-slate-400">Every component comes with a KSTech 3-Year Guarantee.</p>
+                    <h5 class="text-lg font-headline font-bold mb-2 text-slate-900">Extended Warranty</h5>
+                    <p class="text-xs text-slate-600">Every component comes with a KSTech 3-Year Guarantee.</p>
                 </div>
-                <div class="bg-slate-950/30 p-6 rounded-lg border border-slate-800 flex flex-col items-center text-center shadow-sm">
-                    <div class="text-teal-400 mb-4 p-2.5 rounded-full bg-teal-950/50 border border-teal-900">
+                <div class="bg-slate-50 p-6 rounded-lg border border-slate-200/80 flex flex-col items-center text-center shadow-sm">
+                    <div class="text-teal-600 mb-4 p-2.5 rounded-full bg-teal-50 border border-teal-100">
                         <span class="material-symbols-outlined text-2xl">support_agent</span>
                     </div>
-                    <h5 class="text-lg font-headline font-bold mb-2 text-slate-50">Builder Support</h5>
-                    <p class="text-slate-450 text-xs text-slate-400">24/7 technical assistance from our PC building experts.</p>
+                    <h5 class="text-lg font-headline font-bold mb-2 text-slate-900">Builder Support</h5>
+                    <p class="text-xs text-slate-600">24/7 technical assistance from our PC building experts.</p>
                 </div>
-                <div class="bg-slate-950/30 p-6 rounded-lg border border-slate-800 flex flex-col items-center text-center shadow-sm">
-                    <div class="text-teal-400 mb-4 p-2.5 rounded-full bg-teal-950/50 border border-teal-900">
+                <div class="bg-slate-50 p-6 rounded-lg border border-slate-200/80 flex flex-col items-center text-center shadow-sm">
+                    <div class="text-teal-600 mb-4 p-2.5 rounded-full bg-teal-50 border border-teal-100">
                         <span class="material-symbols-outlined text-2xl">price_check</span>
                     </div>
-                    <h5 class="text-lg font-headline font-bold mb-2 text-slate-50">Price Match Promise</h5>
-                    <p class="text-slate-450 text-xs text-slate-400">We guarantee the absolute best prices on the market.</p>
+                    <h5 class="text-lg font-headline font-bold mb-2 text-slate-900">Price Match Promise</h5>
+                    <p class="text-xs text-slate-600">We guarantee the absolute best prices on the market.</p>
                 </div>
             </div>
         </div>
         <div class="lg:w-1/2 order-1 lg:order-2 space-y-6 text-center lg:text-left">
-            <h2 class="text-4xl lg:text-5xl font-headline font-bold tracking-tight text-slate-50">Dedicated to PC Builders</h2>
-            <p class="text-slate-300 text-lg leading-relaxed">
+            <h2 class="text-4xl lg:text-5xl font-headline font-bold tracking-tight text-slate-900">Dedicated to PC Builders</h2>
+            <p class="text-slate-600 text-lg leading-relaxed">
                 KSTech provides top-tier components with unmatched support and logistics. We make sure your build goes smoothly from the moment you order to the final POST screen.
             </p>
             <div class="pt-2">
-                <a href="@Url.Action("Index", "Store")" class="text-teal-400 font-bold hover:underline inline-flex items-center gap-1">
+                <a href="@Url.Action("Index", "Store")" class="text-teal-600 font-bold hover:text-teal-700 inline-flex items-center gap-1">
                     Browse Catalog 
                     <span class="material-symbols-outlined text-lg">chevron_right</span>
                 </a>
@@ -211,42 +214,42 @@
     </div>
 </section>
 <!-- Footer -->
-<footer class="w-full border-t border-slate-800 bg-slate-950/50">
+<footer class="w-full border-t border-slate-200 bg-slate-100">
     <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 px-6 lg:px-12 py-16 font-['Inter'] text-sm tracking-wide">
         <div class="space-y-6 lg:col-span-1">
             <div class="flex items-center gap-2">
                 <img src="/logo.png" alt="KSTech Logo" class="h-8 w-auto" />
-                <div class="text-xl font-bold text-teal-400 tracking-tighter">KSTech</div>
+                <div class="text-xl font-bold text-teal-600 tracking-tighter">KSTech</div>
             </div>
-            <p class="text-slate-400 leading-relaxed pr-4">
+            <p class="text-slate-600 leading-relaxed pr-4">
                 Redefining hardware retail and logistics through technical innovation and uncompromising service.
             </p>
         </div>
         <div class="flex flex-col space-y-4">
-            <h6 class="text-slate-200 font-semibold uppercase tracking-wider text-xs">Solutions</h6>
-            <a class="text-slate-400 hover:text-teal-400 transition-colors duration-300" href="@Url.Action("Index", "Store")">Hardware Solutions</a>
-            <a class="text-slate-400 hover:text-teal-400 transition-colors duration-300" href="@Url.Action("Index", "Store")">Storefront Portal</a>
-            <a class="text-slate-400 hover:text-teal-400 transition-colors duration-300" href="@Url.Action("Login", "Account")">ERP System</a>
+            <h6 class="text-slate-900 font-semibold uppercase tracking-wider text-xs">Solutions</h6>
+            <a class="text-slate-600 hover:text-teal-600 transition-colors duration-300" href="@Url.Action("Index", "Store")">Hardware Solutions</a>
+            <a class="text-slate-600 hover:text-teal-600 transition-colors duration-300" href="@Url.Action("Index", "Store")">Storefront Portal</a>
+            <a class="text-slate-600 hover:text-teal-600 transition-colors duration-300" href="@Url.Action("Login", "Account")">ERP System</a>
         </div>
         <div class="flex flex-col space-y-4">
-            <h6 class="text-slate-200 font-semibold uppercase tracking-wider text-xs">Resources</h6>
-            <a class="text-slate-400 hover:text-teal-400 transition-colors duration-300" href="#">Documentation</a>
-            <a class="text-slate-400 hover:text-teal-400 transition-colors duration-300" href="#">Privacy Policy</a>
-            <a class="text-slate-400 hover:text-teal-400 transition-colors duration-300" href="#">Contact Support</a>
+            <h6 class="text-slate-900 font-semibold uppercase tracking-wider text-xs">Resources</h6>
+            <a class="text-slate-600 hover:text-teal-600 transition-colors duration-300" href="#">Documentation</a>
+            <a class="text-slate-600 hover:text-teal-600 transition-colors duration-300" href="#">Privacy Policy</a>
+            <a class="text-slate-600 hover:text-teal-600 transition-colors duration-300" href="#">Contact Support</a>
         </div>
         <div class="flex flex-col space-y-4">
-            <h6 class="text-slate-200 font-semibold uppercase tracking-wider text-xs">Connect</h6>
+            <h6 class="text-slate-900 font-semibold uppercase tracking-wider text-xs">Connect</h6>
             <div class="flex space-x-4">
-                <div class="w-10 h-10 rounded-lg bg-slate-900 flex items-center justify-center text-slate-300 border border-slate-800 cursor-pointer hover:bg-slate-800 hover:text-teal-400 hover:border-slate-700 transition-all">
+                <div class="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-slate-600 border border-slate-200 cursor-pointer hover:bg-slate-50 hover:text-teal-600 hover:border-slate-350 transition-all">
                     <span class="material-symbols-outlined text-xl">hub</span>
                 </div>
-                <div class="w-10 h-10 rounded-lg bg-slate-900 flex items-center justify-center text-slate-300 border border-slate-800 cursor-pointer hover:bg-slate-800 hover:text-teal-400 hover:border-slate-700 transition-all">
+                <div class="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-slate-600 border border-slate-200 cursor-pointer hover:bg-slate-50 hover:text-teal-600 hover:border-slate-350 transition-all">
                     <span class="material-symbols-outlined text-xl">terminal</span>
                 </div>
             </div>
         </div>
     </div>
-    <div class="px-6 py-6 border-t border-slate-800 text-center text-slate-500 text-sm">
+    <div class="px-6 py-6 border-t border-slate-200 text-center text-slate-500 text-sm">
         © 2026 KSTech. All rights reserved.
     </div>
 </footer>
