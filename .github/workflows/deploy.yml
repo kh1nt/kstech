@@ -1,0 +1,59 @@
+name: Deploy to MonsterASP
+
+on:
+  push:
+    branches: [ main, master ] # Triggers on push to main or master branch
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest
+
+    steps:
+      # 1. Checkout the source code from GitHub
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Setup Node.js to compile Tailwind CSS
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 3. Install npm dependencies and build Tailwind CSS
+      - name: Install npm dependencies
+        run: |
+          cd kstech
+          npm ci
+
+      - name: Compile Tailwind CSS
+        run: |
+          cd kstech
+          npm run css:build
+
+      # 4. Setup .NET SDK
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # 5. Restore NuGet dependencies
+      - name: Restore dependencies
+        run: dotnet restore ./kstech/kstech.csproj
+
+      # 6. Build the C# project in Release mode
+      - name: Build project
+        run: dotnet build ./kstech/kstech.csproj --configuration Release --no-restore
+
+      # 7. Publish/Compile the project into a local folder named 'publish'
+      - name: Publish project
+        run: dotnet publish ./kstech/kstech.csproj --configuration Release --no-restore --output ./publish
+
+      # 8. Deploy the compiled files to MonsterASP via WebDeploy
+      - name: Deploy to MonsterASP.NET
+        uses: rasmusbuchholdt/simply-web-deploy@2.1.0
+        with:
+          website-name: ${{ secrets.MONSTERASP_SITE }}
+          server-computer-name: ${{ secrets.MONSTERASP_SERVER }}
+          server-username: ${{ secrets.MONSTERASP_USERNAME }}
+          server-password: ${{ secrets.MONSTERASP_PASSWORD }}
+          source-path: ./publish
